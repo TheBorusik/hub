@@ -1,0 +1,719 @@
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  RefreshCw, Plus, Trash2, Pencil, Copy, Star, Lock, Unlock,
+  ChevronRight, ChevronDown, X, Folder, Search, Server, Settings, Save,
+} from "lucide-react";
+import { Group, Panel } from "react-resizable-panels";
+import { ResizeHandle } from "@/components/layout/ResizeHandle";
+import { useContourApi } from "@/lib/ws-api";
+import { BuildRulesEditor, BuildRulesToggleButton, BUILD_RULES_TEMPLATE } from "./BuildRulesEditor";
+import type { AdapterType, AdapterConfiguration, ConfigSection } from "../../types";
+
+type Overlay =
+  | { type: "none" }
+  | { type: "upsertType"; editing: AdapterType | null }
+  | { type: "upsertConfig"; editing: AdapterConfiguration | null; adapterType: string }
+  | { type: "createSection"; configId: number }
+  | { type: "confirm"; title: string; onConfirm: () => void };
+
+interface OpenTab {
+  config: AdapterConfiguration;
+  selectedSectionId: number | null;
+}
+
+export function ConfigurationPanel() {
+  const api = useContourApi();
+  const [types, setTypes] = useState<AdapterType[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState("");
+
+  const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
+  const [typeConfigs, setTypeConfigs] = useState<Record<string, AdapterConfiguration[]>>({});
+  const [loadingConfigs, setLoadingConfigs] = useState<Set<string>>(new Set());
+
+  const [configSections, setConfigSections] = useState<Record<number, ConfigSection[]>>({});
+  const [loadingSections, setLoadingSections] = useState<Set<number>>(new Set());
+
+  const [openTabs, setOpenTabs] = useState<OpenTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<number | null>(null);
+  const [dirtyTabs, setDirtyTabs] = useState<Set<number>>(new Set());
+  const [overlay, setOverlay] = useState<Overlay>({ type: "none" });
+
+  const activeTab = openTabs.find((t) => t.config.ConfigurationId === activeTabId) ?? null;
+
+  /* ---- data loading ---- */
+
+  const loadTypes = useCallback(async () => {
+    if (!api) return;
+    setLoading(true);
+    try {
+      const res = await api.getAdapterTypes();
+      const list = (res as Record<string, unknown>).AdapterTypes;
+      setTypes(Array.isArray(list) ? (list as AdapterType[]) : []);
+    } catch { setTypes([]); }
+    finally { setLoading(false); }
+  }, [api]);
+
+  useEffect(() => { loadTypes(); }, [loadTypes]);
+
+  const loadConfigs = useCallback(async (adapterType: string) => {
+    if (!api) return;
+    setLoadingConfigs((p) => new Set(p).add(adapterType));
+    try {
+      const res = await api.getAdapterConfigurations(adapterType);
+      const list = (res as Record<string, unknown>).Configurations;
+      setTypeConfigs((prev) => ({ ...prev, [adapterType]: Array.isArray(list) ? (list as AdapterConfiguration[]) : [] }));
+    } catch {
+      setTypeConfigs((prev) => ({ ...prev, [adapterType]: [] }));
+    } finally {
+      setLoadingConfigs((p) => { const n = new Set(p); n.delete(adapterType); return n; });
+    }
+  }, [api]);
+
+  const loadSections = useCallback(async (configId: number) => {
+    if (!api) return;
+    setLoadingSections((p) => new Set(p).add(configId));
+    try {
+      const res = await api.getSections(configId);
+      const list = (res as Record<string, unknown>).Sections ?? (res as Record<string, unknown>).ConfigurationSections;
+      setConfigSections((prev) => ({ ...prev, [configId]: Array.isArray(list) ? (list as ConfigSection[]) : [] }));
+    } catch {
+      setConfigSections((prev) => ({ ...prev, [configId]: [] }));
+    } finally {
+      setLoadingSections((p) => { const n = new Set(p); n.delete(configId); return n; });
+    }
+  }, [api]);
+
+  /* ---- tree interactions ---- */
+
+  const toggleType = (adapterType: string) => {
+    setExpandedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(adapterType)) { next.delete(adapterType); } else {
+        next.add(adapterType);
+        if (!typeConfigs[adapterType]) loadConfigs(adapterType);
+      }
+      return next;
+    });
+  };
+
+  const openConfig = (c: AdapterConfiguration) => {
+    const existing = openTabs.find((t) => t.config.ConfigurationId === c.ConfigurationId);
+    if (existing) {
+      setActiveTabId(c.ConfigurationId);
+    } else {
+      setOpenTabs((prev) => [...prev, { config: c, selectedSectionId: null }]);
+      setActiveTabId(c.ConfigurationId);
+      if (!configSections[c.ConfigurationId]) loadSections(c.ConfigurationId);
+    }
+  };
+
+  const closeTab = (configId: number) => {
+    setOpenTabs((prev) => {
+      const idx = prev.findIndex((t) => t.config.ConfigurationId === configId);
+      const next = prev.filter((t) => t.config.ConfigurationId !== configId);
+      if (activeTabId === configId) {
+        const newActive = next[Math.min(idx, next.length - 1)]?.config.ConfigurationId ?? null;
+        setActiveTabId(newActive);
+      }
+      return next;
+    });
+    setDirtyTabs((p) => { const n = new Set(p); n.delete(configId); return n; });
+  };
+
+  const selectSection = (configId: number, sectionId: number | null) => {
+    setOpenTabs((prev) =>
+      prev.map((t) => t.config.ConfigurationId === configId ? { ...t, selectedSectionId: sectionId } : t)
+    );
+  };
+
+  const markDirty = (configId: number, dirty: boolean) => {
+    setDirtyTabs((p) => {
+      const n = new Set(p);
+      if (dirty) n.add(configId); else n.delete(configId);
+      return n;
+    });
+  };
+
+  /* ---- CRUD actions ---- */
+
+  const handleDeleteType = (t: AdapterType) => {
+    if (!api) return;
+    setOverlay({
+      type: "confirm",
+      title: `Delete adapter type "${t.AdapterType}"?`,
+      onConfirm: async () => { await api.deleteAdapterType(t.AdapterType); setOverlay({ type: "none" }); loadTypes(); },
+    });
+  };
+
+  const handleDeleteConfig = (c: AdapterConfiguration) => {
+    if (!api) return;
+    setOverlay({
+      type: "confirm",
+      title: `Delete configuration "${c.Name}"?`,
+      onConfirm: async () => {
+        await api.deleteAdapterConfiguration(c.ConfigurationId);
+        setOverlay({ type: "none" });
+        closeTab(c.ConfigurationId);
+        loadConfigs(c.AdapterType);
+      },
+    });
+  };
+
+  const handleSetDefault = async (c: AdapterConfiguration) => {
+    if (!api) return;
+    await api.setDefaultConfiguration(c.ConfigurationId);
+    loadConfigs(c.AdapterType);
+  };
+
+  const handleClone = async (c: AdapterConfiguration) => {
+    if (!api) return;
+    await api.cloneConfiguration(c.ConfigurationId, `${c.Name}_clone`);
+    loadConfigs(c.AdapterType);
+  };
+
+  const handleDeleteSection = (section: ConfigSection, configId: number) => {
+    if (!api) return;
+    setOverlay({
+      type: "confirm",
+      title: `Delete section "${section.DisplayName || section.Name}"?`,
+      onConfirm: async () => {
+        await api.deleteSection(section.SectionId);
+        setOverlay({ type: "none" });
+        loadSections(configId);
+        selectSection(configId, null);
+      },
+    });
+  };
+
+  const handleSaveSection = async (section: ConfigSection, editedJson: string, editedBuildRules?: string, editedBuildTable?: string) => {
+    if (!api) return;
+    let parsedJson: unknown;
+    try { parsedJson = JSON.parse(editedJson); } catch {
+      alert("Invalid JSON — please fix before saving");
+      return;
+    }
+    let parsedRules: unknown = null;
+    if (editedBuildRules && editedBuildRules.trim()) {
+      try { parsedRules = JSON.parse(editedBuildRules); } catch {
+        alert("Invalid JSON in Build Rules");
+        return;
+      }
+    }
+    await api.updateSection({
+      SectionId: section.SectionId,
+      Name: section.Name,
+      DisplayName: section.DisplayName ?? null,
+      Inherited: section.Inherited ?? null,
+      JsonData: parsedJson,
+      BuildRules: parsedRules,
+      BuildTable: editedBuildTable?.trim() || null,
+    });
+    await loadSections(activeTabId!);
+    markDirty(activeTabId!, false);
+  };
+
+  const handleToggleLock = async (section: ConfigSection) => {
+    if (!api) return;
+    const newLocked = !section.Locked;
+    await api.updateSection({
+      SectionId: section.SectionId,
+      Name: section.Name,
+      DisplayName: section.DisplayName ?? null,
+      Inherited: section.Inherited ?? null,
+      JsonData: section.JsonData ? (typeof section.JsonData === "string" ? JSON.parse(section.JsonData) : section.JsonData) : {},
+      Locked: newLocked,
+    });
+    if (activeTabId) await loadSections(activeTabId);
+  };
+
+  /* ---- filter ---- */
+
+  const lowerFilter = filter.toLowerCase();
+
+  const filteredTypes = useMemo(() => {
+    if (!lowerFilter) return types;
+    return types.filter((t) => {
+      if (t.AdapterType.toLowerCase().includes(lowerFilter)) return true;
+      const configs = typeConfigs[t.AdapterType] ?? [];
+      return configs.some((c) =>
+        c.Name.toLowerCase().includes(lowerFilter) ||
+        (c.Description ?? "").toLowerCase().includes(lowerFilter)
+      );
+    });
+  }, [types, typeConfigs, lowerFilter]);
+
+  const treeSelectedType = activeTab?.config.AdapterType ?? undefined;
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden" style={{ position: "relative" }}>
+      <Group direction="horizontal" id="config-master-detail">
+        {/* === Left: tree === */}
+        <Panel defaultSize="280px" minSize="180px" maxSize="45%" groupResizeBehavior="preserve-pixel-size">
+          <div className="flex flex-col h-full" style={{ background: "var(--color-sidebar)" }}>
+            <div className="flex items-center gap-1 shrink-0" style={{ height: 35, padding: "0 8px", borderBottom: "1px solid var(--color-border)" }}>
+              <button onClick={loadTypes} disabled={loading} className="toolbar-btn" title="Refresh">
+                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              </button>
+              <button onClick={() => setOverlay({ type: "upsertType", editing: null })} className="toolbar-btn" title="Add Adapter Type">
+                <Plus size={14} />
+              </button>
+              {treeSelectedType && (
+                <button onClick={() => setOverlay({ type: "upsertConfig", editing: null, adapterType: treeSelectedType })} className="toolbar-btn" title={`Add Configuration to ${treeSelectedType}`}>
+                  <Settings size={13} style={{ marginRight: -3 }} /><Plus size={9} />
+                </button>
+              )}
+              <div style={{ flex: 1 }} />
+              <span style={{ fontSize: 10, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase" }}>Configuration</span>
+            </div>
+            <div className="shrink-0" style={{ padding: "4px 8px", borderBottom: "1px solid var(--color-border)" }}>
+              <div className="flex items-center gap-1" style={{ background: "var(--color-input-bg)", border: "1px solid var(--color-border)", borderRadius: 3, padding: "0 6px", height: 24 }}>
+                <Search size={12} style={{ flexShrink: 0, opacity: 0.5 }} />
+                <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter..." style={{ flex: 1, background: "none", border: "none", color: "var(--color-text)", fontSize: 12, outline: "none", height: "100%" }} />
+                {filter && <button onClick={() => setFilter("")} className="toolbar-btn" style={{ padding: 0 }}><X size={12} /></button>}
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto">
+              {filteredTypes.map((t) => {
+                const isTypeExp = expandedTypes.has(t.AdapterType);
+                const configs = typeConfigs[t.AdapterType] ?? [];
+                const isLoadingCfg = loadingConfigs.has(t.AdapterType);
+                return (
+                  <div key={t.AdapterType}>
+                    <TreeRow depth={0} icon={<Server size={14} style={{ opacity: 0.7, color: "#5CADD5" }} />} label={t.AdapterType} badge={t.Exported ? "E" : undefined} expanded={isTypeExp} onToggle={() => toggleType(t.AdapterType)} onClick={() => { if (!isTypeExp) toggleType(t.AdapterType); }}
+                      actions={<>
+                        <button onClick={(e) => { e.stopPropagation(); setOverlay({ type: "upsertConfig", editing: null, adapterType: t.AdapterType }); }} className="tree-action-btn" title="Add Config"><Plus size={11} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); setOverlay({ type: "upsertType", editing: t }); }} className="tree-action-btn" title="Edit Type"><Pencil size={11} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteType(t); }} className="tree-action-btn" style={{ color: "#F44336" }} title="Delete Type"><Trash2 size={11} /></button>
+                      </>}
+                    />
+                    {isTypeExp && (<>
+                      {isLoadingCfg && configs.length === 0 && <div style={{ padding: "4px 0 4px 40px", fontSize: 11, color: "var(--color-text-muted)" }}>Loading...</div>}
+                      {!isLoadingCfg && configs.length === 0 && <div style={{ padding: "4px 0 4px 40px", fontSize: 11, color: "var(--color-text-muted)" }}>No configurations</div>}
+                      {configs.map((c) => {
+                        const isActive = activeTabId === c.ConfigurationId;
+                        const isOpen = openTabs.some((tab) => tab.config.ConfigurationId === c.ConfigurationId);
+                        const isDirty = dirtyTabs.has(c.ConfigurationId);
+                        const matchesFilter = !lowerFilter || c.Name.toLowerCase().includes(lowerFilter) || (c.Description ?? "").toLowerCase().includes(lowerFilter);
+                        if (lowerFilter && !matchesFilter && !t.AdapterType.toLowerCase().includes(lowerFilter)) return null;
+                        return (
+                          <TreeRow key={c.ConfigurationId} depth={1}
+                            icon={<span style={{ position: "relative", display: "inline-flex" }}><Settings size={13} style={{ opacity: 0.7, color: c.Enabled ? "#4CAF50" : "#9E9E9E" }} />{c.IsDefault && <Star size={8} style={{ position: "absolute", top: -2, right: -4, color: "#FFD700" }} />}</span>}
+                            label={c.Name} sublabel={c.Description || undefined} selected={isActive} dotIndicator={(isOpen && !isActive) || isDirty}
+                            onClick={() => openConfig(c)}
+                            actions={<>
+                              <button onClick={(e) => { e.stopPropagation(); setOverlay({ type: "upsertConfig", editing: c, adapterType: t.AdapterType }); }} className="tree-action-btn" title="Edit"><Pencil size={11} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); handleClone(c); }} className="tree-action-btn" title="Clone"><Copy size={11} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); handleSetDefault(c); }} className="tree-action-btn" style={{ color: c.IsDefault ? "#FFD700" : undefined }} title="Default"><Star size={11} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); handleDeleteConfig(c); }} className="tree-action-btn" style={{ color: "#F44336" }} title="Delete"><Trash2 size={11} /></button>
+                            </>}
+                          />
+                        );
+                      })}
+                    </>)}
+                  </div>
+                );
+              })}
+              {filteredTypes.length === 0 && !loading && <div style={{ textAlign: "center", color: "var(--color-text-muted)", padding: 24, fontSize: 12 }}>{filter ? "No matches" : "No adapter types"}</div>}
+            </div>
+          </div>
+        </Panel>
+
+        <ResizeHandle />
+
+        {/* === Right: tabs + content === */}
+        <Panel minSize="30%">
+          <div className="flex flex-col h-full" style={{ background: "#1e1e1e" }}>
+            {openTabs.length === 0 ? (
+              <Placeholder text="Click a configuration to open it" />
+            ) : (<>
+              <div className="flex shrink-0 overflow-x-auto" style={{ borderBottom: "1px solid var(--color-border)", height: 35 }}>
+                {openTabs.map((tab) => {
+                  const isActive = tab.config.ConfigurationId === activeTabId;
+                  const isDirty = dirtyTabs.has(tab.config.ConfigurationId);
+                  return (
+                    <div key={tab.config.ConfigurationId} className="flex items-center gap-1 shrink-0"
+                      style={{ height: "100%", padding: "0 4px 0 12px", cursor: "pointer", userSelect: "none", borderRight: "1px solid var(--color-border)", fontSize: 12, color: isActive ? "var(--color-text)" : "var(--color-text-muted)", fontWeight: isActive ? 500 : 400, background: isActive ? "#1e1e1e" : "var(--color-sidebar)", maxWidth: 200 }}
+                      onClick={() => setActiveTabId(tab.config.ConfigurationId)}
+                    >
+                      <Settings size={12} style={{ opacity: 0.6, flexShrink: 0, color: tab.config.Enabled ? "#4CAF50" : "#9E9E9E" }} />
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                        {tab.config.Name}{isDirty ? " •" : ""}
+                      </span>
+                      <button onClick={(e) => { e.stopPropagation(); closeTab(tab.config.ConfigurationId); }} className="toolbar-btn" style={{ padding: 2, opacity: isActive ? 1 : 0.5 }} title="Close">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {activeTab && (
+                <div className="flex-1" style={{ minHeight: 0 }}>
+                  <ConfigTabContent
+                    tab={activeTab}
+                    sections={configSections[activeTab.config.ConfigurationId] ?? []}
+                    isLoadingSections={loadingSections.has(activeTab.config.ConfigurationId)}
+                    onSelectSection={(sid) => selectSection(activeTab.config.ConfigurationId, sid)}
+                    onAddSection={() => setOverlay({ type: "createSection", configId: activeTab.config.ConfigurationId })}
+                    onSaveSection={handleSaveSection}
+                    onDeleteSection={(s) => handleDeleteSection(s, activeTab.config.ConfigurationId)}
+                    onToggleLock={handleToggleLock}
+                    onDirtyChange={(dirty) => markDirty(activeTab.config.ConfigurationId, dirty)}
+                  />
+                </div>
+              )}
+            </>)}
+          </div>
+        </Panel>
+      </Group>
+
+      {/* Overlays */}
+      {overlay.type === "confirm" && <ConfirmOverlay title={overlay.title} onConfirm={overlay.onConfirm} onCancel={() => setOverlay({ type: "none" })} />}
+      {overlay.type === "upsertType" && <UpsertTypeOverlay editing={overlay.editing} api={api} onClose={() => { setOverlay({ type: "none" }); loadTypes(); }} />}
+      {overlay.type === "upsertConfig" && <UpsertConfigOverlay editing={overlay.editing} adapterType={overlay.adapterType} api={api} onClose={() => { setOverlay({ type: "none" }); loadConfigs(overlay.adapterType); }} />}
+      {overlay.type === "createSection" && <CreateSectionOverlay configId={overlay.configId} api={api} onClose={() => { setOverlay({ type: "none" }); loadSections(overlay.configId); }} />}
+    </div>
+  );
+}
+
+/* ===== Tab content: sections list + JSON editor ===== */
+
+function ConfigTabContent({ tab, sections, isLoadingSections, onSelectSection, onAddSection, onSaveSection, onDeleteSection, onToggleLock, onDirtyChange }: {
+  tab: OpenTab;
+  sections: ConfigSection[];
+  isLoadingSections: boolean;
+  onSelectSection: (sectionId: number | null) => void;
+  onAddSection: () => void;
+  onSaveSection: (section: ConfigSection, editedJson: string, editedBuildRules?: string, editedBuildTable?: string) => Promise<void>;
+  onDeleteSection: (section: ConfigSection) => void;
+  onToggleLock: (section: ConfigSection) => Promise<void>;
+  onDirtyChange: (dirty: boolean) => void;
+}) {
+  const selectedSection = sections.find((s) => s.SectionId === tab.selectedSectionId) ?? null;
+  const [editedJson, setEditedJson] = useState("");
+  const [editedBuildRules, setEditedBuildRules] = useState("");
+  const [editedBuildTable, setEditedBuildTable] = useState("");
+  const [saving, setSaving] = useState(false);
+  const originalJsonRef = useRef("");
+  const originalBuildRulesRef = useRef("");
+  const originalBuildTableRef = useRef("");
+
+  useEffect(() => {
+    if (selectedSection) {
+      const json = tryFormatJson(selectedSection.JsonData ?? "{}");
+      const rules = tryFormatJson(selectedSection.BuildRules ?? "");
+      const table = typeof selectedSection.BuildTable === "string" ? selectedSection.BuildTable : (selectedSection.BuildTable ? "true" : "");
+      setEditedJson(json);
+      setEditedBuildRules(rules);
+      setEditedBuildTable(table);
+      originalJsonRef.current = json;
+      originalBuildRulesRef.current = rules;
+      originalBuildTableRef.current = table;
+      onDirtyChange(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSection?.SectionId]);
+
+  const isDirty = editedJson !== originalJsonRef.current
+    || editedBuildRules !== originalBuildRulesRef.current
+    || editedBuildTable !== originalBuildTableRef.current;
+
+  const hasBuildRules = !!(selectedSection && (selectedSection.BuildRules || editedBuildRules));
+
+  const handleJsonChange = (val: string) => {
+    setEditedJson(val);
+    onDirtyChange(val !== originalJsonRef.current || editedBuildRules !== originalBuildRulesRef.current || editedBuildTable !== originalBuildTableRef.current);
+  };
+  const handleBuildRulesChange = (val: string) => {
+    setEditedBuildRules(val);
+    onDirtyChange(editedJson !== originalJsonRef.current || val !== originalBuildRulesRef.current || editedBuildTable !== originalBuildTableRef.current);
+  };
+  const handleBuildTableChange = (val: string) => {
+    setEditedBuildTable(val);
+    onDirtyChange(editedJson !== originalJsonRef.current || editedBuildRules !== originalBuildRulesRef.current || val !== originalBuildTableRef.current);
+  };
+
+  const handleCreateBuildRules = () => {
+    setEditedBuildRules(BUILD_RULES_TEMPLATE);
+    onDirtyChange(true);
+  };
+  const handleRemoveBuildRules = () => {
+    setEditedBuildRules("");
+    setEditedBuildTable("");
+    onDirtyChange(true);
+  };
+
+  const handleSave = async () => {
+    if (!selectedSection || !isDirty) return;
+    setSaving(true);
+    try {
+      await onSaveSection(selectedSection, editedJson, editedBuildRules, editedBuildTable);
+      originalJsonRef.current = editedJson;
+      originalBuildRulesRef.current = editedBuildRules;
+      originalBuildTableRef.current = editedBuildTable;
+      onDirtyChange(false);
+    } finally { setSaving(false); }
+  };
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s" && isDirty && selectedSection) {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty, selectedSection, editedJson, editedBuildRules, editedBuildTable]);
+
+  return (
+    <Group direction="horizontal" id={`tab-sections-${tab.config.ConfigurationId}`}>
+      {/* Sections list */}
+      <Panel defaultSize="220px" minSize="140px" maxSize="40%" groupResizeBehavior="preserve-pixel-size">
+        <div className="flex flex-col h-full" style={{ background: "var(--color-sidebar)", borderRight: "1px solid var(--color-border)" }}>
+          <div className="flex items-center shrink-0" style={{ padding: "6px 10px", borderBottom: "1px solid var(--color-border)" }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", flex: 1 }}>
+              Sections
+              {sections.length > 0 && <span style={{ fontWeight: 400, marginLeft: 6 }}>{sections.length}</span>}
+            </span>
+            <button onClick={onAddSection} className="toolbar-btn" title="Add Section"><Plus size={14} /></button>
+          </div>
+          <div className="flex-1 overflow-auto">
+            {isLoadingSections && sections.length === 0 && <div style={{ padding: 10, fontSize: 12, color: "var(--color-text-muted)" }}>Loading...</div>}
+            {!isLoadingSections && sections.length === 0 && <div style={{ padding: 10, fontSize: 12, color: "var(--color-text-muted)" }}>No sections</div>}
+            {sections.map((s) => {
+              const isSel = s.SectionId === tab.selectedSectionId;
+              return (
+                <div key={s.SectionId} className="flex items-center group"
+                  onClick={() => onSelectSection(s.SectionId)}
+                  style={{ height: 26, padding: "0 10px", cursor: "pointer", fontSize: 12, gap: 6, color: isSel ? "var(--color-text)" : "var(--color-text-muted)", backgroundColor: isSel ? "rgba(255,255,255,0.07)" : "transparent", fontWeight: isSel ? 500 : 400 }}
+                  onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
+                  onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = "transparent"; }}
+                >
+                  {s.Locked ? <Lock size={12} style={{ flexShrink: 0, color: "#F6511D" }} /> : <Folder size={12} style={{ flexShrink: 0, opacity: 0.6 }} />}
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.DisplayName || s.Name}</span>
+                  {s.BuildTable && <span style={{ fontSize: 9, background: "rgba(255,255,255,0.08)", color: "var(--color-text-muted)", borderRadius: 3, padding: "0 3px", lineHeight: "16px", flexShrink: 0 }}>BT</span>}
+                  <button className="hidden group-hover:inline-flex tree-action-btn" onClick={(e) => { e.stopPropagation(); onDeleteSection(s); }} style={{ color: "#F44336" }} title="Delete Section"><Trash2 size={11} /></button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Panel>
+
+      <ResizeHandle />
+
+      {/* Editor area */}
+      <Panel minSize="30%">
+        <div className="flex flex-col h-full" style={{ background: "#1e1e1e" }}>
+          {selectedSection ? (<>
+            {/* Editor toolbar */}
+            <div className="shrink-0 flex items-center gap-2" style={{ padding: "0 12px", height: 32, borderBottom: "1px solid var(--color-border)" }}>
+              <Folder size={12} style={{ opacity: 0.5, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: "var(--color-text)", fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {selectedSection.DisplayName || selectedSection.Name}
+                {isDirty && <span style={{ color: "var(--color-text-muted)", marginLeft: 4 }}>• modified</span>}
+              </span>
+              <span style={{ fontSize: 10, color: "var(--color-text-muted)", flexShrink: 0 }}>
+                ID: {selectedSection.SectionId}
+                {selectedSection.Inherited && " · Inherited"}
+              </span>
+              <BuildRulesToggleButton hasBuildRules={hasBuildRules} onCreateBuildRules={handleCreateBuildRules} />
+              <button onClick={() => onToggleLock(selectedSection)} className="toolbar-btn" style={{ color: selectedSection.Locked ? "#F6511D" : undefined }} title={selectedSection.Locked ? "Unlock" : "Lock"}>
+                {selectedSection.Locked ? <Lock size={14} /> : <Unlock size={14} />}
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!isDirty || saving}
+                className="toolbar-btn"
+                style={{ color: isDirty ? "#4CAF50" : undefined, opacity: isDirty ? 1 : 0.4 }}
+                title="Save (Ctrl+S)"
+              >
+                <Save size={14} />
+              </button>
+              <button onClick={() => onDeleteSection(selectedSection)} className="toolbar-btn" style={{ color: "#F44336" }} title="Delete Section">
+                <Trash2 size={14} />
+              </button>
+            </div>
+            <div className="flex-1" style={{ minHeight: 0 }}>
+              <BuildRulesEditor
+                sectionId={selectedSection.SectionId}
+                editedJson={editedJson} onJsonChange={handleJsonChange}
+                editedBuildRules={editedBuildRules} onBuildRulesChange={handleBuildRulesChange}
+                editedBuildTable={editedBuildTable} onBuildTableChange={handleBuildTableChange}
+                hasBuildRules={hasBuildRules}
+                onRemoveBuildRules={handleRemoveBuildRules}
+                pathPrefix="config-section"
+              />
+            </div>
+          </>) : (
+            <Placeholder text="Select a section to view its configuration" />
+          )}
+        </div>
+      </Panel>
+    </Group>
+  );
+}
+
+/* ===== Tree row ===== */
+
+function TreeRow({ depth, icon, label, sublabel, badge, expanded, selected, dotIndicator, onToggle, onClick, actions }: {
+  depth: number; icon: React.ReactNode; label: string; sublabel?: string; badge?: string;
+  expanded?: boolean; selected?: boolean; dotIndicator?: boolean;
+  onToggle?: () => void; onClick?: () => void; actions?: React.ReactNode;
+}) {
+  const hasChildren = expanded !== undefined;
+  const paddingLeft = 8 + depth * 16;
+  return (
+    <div className="flex items-center group"
+      style={{ height: 26, paddingLeft, paddingRight: 6, cursor: "pointer", userSelect: "none", backgroundColor: selected ? "rgba(255,255,255,0.07)" : "transparent", gap: 4 }}
+      onClick={onClick}
+      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
+      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.backgroundColor = "transparent"; }}
+    >
+      {hasChildren ? (
+        <span onClick={(e) => { e.stopPropagation(); onToggle?.(); }} style={{ display: "inline-flex", alignItems: "center", flexShrink: 0, width: 16 }}>
+          {expanded ? <ChevronDown size={14} style={{ opacity: 0.6 }} /> : <ChevronRight size={14} style={{ opacity: 0.6 }} />}
+        </span>
+      ) : <span style={{ width: 16, flexShrink: 0 }} />}
+      <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center" }}>{icon}</span>
+      <span style={{ fontSize: 12, color: selected ? "var(--color-text)" : "var(--color-text-muted)", fontWeight: selected ? 500 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{label}</span>
+      {sublabel && <span style={{ fontSize: 10, color: "var(--color-text-muted)", opacity: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 100 }}>{sublabel}</span>}
+      {badge && <span style={{ fontSize: 9, background: "rgba(255,255,255,0.1)", color: "var(--color-text-muted)", borderRadius: 3, padding: "0 3px", lineHeight: "16px", flexShrink: 0 }}>{badge}</span>}
+      {dotIndicator && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-text-muted)", opacity: 0.4, flexShrink: 0 }} />}
+      <div className="hidden group-hover:flex items-center gap-0" style={{ flexShrink: 0 }}>{actions}</div>
+    </div>
+  );
+}
+
+/* ===== Helpers ===== */
+
+function Placeholder({ text }: { text: string }) {
+  return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--color-text-muted)", fontSize: 12 }}>{text}</div>;
+}
+
+function tryFormatJson(raw: unknown): string {
+  if (raw == null) return "{}";
+  if (typeof raw !== "string") { try { return JSON.stringify(raw, null, 2); } catch { return "{}"; } }
+  try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; }
+}
+
+/* ===== Overlays ===== */
+
+function ConfirmOverlay({ title, onConfirm, onCancel }: { title: string; onConfirm: () => void; onCancel: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  return (
+    <div style={overlayBg}><div style={dialogStyle}>
+      <p style={{ fontSize: 13, marginBottom: 16 }}>{title}</p>
+      <div className="flex gap-2" style={{ justifyContent: "flex-end" }}>
+        <button onClick={onCancel} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
+        <button onClick={async () => { setSubmitting(true); await onConfirm(); setSubmitting(false); }} disabled={submitting} style={dangerBtnStyle}>{submitting ? "Deleting..." : "Delete"}</button>
+      </div>
+    </div></div>
+  );
+}
+
+function CreateSectionOverlay({ configId, api, onClose }: { configId: number; api: ReturnType<typeof useContourApi>; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleCreate = async () => {
+    if (!api || !name.trim()) return;
+    setSubmitting(true);
+    try {
+      await api.createSection({
+        ConfigurationId: configId,
+        Name: name.trim(),
+        DisplayName: displayName.trim() || null,
+        Inherited: null,
+        JsonData: {},
+      });
+      onClose();
+    } finally { setSubmitting(false); }
+  };
+
+  return (
+    <div style={overlayBg}><div style={{ ...dialogStyle, width: 400 }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>Add Section</span>
+        <button onClick={onClose} className="toolbar-btn"><X size={14} /></button>
+      </div>
+      <div className="flex flex-col gap-2">
+        <label style={labelStyle}>Name <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus placeholder="e.g. CommandProcessor" /></label>
+        <label style={labelStyle}>Display Name <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={inputStyle} placeholder="Optional" /></label>
+      </div>
+      <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 16 }}>
+        <button onClick={onClose} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
+        <button onClick={handleCreate} disabled={submitting || !name.trim()} style={primaryBtnStyle}>{submitting ? "Creating..." : "Create"}</button>
+      </div>
+    </div></div>
+  );
+}
+
+function UpsertTypeOverlay({ editing, api, onClose }: { editing: AdapterType | null; api: ReturnType<typeof useContourApi>; onClose: () => void }) {
+  const [name, setName] = useState(editing?.AdapterType ?? "");
+  const [maxInst, setMaxInst] = useState(String(editing?.MaxInstances ?? 1));
+  const [exported, setExported] = useState(editing?.Exported ?? false);
+  const [submitting, setSubmitting] = useState(false);
+  const handleSave = async () => { if (!api || !name.trim()) return; setSubmitting(true); try { await api.upsertAdapterType({ AdapterType: name.trim(), MaxInstances: Number(maxInst), Exported: exported }); onClose(); } finally { setSubmitting(false); } };
+  return (
+    <div style={overlayBg}><div style={{ ...dialogStyle, width: 400 }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>{editing ? "Edit Adapter Type" : "Add Adapter Type"}</span>
+        <button onClick={onClose} className="toolbar-btn"><X size={14} /></button>
+      </div>
+      <div className="flex flex-col gap-2">
+        <label style={labelStyle}>AdapterType <input value={name} onChange={(e) => setName(e.target.value)} disabled={!!editing} style={inputStyle} /></label>
+        <label style={labelStyle}>MaxInstances <input type="number" value={maxInst} onChange={(e) => setMaxInst(e.target.value)} style={inputStyle} /></label>
+        <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8 }}><input type="checkbox" checked={exported} onChange={(e) => setExported(e.target.checked)} /> Exported</label>
+      </div>
+      <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 16 }}>
+        <button onClick={onClose} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
+        <button onClick={handleSave} disabled={submitting} style={primaryBtnStyle}>{submitting ? "Saving..." : "Save"}</button>
+      </div>
+    </div></div>
+  );
+}
+
+function UpsertConfigOverlay({ editing, adapterType, api, onClose }: { editing: AdapterConfiguration | null; adapterType: string; api: ReturnType<typeof useContourApi>; onClose: () => void }) {
+  const [name, setName] = useState(editing?.Name ?? "");
+  const [desc, setDesc] = useState(editing?.Description ?? "");
+  const [enabled, setEnabled] = useState(editing?.Enabled ?? true);
+  const [exp, setExp] = useState(editing?.Exported ?? false);
+  const [submitting, setSubmitting] = useState(false);
+  const handleSave = async () => {
+    if (!api || !name.trim()) return; setSubmitting(true);
+    try { if (editing) { await api.updateAdapterConfiguration({ ConfigurationId: editing.ConfigurationId, AdapterType: adapterType, Name: name.trim(), Description: desc, Enabled: enabled, Exported: exp }); } else { await api.createAdapterConfiguration({ AdapterType: adapterType, Name: name.trim(), Description: desc, Enabled: enabled, Exported: exp }); } onClose(); } finally { setSubmitting(false); }
+  };
+  return (
+    <div style={overlayBg}><div style={{ ...dialogStyle, width: 440 }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>{editing ? "Edit Configuration" : "Create Configuration"}</span>
+        <button onClick={onClose} className="toolbar-btn"><X size={14} /></button>
+      </div>
+      <div className="flex flex-col gap-2">
+        <label style={labelStyle}>Name <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} /></label>
+        <label style={labelStyle}>Description <input value={desc} onChange={(e) => setDesc(e.target.value)} style={inputStyle} /></label>
+        <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8 }}><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Enabled</label>
+        <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8 }}><input type="checkbox" checked={exp} onChange={(e) => setExp(e.target.checked)} /> Exported</label>
+      </div>
+      <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 16 }}>
+        <button onClick={onClose} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
+        <button onClick={handleSave} disabled={submitting} style={primaryBtnStyle}>{submitting ? "Saving..." : "Save"}</button>
+      </div>
+    </div></div>
+  );
+}
+
+/* ===== Styles ===== */
+
+
+const overlayBg: React.CSSProperties = { position: "absolute", inset: 0, zIndex: 20, backgroundColor: "rgba(0,0,0,0.3)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 60 };
+const dialogStyle: React.CSSProperties = { backgroundColor: "var(--color-sidebar)", border: "1px solid var(--color-border)", borderRadius: 6, padding: 20, minWidth: 340, maxWidth: "80%", boxShadow: "0 4px 24px rgba(0,0,0,0.4)" };
+const labelStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--color-text-muted)" };
+const inputStyle: React.CSSProperties = { background: "var(--color-input-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)", fontSize: 12, padding: "4px 8px", height: 24, borderRadius: 3, outline: "none" };
+const cancelBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "none", border: "1px solid var(--color-border)", color: "var(--color-text-muted)", borderRadius: 3, cursor: "pointer" };
+const primaryBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "#0e639c", border: "none", color: "#fff", borderRadius: 3, cursor: "pointer" };
+const dangerBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "#c53030", border: "none", color: "#fff", borderRadius: 3, cursor: "pointer" };
