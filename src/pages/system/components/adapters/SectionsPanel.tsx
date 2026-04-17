@@ -250,7 +250,7 @@ export function SectionsPanel() {
 
       {/* Overlays */}
       {overlay.type === "createSection" && (
-        <CreateBaseSectionOverlay api={api} onClose={() => { setOverlay({ type: "none" }); loadSections(); }} />
+        <CreateBaseSectionOverlay api={api} baseSections={sections} onClose={() => { setOverlay({ type: "none" }); loadSections(); }} />
       )}
       {overlay.type === "confirm" && (
         <ConfirmOverlay title={overlay.title} onConfirm={overlay.onConfirm} onCancel={() => setOverlay({ type: "none" })} />
@@ -269,38 +269,83 @@ function tryFormatJson(raw: unknown): string {
 
 /* ===== Overlays ===== */
 
-function CreateBaseSectionOverlay({ api, onClose }: { api: ReturnType<typeof useContourApi>; onClose: () => void }) {
+function CreateBaseSectionOverlay({ api, baseSections, onClose }: { api: ReturnType<typeof useContourApi>; baseSections: ConfigSection[]; onClose: () => void }) {
   const [name, setName] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [inheritedId, setInheritedId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const handleInheritedChange = (sectionId: number | null) => {
+    setInheritedId(sectionId);
+    if (sectionId !== null) {
+      const base = baseSections.find((s) => s.SectionId === sectionId);
+      if (base) {
+        setName(base.Name);
+        setDisplayName(base.DisplayName ?? "");
+      }
+    }
+  };
 
   const handleCreate = async () => {
     if (!api || !name.trim()) return;
     setSubmitting(true);
     try {
+      let jsonData: unknown = {};
+      if (inheritedId !== null) {
+        const base = baseSections.find((s) => s.SectionId === inheritedId);
+        if (base?.JsonData) {
+          jsonData = typeof base.JsonData === "string" ? JSON.parse(base.JsonData) : base.JsonData;
+        }
+      }
       await api.createSection({
         Name: name.trim(),
         DisplayName: displayName.trim() || null,
-        Inherited: null,
-        JsonData: {},
+        Inherited: inheritedId,
+        JsonData: jsonData,
       });
       onClose();
     } finally { setSubmitting(false); }
   };
 
   return (
-    <div style={overlayBg}><div style={{ ...dialogStyle, width: 400 }}>
-      <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-        <span style={{ fontSize: 13, fontWeight: 600 }}>Add Base Section</span>
+    <div style={overlayBg}><div style={{ ...dialogStyle, width: 440 }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
+        <div className="flex items-center gap-2">
+          <Plus size={16} style={{ color: "var(--color-text-muted)" }} />
+          <span style={{ fontSize: 14, fontWeight: 600 }}>Add Section</span>
+        </div>
         <button onClick={onClose} className="toolbar-btn"><X size={14} /></button>
       </div>
-      <div className="flex flex-col gap-2">
-        <label style={labelStyle}>Name <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus placeholder="e.g. CommandProcessor" /></label>
-        <label style={labelStyle}>Display Name <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={inputStyle} placeholder="Optional" /></label>
+      <div className="flex flex-col gap-3">
+        <label style={labelStyle}>
+          Inherited
+          <select
+            value={inheritedId ?? ""}
+            onChange={(e) => handleInheritedChange(e.target.value ? Number(e.target.value) : null)}
+            style={{ ...inputStyle, height: 28, cursor: "pointer" }}
+          >
+            <option value="">NO INHERITED</option>
+            {baseSections.map((s) => (
+              <option key={s.SectionId} value={s.SectionId}>
+                {s.Name}{s.DisplayName ? ` — ${s.DisplayName}` : ""} (ID: {s.SectionId})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={labelStyle}>
+          Name*
+          <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="Name*" />
+        </label>
+        <label style={labelStyle}>
+          Display Name
+          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={inputStyle} placeholder="Display Name" />
+        </label>
       </div>
-      <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 16 }}>
+      <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 20 }}>
         <button onClick={onClose} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
-        <button onClick={handleCreate} disabled={submitting || !name.trim()} style={primaryBtnStyle}>{submitting ? "Creating..." : "Create"}</button>
+        <button onClick={handleCreate} disabled={submitting || !name.trim()} style={{ ...primaryBtnStyle, opacity: name.trim() ? 1 : 0.5 }}>
+          {submitting ? "Creating..." : "Create"}
+        </button>
       </div>
     </div></div>
   );

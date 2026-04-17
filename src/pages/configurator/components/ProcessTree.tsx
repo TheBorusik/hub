@@ -1,0 +1,346 @@
+import { useState, useMemo, useCallback } from "react";
+import {
+  ChevronRight, ChevronDown, FolderOpen, Folder,
+  RefreshCw, ChevronsUpDown, ChevronsDownUp,
+  Search, X, Pencil,
+} from "lucide-react";
+import type { Catalog, ProcessModel } from "@/lib/ws-api-models";
+
+/* ─── Props ─────────────────────────────────────────── */
+
+interface ProcessTreeProps {
+  catalogs: Catalog[];
+  actionColors: Record<string, string>;
+  loading: boolean;
+  selectedTypeName: string | null;
+  onRefresh: () => void;
+  onOpenProcess: (model: ProcessModel) => void;
+  onRemoveDraft: (typeName: string) => void;
+}
+
+/* ─── Filter ────────────────────────────────────────── */
+
+const FLAG_NAMES = ["Front", "Back", "Permission", "Source", "Draft"] as const;
+
+function filterCatalog(
+  cat: Catalog, text: string, flags: Set<string>, includeTests: boolean,
+): Catalog | null {
+  const kids: Catalog[] = [];
+  for (const c of cat.Catalogs ?? []) {
+    const fc = filterCatalog(c, text, flags, includeTests);
+    if (fc) kids.push(fc);
+  }
+
+  let contents = cat.Contents ?? [];
+  if (!includeTests) contents = contents.filter((p) => !p.Name?.endsWith("Test"));
+  if (text) {
+    const lc = text.toLowerCase();
+    contents = contents.filter((p) =>
+      (p.Name ?? "").toLowerCase().includes(lc) || (p.TypeName ?? "").toLowerCase().includes(lc),
+    );
+  }
+  if (flags.size > 0) {
+    contents = contents.filter((p) => {
+      for (const f of flags) if (!(p as Record<string, unknown>)[f]) return false;
+      return true;
+    });
+  }
+
+  if (kids.length === 0 && contents.length === 0) return null;
+  return { Name: cat.Name, Catalogs: kids, Contents: contents };
+}
+
+/* ─── Component ─────────────────────────────────────── */
+
+export function ProcessTree({
+  catalogs, actionColors, loading, selectedTypeName,
+  onRefresh, onOpenProcess, onRemoveDraft,
+}: ProcessTreeProps) {
+  const [filter, setFilter] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [activeFlags, setActiveFlags] = useState<Set<string>>(new Set());
+  const [includeTests, setIncludeTests] = useState(false);
+  const [allExpanded, setAllExpanded] = useState(false);
+
+  const filtered = useMemo(() => {
+    const r: Catalog[] = [];
+    for (const c of catalogs) { const fc = filterCatalog(c, filter, activeFlags, includeTests); if (fc) r.push(fc); }
+    return r;
+  }, [catalogs, filter, activeFlags, includeTests]);
+
+  const totalCount = useMemo(() => {
+    let n = 0;
+    const w = (c: Catalog) => { n += (c.Contents?.length ?? 0); (c.Catalogs ?? []).forEach(w); };
+    filtered.forEach(w);
+    return n;
+  }, [filtered]);
+
+  const toggleExpand = useCallback((path: string) => {
+    setExpanded((prev) => { const s = new Set(prev); s.has(path) ? s.delete(path) : s.add(path); return s; });
+  }, []);
+
+  const collectPaths = useCallback((cats: Catalog[], pfx = ""): string[] => {
+    const r: string[] = [];
+    for (const c of cats) { const p = pfx ? `${pfx}.${c.Name}` : c.Name; r.push(p); r.push(...collectPaths(c.Catalogs ?? [], p)); }
+    return r;
+  }, []);
+
+  const handleToggleAll = useCallback(() => {
+    if (allExpanded) setExpanded(new Set()); else setExpanded(new Set(collectPaths(filtered)));
+    setAllExpanded(!allExpanded);
+  }, [allExpanded, filtered, collectPaths]);
+
+  const toggleFlag = (f: string) => {
+    setActiveFlags((prev) => { const s = new Set(prev); s.has(f) ? s.delete(f) : s.add(f); return s; });
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Filter + actions */}
+      <div className="flex items-center gap-1 shrink-0" style={{ padding: "2px 8px", borderBottom: "1px solid var(--color-border)" }}>
+        {/* <Search size={14} style={{ color: "var(--color-text-muted)", flexShrink: 0 }} /> */}
+        <input
+          type="text"
+          placeholder="Filter processes..."
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="flex-1"
+          style={{ fontSize: 12 }}
+        />
+        <button className="toolbar-btn" title="Refresh" onClick={onRefresh} disabled={loading}>
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+        </button>
+        <button className="toolbar-btn" title={allExpanded ? "Collapse all" : "Expand all"} onClick={handleToggleAll}>
+          {allExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
+        </button>
+      </div>
+
+      {/* Flags */}
+      <div className="flex flex-wrap items-center gap-1 shrink-0" style={{ padding: "2px 8px", borderBottom: "1px solid var(--color-border)" }}>
+        {FLAG_NAMES.map((flag) => (
+          <button
+            key={flag}
+            onClick={() => toggleFlag(flag)}
+            style={{
+              fontSize: 9, padding: "0 4px", lineHeight: "16px", borderRadius: 3,
+              border: "1px solid var(--color-border)",
+              background: activeFlags.has(flag) ? "rgba(14,99,156,0.3)" : "transparent",
+              color: activeFlags.has(flag) ? "var(--color-accent)" : "var(--color-text-muted)",
+              cursor: "pointer",
+            }}
+          >
+            {flag}
+          </button>
+        ))}
+        <label style={{ fontSize: 9, color: "var(--color-text-muted)", display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
+          <input type="checkbox" checked={includeTests} onChange={(e) => setIncludeTests(e.target.checked)} style={{ width: 10, height: 10 }} />
+          Tests
+        </label>
+        <span style={{ marginLeft: "auto", fontSize: 9, color: "var(--color-text-muted)" }}>{totalCount}</span>
+      </div>
+
+      {/* Tree */}
+      <div className="flex-1 overflow-auto" style={{ padding: "2px 0" }}>
+        {filtered.map((cat) => (
+          <CatalogNode
+            key={cat.Name} catalog={cat} path={cat.Name} depth={0}
+            expanded={expanded} selectedTypeName={selectedTypeName} actionColors={actionColors}
+            onToggle={toggleExpand} onOpenProcess={onOpenProcess} onRemoveDraft={onRemoveDraft}
+          />
+        ))}
+        {filtered.length === 0 && !loading && (
+          <div style={{ padding: 16, color: "var(--color-text-muted)", fontSize: 11, textAlign: "center" }}>
+            No processes found
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Catalog (folder) ──────────────────────────────── */
+
+interface CatalogNodeProps {
+  catalog: Catalog;
+  path: string;
+  depth: number;
+  expanded: Set<string>;
+  selectedTypeName: string | null;
+  actionColors: Record<string, string>;
+  onToggle: (path: string) => void;
+  onOpenProcess: (model: ProcessModel) => void;
+  onRemoveDraft: (typeName: string) => void;
+}
+
+function CatalogNode({
+  catalog, path, depth, expanded, selectedTypeName, actionColors,
+  onToggle, onOpenProcess, onRemoveDraft,
+}: CatalogNodeProps) {
+  const isOpen = expanded.has(path);
+
+  return (
+    <div>
+      <div
+        className="flex items-center select-none"
+        style={{
+          height: 24,
+          paddingLeft: depth * 14 + 8,
+          paddingRight: 8,
+          cursor: "pointer",
+        }}
+        onClick={() => onToggle(path)}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+      >
+        {isOpen
+          ? <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.5, marginRight: 2 }} />
+          : <ChevronRight size={14} style={{ flexShrink: 0, opacity: 0.5, marginRight: 2 }} />}
+        {isOpen
+          ? <FolderOpen size={14} style={{ flexShrink: 0, color: "#dcb67a", marginRight: 6 }} />
+          : <Folder size={14} style={{ flexShrink: 0, color: "#dcb67a", marginRight: 6 }} />}
+        <span style={{ fontWeight: 600, fontSize: 12, color: "var(--color-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {catalog.Name}
+        </span>
+      </div>
+
+      {isOpen && (
+        <>
+          {(catalog.Catalogs ?? []).map((child) => (
+            <CatalogNode
+              key={child.Name} catalog={child} path={`${path}.${child.Name}`} depth={depth + 1}
+              expanded={expanded} selectedTypeName={selectedTypeName} actionColors={actionColors}
+              onToggle={onToggle} onOpenProcess={onOpenProcess} onRemoveDraft={onRemoveDraft}
+            />
+          ))}
+          {(catalog.Contents ?? []).length > 0 && (
+            <div>
+              {(catalog.Contents ?? []).map((p) => (
+                <ProcessRow
+                  key={p.TypeName} model={p} depth={depth}
+                  isSelected={selectedTypeName === p.TypeName}
+                  actionColor={actionColors[p.Action] ?? "#546e7a"}
+                  onOpen={onOpenProcess} onRemoveDraft={onRemoveDraft}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─── Process row ───────────────────────────────────── */
+
+interface ProcessRowProps {
+  model: ProcessModel;
+  depth: number;
+  isSelected: boolean;
+  actionColor: string;
+  onOpen: (model: ProcessModel) => void;
+  onRemoveDraft: (typeName: string) => void;
+}
+
+function ProcessRow({ model, depth, isSelected, actionColor, onOpen, onRemoveDraft }: ProcessRowProps) {
+  return (
+    <div
+      className="flex items-center select-none"
+      style={{
+        height: 24,
+        paddingLeft: depth * 14 + 8 + 20,
+        paddingRight: 6,
+        cursor: "pointer",
+        background: isSelected ? "rgba(14,99,156,0.18)" : "transparent",
+      }}
+      onClick={() => onOpen(model)}
+      onMouseEnter={(e) => {
+        if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = isSelected ? "rgba(14,99,156,0.18)" : "transparent";
+      }}
+    >
+      {/* Action badge */}
+      <span style={{
+        fontSize: 9,
+        padding: "1px 5px",
+        borderRadius: 3,
+        background: actionColor,
+        color: "#fff",
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+        flexShrink: 0,
+        marginRight: 6,
+        lineHeight: "14px",
+        maxWidth: 90,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}>
+        {model.Action ?? "—"}
+      </span>
+
+      {/* Name */}
+      <span style={{
+        color: "#bbdefb",
+        fontWeight: 500,
+        fontSize: 11,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        minWidth: 0,
+        flex: "1 1 auto",
+      }}>
+        {model.Name ?? model.TypeName}
+      </span>
+
+      {/* Compact badges */}
+      <div className="flex items-center shrink-0" style={{ marginLeft: 4, gap: 2 }}>
+        {model.Front && <MiniTag text="F" bg="#2e7d32" title="Front" />}
+        {model.Back && <MiniTag text="B" bg="#7d582e" title="Back" />}
+        {model.Permission && <MiniTag text="P" bg="#7d3a2e" title="Permission" />}
+        {model.Source && <MiniTag text="S" bg="#2e527d" title="Source" />}
+        {model.Draft && (
+          <span
+            style={{
+              fontSize: 8, padding: "0 3px", borderRadius: 2,
+              background: "#ef6c00", color: "#fff", fontWeight: 700,
+              lineHeight: "14px", cursor: "pointer", display: "inline-flex",
+              alignItems: "center",
+            }}
+            onClick={(e) => { e.stopPropagation(); onRemoveDraft(model.TypeName); }}
+            title="Remove draft"
+          >
+            D<X size={8} style={{ marginLeft: 1 }} />
+          </span>
+        )}
+      </div>
+
+      {/* Edit */}
+      <button
+        className="tree-action-btn"
+        style={{ marginLeft: 4, flexShrink: 0 }}
+        title="Edit"
+        onClick={(e) => { e.stopPropagation(); onOpen(model); }}
+      >
+        <Pencil size={11} />
+      </button>
+    </div>
+  );
+}
+
+/* ─── Tiny badge for flags ──────────────────────────── */
+
+function MiniTag({ text, bg, title }: { text: string; bg: string; title: string }) {
+  return (
+    <span
+      title={title}
+      style={{
+        fontSize: 8, fontWeight: 700, padding: "0 3px",
+        borderRadius: 2, background: bg, color: "#e8f5e9",
+        lineHeight: "14px", display: "inline-block",
+      }}
+    >
+      {text}
+    </span>
+  );
+}

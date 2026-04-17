@@ -166,9 +166,23 @@ export function ConfigurationPanel() {
     loadConfigs(c.AdapterType);
   };
 
+  const handleToggleEnabled = async (c: AdapterConfiguration) => {
+    if (!api) return;
+    const newEnabled = !c.Enabled;
+    await api.updateAdapterConfiguration({
+      ConfigurationId: c.ConfigurationId,
+      AdapterType: c.AdapterType,
+      Name: c.Name,
+      Description: c.Description,
+      Enabled: newEnabled,
+      Exported: c.Exported,
+    });
+    loadConfigs(c.AdapterType);
+  };
+
   const handleClone = async (c: AdapterConfiguration) => {
     if (!api) return;
-    await api.cloneConfiguration(c.ConfigurationId, `${c.Name}_clone`);
+    await api.cloneConfiguration({ CloningConfigurationId: c.ConfigurationId, AdapterType: c.AdapterType, Name: `${c.Name}_clone`, Description: c.Description, Exported: false, IsDefault: false });
     loadConfigs(c.AdapterType);
   };
 
@@ -301,6 +315,12 @@ export function ConfigurationPanel() {
                             icon={<span style={{ position: "relative", display: "inline-flex" }}><Settings size={13} style={{ opacity: 0.7, color: c.Enabled ? "#4CAF50" : "#9E9E9E" }} />{c.IsDefault && <Star size={8} style={{ position: "absolute", top: -2, right: -4, color: "#FFD700" }} />}</span>}
                             label={c.Name} sublabel={c.Description || undefined} selected={isActive} dotIndicator={(isOpen && !isActive) || isDirty}
                             onClick={() => openConfig(c)}
+                            visibleActions={
+                              <label className="toggle-switch-sm" title={c.Enabled ? "Enabled — click to disable" : "Disabled — click to enable"} onClick={(e) => e.stopPropagation()}>
+                                <input type="checkbox" checked={c.Enabled} onChange={() => handleToggleEnabled(c)} />
+                                <span className="toggle-track" />
+                              </label>
+                            }
                             actions={<>
                               <button onClick={(e) => { e.stopPropagation(); setOverlay({ type: "upsertConfig", editing: c, adapterType: t.AdapterType }); }} className="tree-action-btn" title="Edit"><Pencil size={11} /></button>
                               <button onClick={(e) => { e.stopPropagation(); handleClone(c); }} className="tree-action-btn" title="Clone"><Copy size={11} /></button>
@@ -558,10 +578,10 @@ function ConfigTabContent({ tab, sections, isLoadingSections, onSelectSection, o
 
 /* ===== Tree row ===== */
 
-function TreeRow({ depth, icon, label, sublabel, badge, expanded, selected, dotIndicator, onToggle, onClick, actions }: {
+function TreeRow({ depth, icon, label, sublabel, badge, expanded, selected, dotIndicator, onToggle, onClick, actions, visibleActions }: {
   depth: number; icon: React.ReactNode; label: string; sublabel?: string; badge?: string;
   expanded?: boolean; selected?: boolean; dotIndicator?: boolean;
-  onToggle?: () => void; onClick?: () => void; actions?: React.ReactNode;
+  onToggle?: () => void; onClick?: () => void; actions?: React.ReactNode; visibleActions?: React.ReactNode;
 }) {
   const hasChildren = expanded !== undefined;
   const paddingLeft = 8 + depth * 16;
@@ -583,6 +603,7 @@ function TreeRow({ depth, icon, label, sublabel, badge, expanded, selected, dotI
       {badge && <span style={{ fontSize: 9, background: "rgba(255,255,255,0.1)", color: "var(--color-text-muted)", borderRadius: 3, padding: "0 3px", lineHeight: "16px", flexShrink: 0 }}>{badge}</span>}
       {dotIndicator && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-text-muted)", opacity: 0.4, flexShrink: 0 }} />}
       <div className="hidden group-hover:flex items-center gap-0" style={{ flexShrink: 0 }}>{actions}</div>
+      {visibleActions && <div className="flex items-center gap-0" style={{ flexShrink: 0 }}>{visibleActions}</div>}
     </div>
   );
 }
@@ -617,36 +638,98 @@ function ConfirmOverlay({ title, onConfirm, onCancel }: { title: string; onConfi
 function CreateSectionOverlay({ configId, api, onClose }: { configId: number; api: ReturnType<typeof useContourApi>; onClose: () => void }) {
   const [name, setName] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [inheritedId, setInheritedId] = useState<number | null>(null);
+  const [baseSections, setBaseSections] = useState<ConfigSection[]>([]);
+  const [loadingBase, setLoadingBase] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!api) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getBaseSections();
+        const list = (res as Record<string, unknown>).ConfigurationSections ?? (res as Record<string, unknown>).Sections;
+        if (!cancelled) setBaseSections(Array.isArray(list) ? (list as ConfigSection[]) : []);
+      } catch { if (!cancelled) setBaseSections([]); }
+      finally { if (!cancelled) setLoadingBase(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [api]);
+
+  const handleInheritedChange = (sectionId: number | null) => {
+    setInheritedId(sectionId);
+    if (sectionId !== null) {
+      const base = baseSections.find((s) => s.SectionId === sectionId);
+      if (base) {
+        setName(base.Name);
+        setDisplayName(base.DisplayName ?? "");
+      }
+    }
+  };
 
   const handleCreate = async () => {
     if (!api || !name.trim()) return;
     setSubmitting(true);
     try {
+      let jsonData: unknown = {};
+      if (inheritedId !== null) {
+        const base = baseSections.find((s) => s.SectionId === inheritedId);
+        if (base?.JsonData) {
+          jsonData = typeof base.JsonData === "string" ? JSON.parse(base.JsonData) : base.JsonData;
+        }
+      }
       await api.createSection({
         ConfigurationId: configId,
         Name: name.trim(),
         DisplayName: displayName.trim() || null,
-        Inherited: null,
-        JsonData: {},
+        Inherited: inheritedId,
+        JsonData: jsonData,
       });
       onClose();
     } finally { setSubmitting(false); }
   };
 
   return (
-    <div style={overlayBg}><div style={{ ...dialogStyle, width: 400 }}>
-      <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-        <span style={{ fontSize: 13, fontWeight: 600 }}>Add Section</span>
+    <div style={overlayBg}><div style={{ ...dialogStyle, width: 440 }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
+        <div className="flex items-center gap-2">
+          <Plus size={16} style={{ color: "var(--color-text-muted)" }} />
+          <span style={{ fontSize: 14, fontWeight: 600 }}>Add Section</span>
+        </div>
         <button onClick={onClose} className="toolbar-btn"><X size={14} /></button>
       </div>
-      <div className="flex flex-col gap-2">
-        <label style={labelStyle}>Name <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus placeholder="e.g. CommandProcessor" /></label>
-        <label style={labelStyle}>Display Name <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={inputStyle} placeholder="Optional" /></label>
+      <div className="flex flex-col gap-3">
+        <label style={labelStyle}>
+          Inherited
+          <select
+            value={inheritedId ?? ""}
+            onChange={(e) => handleInheritedChange(e.target.value ? Number(e.target.value) : null)}
+            style={{ ...inputStyle, height: 28, cursor: "pointer" }}
+            disabled={loadingBase}
+          >
+            <option value="">{loadingBase ? "Loading..." : "NO INHERITED"}</option>
+            {baseSections.map((s) => (
+              <option key={s.SectionId} value={s.SectionId}>
+                {s.Name}{s.DisplayName ? ` — ${s.DisplayName}` : ""} (ID: {s.SectionId})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={labelStyle}>
+          Name*
+          <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="Name*" />
+        </label>
+        <label style={labelStyle}>
+          Display Name
+          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={inputStyle} placeholder="Display Name" />
+        </label>
       </div>
-      <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 16 }}>
+      <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 20 }}>
         <button onClick={onClose} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
-        <button onClick={handleCreate} disabled={submitting || !name.trim()} style={primaryBtnStyle}>{submitting ? "Creating..." : "Create"}</button>
+        <button onClick={handleCreate} disabled={submitting || !name.trim()} style={{ ...primaryBtnStyle, opacity: name.trim() ? 1 : 0.5 }}>
+          {submitting ? "Creating..." : "Create"}
+        </button>
       </div>
     </div></div>
   );
@@ -677,31 +760,287 @@ function UpsertTypeOverlay({ editing, api, onClose }: { editing: AdapterType | n
   );
 }
 
+type BaseOption = "NO" | "FRONT" | "BACK" | "CLONE" | "INHERITED";
+
+interface PickedConfig { configurationId: number; name: string; adapterType: string }
+
+function ConfigPicker({ api, onPick, picked }: {
+  api: ReturnType<typeof useContourApi>;
+  onPick: (c: PickedConfig | null) => void;
+  picked: PickedConfig | null;
+}) {
+  const [search, setSearch] = useState("");
+  const [adapterTypes, setAdapterTypes] = useState<AdapterType[]>([]);
+  const [configsByType, setConfigsByType] = useState<Record<string, AdapterConfiguration[]>>({});
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [loadingTypes, setLoadingTypes] = useState(true);
+  const [loadingConfigs, setLoadingConfigs] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!api) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getAdapterTypes();
+        const list = (res as Record<string, unknown>).AdapterTypes;
+        if (!cancelled) setAdapterTypes(Array.isArray(list) ? (list as AdapterType[]) : []);
+      } catch { if (!cancelled) setAdapterTypes([]); }
+      finally { if (!cancelled) setLoadingTypes(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [api]);
+
+  const toggleType = (at: string) => {
+    setExpanded((prev) => {
+      const n = new Set(prev);
+      if (n.has(at)) { n.delete(at); } else {
+        n.add(at);
+        if (!configsByType[at]) loadConfigsFor(at);
+      }
+      return n;
+    });
+  };
+
+  const loadConfigsFor = async (at: string) => {
+    if (!api) return;
+    setLoadingConfigs((p) => new Set(p).add(at));
+    try {
+      const res = await api.getAdapterConfigurations(at);
+      const list = (res as Record<string, unknown>).Configurations;
+      setConfigsByType((prev) => ({ ...prev, [at]: Array.isArray(list) ? (list as AdapterConfiguration[]) : [] }));
+    } catch {
+      setConfigsByType((prev) => ({ ...prev, [at]: [] }));
+    } finally {
+      setLoadingConfigs((p) => { const n = new Set(p); n.delete(at); return n; });
+    }
+  };
+
+  const lf = search.toLowerCase();
+  const filtered = adapterTypes.filter((t) => {
+    if (!lf) return true;
+    if (t.AdapterType.toLowerCase().includes(lf)) return true;
+    const cfgs = configsByType[t.AdapterType] ?? [];
+    return cfgs.some((c) => c.Name.toLowerCase().includes(lf) || String(c.ConfigurationId).includes(lf));
+  });
+
+  return (
+    <div style={{ border: "1px solid var(--color-border)", borderRadius: 4, background: "var(--color-input-bg)", overflow: "hidden" }}>
+      <div style={{ padding: "4px 6px", borderBottom: "1px solid var(--color-border)" }}>
+        <div className="flex items-center gap-1" style={{ background: "rgba(255,255,255,0.04)", borderRadius: 3, padding: "0 6px", height: 24 }}>
+          <Search size={11} style={{ opacity: 0.4, flexShrink: 0 }} />
+          <input
+            value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search configurations..."
+            style={{ flex: 1, background: "none", border: "none", color: "var(--color-text)", fontSize: 11, outline: "none", height: "100%" }}
+          />
+          {search && <button onClick={() => setSearch("")} className="toolbar-btn" style={{ padding: 0 }}><X size={10} /></button>}
+        </div>
+      </div>
+
+      <div style={{ maxHeight: 200, overflowY: "auto" }}>
+        {loadingTypes && <div style={{ padding: 8, fontSize: 11, color: "var(--color-text-muted)" }}>Loading...</div>}
+        {!loadingTypes && filtered.length === 0 && <div style={{ padding: 8, fontSize: 11, color: "var(--color-text-muted)" }}>{search ? "No matches" : "No adapter types"}</div>}
+        {filtered.map((t) => {
+          const isExp = expanded.has(t.AdapterType) || !!lf;
+          const cfgs = configsByType[t.AdapterType] ?? [];
+          const isLoadingCfg = loadingConfigs.has(t.AdapterType);
+          const needsLoad = !configsByType[t.AdapterType] && !isLoadingCfg;
+
+          if (lf && needsLoad) loadConfigsFor(t.AdapterType);
+
+          const matchedCfgs = lf
+            ? cfgs.filter((c) => c.Name.toLowerCase().includes(lf) || String(c.ConfigurationId).includes(lf) || t.AdapterType.toLowerCase().includes(lf))
+            : cfgs;
+
+          return (
+            <div key={t.AdapterType}>
+              <div
+                className="flex items-center gap-1"
+                onClick={() => toggleType(t.AdapterType)}
+                style={{ height: 24, padding: "0 6px", cursor: "pointer", fontSize: 11, color: "var(--color-text-muted)", fontWeight: 500 }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+              >
+                {isExp ? <ChevronDown size={12} style={{ opacity: 0.5 }} /> : <ChevronRight size={12} style={{ opacity: 0.5 }} />}
+                <Server size={11} style={{ color: "#5CADD5", opacity: 0.7 }} />
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.AdapterType}</span>
+                {cfgs.length > 0 && <span style={{ fontSize: 9, opacity: 0.5 }}>{cfgs.length}</span>}
+              </div>
+              {isExp && (<>
+                {isLoadingCfg && cfgs.length === 0 && <div style={{ padding: "2px 0 2px 32px", fontSize: 10, color: "var(--color-text-muted)" }}>Loading...</div>}
+                {!isLoadingCfg && matchedCfgs.length === 0 && cfgs.length === 0 && <div style={{ padding: "2px 0 2px 32px", fontSize: 10, color: "var(--color-text-muted)" }}>No configs</div>}
+                {matchedCfgs.map((c) => {
+                  const isPicked = picked?.configurationId === c.ConfigurationId;
+                  return (
+                    <div
+                      key={c.ConfigurationId}
+                      className="flex items-center gap-1"
+                      onClick={() => onPick(isPicked ? null : { configurationId: c.ConfigurationId, name: c.Name, adapterType: t.AdapterType })}
+                      style={{
+                        height: 22, padding: "0 8px 0 32px", cursor: "pointer", fontSize: 11,
+                        color: isPicked ? "#fff" : "var(--color-text-muted)",
+                        backgroundColor: isPicked ? "rgba(14,99,156,0.5)" : "transparent",
+                      }}
+                      onMouseEnter={(e) => { if (!isPicked) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
+                      onMouseLeave={(e) => { if (!isPicked) e.currentTarget.style.backgroundColor = "transparent"; }}
+                    >
+                      <Settings size={10} style={{ opacity: 0.6, flexShrink: 0, color: c.Enabled ? "#4CAF50" : "#9E9E9E" }} />
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.Name}</span>
+                      <span style={{ fontSize: 9, opacity: 0.5, flexShrink: 0 }}>ID: {c.ConfigurationId}</span>
+                      {isPicked && <span style={{ fontSize: 9, color: "#4CAF50", flexShrink: 0, marginLeft: 4 }}>&#10003;</span>}
+                    </div>
+                  );
+                })}
+              </>)}
+            </div>
+          );
+        })}
+      </div>
+
+      {picked && (
+        <div style={{ borderTop: "1px solid var(--color-border)", padding: "4px 8px", fontSize: 11, display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{ color: "var(--color-text-muted)" }}>Selected:</span>
+          <span style={{ color: "var(--color-text)", fontWeight: 500 }}>{picked.name}</span>
+          <span style={{ color: "var(--color-text-muted)", fontSize: 9 }}>({picked.adapterType}, ID: {picked.configurationId})</span>
+          <button onClick={() => onPick(null)} className="toolbar-btn" style={{ marginLeft: "auto", padding: 0 }}><X size={10} /></button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UpsertConfigOverlay({ editing, adapterType, api, onClose }: { editing: AdapterConfiguration | null; adapterType: string; api: ReturnType<typeof useContourApi>; onClose: () => void }) {
+  const isEditing = !!editing;
   const [name, setName] = useState(editing?.Name ?? "");
   const [desc, setDesc] = useState(editing?.Description ?? "");
   const [enabled, setEnabled] = useState(editing?.Enabled ?? true);
   const [exp, setExp] = useState(editing?.Exported ?? false);
+
+  const [base, setBase] = useState<BaseOption>("NO");
+  const [pickedConfig, setPickedConfig] = useState<PickedConfig | null>(null);
+  const [condition, setCondition] = useState(false);
+  const [host, setHost] = useState("");
+  const [isContainerised, setIsContainerised] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
+
+  const showClonePicker = base === "CLONE" || base === "INHERITED";
+
   const handleSave = async () => {
-    if (!api || !name.trim()) return; setSubmitting(true);
-    try { if (editing) { await api.updateAdapterConfiguration({ ConfigurationId: editing.ConfigurationId, AdapterType: adapterType, Name: name.trim(), Description: desc, Enabled: enabled, Exported: exp }); } else { await api.createAdapterConfiguration({ AdapterType: adapterType, Name: name.trim(), Description: desc, Enabled: enabled, Exported: exp }); } onClose(); } finally { setSubmitting(false); }
+    if (!api || !name.trim()) return;
+    if (showClonePicker && !pickedConfig) return;
+    setSubmitting(true);
+    try {
+      if (isEditing) {
+        await api.updateAdapterConfiguration({
+          ConfigurationId: editing.ConfigurationId,
+          AdapterType: adapterType,
+          Name: name.trim(),
+          Description: desc,
+          Enabled: enabled,
+          Exported: exp,
+        });
+      } else {
+        const payload: Record<string, unknown> = {
+          AdapterType: adapterType,
+          Name: name.trim(),
+          Description: desc,
+          Exported: false,
+          IsDefault: false,
+        };
+        if (showClonePicker && pickedConfig) {
+          payload.CloningConfigurationId = pickedConfig.configurationId;
+        }
+        switch (base) {
+          case "NO": await api.createAdapterConfiguration(payload); break;
+          case "FRONT": await api.createBaseFrontConfiguration(payload); break;
+          case "BACK": await api.createBaseBackConfiguration(payload); break;
+          case "CLONE": await api.cloneConfiguration(payload); break;
+          case "INHERITED": await api.cloneInheritedConfiguration(payload); break;
+        }
+      }
+      onClose();
+    } finally { setSubmitting(false); }
   };
+
+  const canSave = name.trim().length > 0 && (!showClonePicker || !!pickedConfig);
+
   return (
-    <div style={overlayBg}><div style={{ ...dialogStyle, width: 440 }}>
-      <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-        <span style={{ fontSize: 13, fontWeight: 600 }}>{editing ? "Edit Configuration" : "Create Configuration"}</span>
+    <div style={overlayBg}><div style={{ ...dialogStyle, width: 500 }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
+        <div className="flex items-center gap-2">
+          {!isEditing && <Plus size={16} style={{ color: "var(--color-text-muted)" }} />}
+          <span style={{ fontSize: 14, fontWeight: 600 }}>
+            {isEditing ? "Edit Configuration" : "Add Adapter Configuration"}
+          </span>
+        </div>
         <button onClick={onClose} className="toolbar-btn"><X size={14} /></button>
       </div>
-      <div className="flex flex-col gap-2">
-        <label style={labelStyle}>Name <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} /></label>
-        <label style={labelStyle}>Description <input value={desc} onChange={(e) => setDesc(e.target.value)} style={inputStyle} /></label>
-        <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8 }}><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Enabled</label>
-        <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8 }}><input type="checkbox" checked={exp} onChange={(e) => setExp(e.target.checked)} /> Exported</label>
+
+      <div className="flex flex-col gap-3">
+        <label style={labelStyle}>
+          Name{!isEditing && "*"}
+          <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus placeholder="Name*" />
+        </label>
+
+        <label style={labelStyle}>
+          Description
+          <input value={desc} onChange={(e) => setDesc(e.target.value)} style={inputStyle} placeholder="Description" />
+        </label>
+
+        {isEditing ? (<>
+          <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Enabled
+          </label>
+          <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <input type="checkbox" checked={exp} onChange={(e) => setExp(e.target.checked)} /> Exported
+          </label>
+        </>) : (<>
+          <label style={labelStyle}>
+            Base
+            <select
+              value={base}
+              onChange={(e) => { setBase(e.target.value as BaseOption); setPickedConfig(null); }}
+              style={{ ...inputStyle, height: 28, cursor: "pointer" }}
+            >
+              <option value="NO">NO BASE</option>
+              <option value="FRONT">FRONT</option>
+              <option value="BACK">BACK</option>
+              <option value="CLONE">CLONE</option>
+              <option value="INHERITED">CLONE INHERITED</option>
+            </select>
+          </label>
+
+          {showClonePicker && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
+                Clone from Configuration {!pickedConfig && <span style={{ color: "#F6511D" }}>*</span>}
+              </span>
+              <ConfigPicker api={api} picked={pickedConfig} onPick={setPickedConfig} />
+            </div>
+          )}
+
+          <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input type="checkbox" checked={condition} onChange={(e) => setCondition(e.target.checked)} /> Condition
+          </label>
+
+          {condition && (<>
+            <label style={labelStyle}>
+              Host
+              <input value={host} onChange={(e) => setHost(e.target.value)} style={inputStyle} placeholder="Host" />
+            </label>
+            <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" checked={isContainerised} onChange={(e) => setIsContainerised(e.target.checked)} /> Is Containerised
+            </label>
+          </>)}
+        </>)}
       </div>
-      <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 16 }}>
+
+      <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 20 }}>
         <button onClick={onClose} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
-        <button onClick={handleSave} disabled={submitting} style={primaryBtnStyle}>{submitting ? "Saving..." : "Save"}</button>
+        <button onClick={handleSave} disabled={submitting || !canSave} style={{ ...primaryBtnStyle, opacity: canSave ? 1 : 0.5 }}>
+          {submitting ? (isEditing ? "Saving..." : "Creating...") : (isEditing ? "Save" : "Create")}
+        </button>
       </div>
     </div></div>
   );

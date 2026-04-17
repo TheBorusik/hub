@@ -11,10 +11,36 @@ import {
   type ViewerProcessesResponse,
   type StageContextResponse,
   type MoveProcessesResponse,
+  type GetProcessAssemblyResponse,
+  type CreateProcessAssemblyResponse,
+  type UpsertProcessAssemblyResponse,
+  type AddGlobalModelResponse,
+  type GetCodeResponse,
+  type GetProcessSourceResponse,
+  type ValidateCodeResponse,
+  type ValidateProcessResponse,
+  type FormatCodeResponse,
+  type CommitResponse,
+  type GetChangedModelsResponse,
+  type GetGlobalModelsResponse,
+  type LoadBranchResponse,
+  type RemoveDraftResponse,
+  type WebProcess,
+  type WebGlobalModel,
+  type GetProcessTreeResponse,
+  type AdapterTreeNode,
 } from "./ws-api-models";
+
+interface ExecuteAdapter {
+  AdapterName: string;
+  Level: string;
+  AdapterType: string;
+}
 
 export class HubWsApi {
   constructor(private readonly ws: AuthWebSocket) {}
+
+  private wfmExecuteAdapter: ExecuteAdapter | null = null;
 
   async login(login: string, password: string) {
     return this.ws.login(login, password);
@@ -85,6 +111,14 @@ export class HubWsApi {
     return this.requestPayload<Record<string, never>, GetModelsResponse>(
       {},
       WfmCommand.GetModels,
+    );
+  }
+
+  async getProcessTree() {
+    return this.requestPayload<Record<string, never>, GetProcessTreeResponse>(
+      {},
+      WfmCommand.GetProcessTree,
+      "00:00:30",
     );
   }
 
@@ -254,32 +288,20 @@ export class HubWsApi {
     return this.requestPayload(data, WfmCommand.ConfigAdapterConfigurationCreate);
   }
 
-  async createBaseBackConfiguration(adapterType: string) {
-    return this.requestPayload(
-      { AdapterType: adapterType },
-      WfmCommand.ConfigAdapterConfigurationCreateBaseBack,
-    );
+  async createBaseBackConfiguration(data: Record<string, unknown>) {
+    return this.requestPayload(data, WfmCommand.ConfigAdapterConfigurationCreateBaseBack);
   }
 
-  async createBaseFrontConfiguration(adapterType: string) {
-    return this.requestPayload(
-      { AdapterType: adapterType },
-      WfmCommand.ConfigAdapterConfigurationCreateBaseFront,
-    );
+  async createBaseFrontConfiguration(data: Record<string, unknown>) {
+    return this.requestPayload(data, WfmCommand.ConfigAdapterConfigurationCreateBaseFront);
   }
 
-  async cloneConfiguration(configurationId: number, name: string) {
-    return this.requestPayload(
-      { ConfigurationId: configurationId, Name: name },
-      WfmCommand.ConfigAdapterConfigurationClone,
-    );
+  async cloneConfiguration(data: Record<string, unknown>) {
+    return this.requestPayload(data, WfmCommand.ConfigAdapterConfigurationClone);
   }
 
-  async cloneInheritedConfiguration(configurationId: number, name: string) {
-    return this.requestPayload(
-      { ConfigurationId: configurationId, Name: name },
-      WfmCommand.ConfigAdapterConfigurationCloneInherited,
-    );
+  async cloneInheritedConfiguration(data: Record<string, unknown>) {
+    return this.requestPayload(data, WfmCommand.ConfigAdapterConfigurationCloneInherited);
   }
 
   async updateAdapterConfiguration(data: Record<string, unknown>) {
@@ -532,13 +554,214 @@ export class HubWsApi {
     );
   }
 
-  async executeProcess(processName: string, initialData: unknown) {
-    return this.requestPayload(
-      { ProcessName: processName, InitialData: initialData },
-      WfmCommand.Execute,
+  // --- Configurator: Process Assembly ---
+
+  async getProcessAssembly(name: string) {
+    return this.requestPayload<{ Name: string }, GetProcessAssemblyResponse>(
+      { Name: name },
+      WfmCommand.GetProcessAssembly,
+      "00:00:30",
+    );
+  }
+
+  async loadProcessAssembly(typeName: string) {
+    return this.requestPayload<{ TypeName: string }, GetProcessAssemblyResponse>(
+      { TypeName: typeName },
+      WfmCommand.LoadProcessAssembly,
+      "00:00:30",
+    );
+  }
+
+  async createProcessAssembly(name: string, code: string, webData?: unknown) {
+    return this.requestPayload<Record<string, unknown>, CreateProcessAssemblyResponse>(
+      { Name: name, Code: code, ...(webData ? { WebData: webData } : {}) },
+      WfmCommand.Create,
+      "00:01:00",
+      60_000,
+    );
+  }
+
+  async upsertProcessAssembly(
+    name: string,
+    category: string,
+    model: WebProcess | WebGlobalModel | unknown,
+    createNew: boolean,
+  ) {
+    return this.requestPayload<Record<string, unknown>, UpsertProcessAssemblyResponse>(
+      { Name: name, Category: category, Model: model, CreateNew: createNew },
+      WfmCommand.Upsert,
+      "00:01:00",
+      60_000,
+    );
+  }
+
+  async getProcessCode(process: WebProcess) {
+    return this.requestPayload<{ Process: WebProcess }, GetCodeResponse>(
+      { Process: process },
+      WfmCommand.GetCode,
+      "00:01:00",
+      60_000,
+    );
+  }
+
+  async getProcessSource(name: string, branch?: string, origin: string = "git") {
+    return this.requestPayload<{ Name: string; Branch?: string; Origin?: string }, GetProcessSourceResponse>(
+      { Name: name, Branch: branch, Origin: origin },
+      WfmCommand.GetProcessAssemblySource,
+      "00:00:30",
+    );
+  }
+
+  async validateProcess(process: WebProcess) {
+    return this.requestPayload<{ Process: WebProcess }, ValidateProcessResponse>(
+      { Process: process },
+      WfmCommand.Validate,
+      "00:01:00",
+      60_000,
+    );
+  }
+
+  async validateCode(code: string) {
+    return this.requestPayload<{ Code: string }, ValidateCodeResponse>(
+      { Code: code },
+      WfmCommand.ValidateCode,
+      "00:00:30",
+    );
+  }
+
+  async formatCode(code: string) {
+    return this.requestPayload<{ Code: string }, FormatCodeResponse>(
+      { Code: code },
+      WfmCommand.FormatCode,
+      "00:00:30",
+    );
+  }
+
+  async commitProcessAssembly(names: string[], message: string) {
+    return this.requestPayload<{ Names: string[]; Message: string }, CommitResponse>(
+      { Names: names, Message: message },
+      WfmCommand.Commit,
+      "00:01:00",
+      60_000,
+    );
+  }
+
+  async getChangedModels() {
+    return this.requestPayload<Record<string, never>, GetChangedModelsResponse>(
+      {},
+      WfmCommand.GetChangedModels,
+    );
+  }
+
+  async removeDraft(typeName: string) {
+    return this.requestPayload<{ TypeName: string }, RemoveDraftResponse>(
+      { TypeName: typeName },
+      WfmCommand.RemoveDraft,
+    );
+  }
+
+  async getGlobalModels() {
+    return this.requestPayload<Record<string, never>, GetGlobalModelsResponse>(
+      {},
+      WfmCommand.GetGlobalModels,
+    );
+  }
+
+  async addGlobalModel(model: WebGlobalModel, createNew: boolean) {
+    // Серверный контракт: { GlobalModel: WebGlobalModel, CreateNew: bool, Branch?: string }
+    // (см. WFM.Configurator.Handlers.AddGlobalsModelCommand). Плоская форма даёт NRE.
+    return this.requestPayload<
+      { GlobalModel: WebGlobalModel; CreateNew: boolean },
+      AddGlobalModelResponse
+    >(
+      { GlobalModel: model, CreateNew: createNew },
+      WfmCommand.AddGlobalModel,
+      "00:00:30",
+    );
+  }
+
+  async validateGlobalModel(code: string) {
+    return this.requestPayload<{ Code: string }, ValidateCodeResponse>(
+      { Code: code },
+      WfmCommand.ValidateGlobalModel,
+      "00:00:30",
+    );
+  }
+
+  // --- Configurator: Branch ---
+
+  async loadBranch(repoUrl: string, branch: string, subPath?: string, force?: boolean) {
+    return this.requestPayload<Record<string, unknown>, LoadBranchResponse>(
+      { RepoUrl: repoUrl, Branch: branch, ...(subPath ? { SubPath: subPath } : {}), Force: force ?? false },
+      WfmCommand.LoadBranch,
       "00:02:00",
       120_000,
     );
+  }
+
+  async refreshBranch() {
+    return this.requestPayload<Record<string, never>, LoadBranchResponse>(
+      {},
+      WfmCommand.RefreshBranch,
+      "00:02:00",
+      120_000,
+    );
+  }
+
+  async unloadBranch(includeDrafts?: boolean) {
+    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
+      { IncludeDrafts: includeDrafts ?? false },
+      WfmCommand.UnloadBranch,
+    );
+  }
+
+  async executeProcess(processName: string, initialData: unknown) {
+    const adp = await this.resolveWfmExecuteAdapter();
+    const body = JSON.stringify({
+      ProcessName: processName,
+      InitialData: initialData ?? {},
+      SaveCompleted: true,
+      SaveManual: true,
+    });
+    return this.sendRawCommand(
+      {
+        Level: adp.Level,
+        AdapterName: adp.AdapterName,
+        AdapterType: adp.AdapterType,
+        CommandName: "WFM.Execute",
+        SessionFields: {},
+        CreateNewSession: true,
+        Ttl: "00:02:00",
+      },
+      body,
+      "00:02:00",
+    );
+  }
+
+  private async resolveWfmExecuteAdapter(): Promise<ExecuteAdapter> {
+    if (this.wfmExecuteAdapter) return this.wfmExecuteAdapter;
+    const info = await this.getAdaptersInfo();
+    let found: ExecuteAdapter | null = null;
+    const walk = (nodes: AdapterTreeNode[]) => {
+      for (const n of nodes) {
+        if (found) return;
+        if (n.type === "command" && n.data?.CommandName === "WFM.Execute") {
+          found = {
+            AdapterName: n.data.AdapterName,
+            Level: n.data.Level,
+            AdapterType: n.data.AdapterType,
+          };
+          return;
+        }
+        if (n.nodes) walk(n.nodes);
+      }
+    };
+    walk(info.Adapters ?? []);
+    if (!found) {
+      throw new Error("Command 'WFM.Execute' not found in adapters info.");
+    }
+    this.wfmExecuteAdapter = found;
+    return found;
   }
 
   private async requestPayload<TRequest, TResponse>(

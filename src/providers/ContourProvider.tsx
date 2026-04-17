@@ -28,7 +28,7 @@ interface ContourContextValue extends ContourState {
 
 const SYSTEM_CONTOUR: ContourConfig = {
   id: "system",
-  name: "System",
+  name: "Hub",
   wsUrl: "",
   description: "Management Contour",
   isSystem: true,

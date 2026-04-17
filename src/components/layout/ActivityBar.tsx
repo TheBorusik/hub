@@ -8,6 +8,7 @@ import {
   HardDrive,
 } from "lucide-react";
 import { useContours } from "@/providers/ContourProvider";
+import { NotificationsButton } from "./NotificationsButton";
 
 export type SectionId =
   | "configurator"
@@ -40,34 +41,40 @@ export function ActivityBar({ activeSection, onSectionChange }: ActivityBarProps
 
   return (
     <div className="flex flex-col items-center bg-activitybar shrink-0" style={{ width: 48 }}>
-      {sections
-        .filter((s) => !s.systemOnly || isSystem)
-        .map((s) => {
-          const Icon = s.icon;
-          const isActive = s.id === activeSection;
-          return (
-            <button
-              key={s.id}
-              onClick={() => onSectionChange(s.id)}
-              title={s.label}
-              className="relative flex items-center justify-center cursor-pointer transition-colors toolbar-btn"
-              style={{
-                width: 48,
-                height: 48,
-                color: isActive ? "#ffffff" : "rgba(255,255,255,0.5)",
-                borderRadius: 0,
-              }}
-            >
-              {isActive && (
-                <div
-                  className="absolute left-0 top-0 bottom-0"
-                  style={{ width: 2, background: "#ffffff" }}
-                />
-              )}
-              <Icon size={24} />
-            </button>
-          );
-        })}
+      <div className="flex flex-col items-center" style={{ flex: 1 }}>
+        {sections
+          .filter((s) => !s.systemOnly || isSystem)
+          .map((s) => {
+            const Icon = s.icon;
+            const isActive = s.id === activeSection;
+            return (
+              <button
+                key={s.id}
+                onClick={() => onSectionChange(s.id)}
+                title={s.label}
+                className="relative flex items-center justify-center cursor-pointer transition-colors toolbar-btn"
+                style={{
+                  width: 48,
+                  height: 48,
+                  color: isActive ? "#ffffff" : "rgba(255,255,255,0.5)",
+                  borderRadius: 0,
+                }}
+              >
+                {isActive && (
+                  <div
+                    className="absolute left-0 top-0 bottom-0"
+                    style={{ width: 2, background: "#ffffff" }}
+                  />
+                )}
+                <Icon size={24} />
+              </button>
+            );
+          })}
+      </div>
+      {/* Нижняя секция: колокольчик уведомлений с историей (не переключает секцию). */}
+      <div className="flex flex-col items-center shrink-0">
+        <NotificationsButton />
+      </div>
     </div>
   );
 }

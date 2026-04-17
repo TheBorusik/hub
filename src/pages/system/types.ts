@@ -114,7 +114,7 @@ export interface ErrorOperation {
 // --- Permissions ---
 
 export interface PermissionTreeNode {
-  Type: "catalog" | "permission";
+  Type: string;
   PermissionId?: number;
   CatalogId?: number;
   ParentId?: number;
@@ -152,6 +152,7 @@ export interface Role {
 }
 
 export interface SessionSettings {
+  TTL?: string;
   SessionTTL?: string;
   AutoProlongation: boolean;
   ManualProlongation: boolean;

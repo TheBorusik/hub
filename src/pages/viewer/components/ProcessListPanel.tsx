@@ -15,11 +15,23 @@ const TABS: { id: ViewerTab; label: string }[] = [
 interface ProcessListPanelProps {
   onSelectProcess: (processId: number, name: string, tab: ViewerTab) => void;
   selectedProcessId: number | null;
+  /**
+   * Опциональное управление активной вкладкой списка снаружи. Если
+   * задано — вкладка «контролируется» родителем (используется для
+   * синхронизации при навигации из Configurator/Run).
+   */
+  activeTab?: ViewerTab;
+  onActiveTabChange?: (tab: ViewerTab) => void;
 }
 
-export function ProcessListPanel({ onSelectProcess, selectedProcessId }: ProcessListPanelProps) {
+export function ProcessListPanel({ onSelectProcess, selectedProcessId, activeTab: controlledTab, onActiveTabChange }: ProcessListPanelProps) {
   const api = useContourApi();
-  const [activeTab, setActiveTab] = useState<ViewerTab>("completed");
+  const [internalTab, setInternalTab] = useState<ViewerTab>("completed");
+  const activeTab = controlledTab ?? internalTab;
+  const setActiveTab = useCallback((next: ViewerTab) => {
+    if (controlledTab === undefined) setInternalTab(next);
+    onActiveTabChange?.(next);
+  }, [controlledTab, onActiveTabChange]);
   const [processes, setProcesses] = useState<ViewerProcessRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);

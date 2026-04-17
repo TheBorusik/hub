@@ -12,9 +12,7 @@ interface ErrorsTableProps {
 type Overlay =
   | { type: "none" }
   | { type: "json"; title: string; data: string }
-  | { type: "resend"; correlationId: string }
-  | { type: "resendWithData"; correlationId: string; payload: string }
-  | { type: "sendResult"; correlationId: string };
+  | { type: "action"; mode: "resend" | "resendWithData" | "sendResult"; row: ErrorOperation };
 
 export function ErrorsTable({ errorType }: ErrorsTableProps) {
   const api = useContourApi();
@@ -169,9 +167,11 @@ export function ErrorsTable({ errorType }: ErrorsTableProps) {
                 </td>
                 <td style={tdStyle}>
                   <div className="flex gap-1">
-                    <button onClick={() => setOverlay({ type: "resend", correlationId: r.CorrelationId })} className="toolbar-btn" title="Resend"><RotateCcw size={12} /></button>
-                    <button onClick={() => setOverlay({ type: "resendWithData", correlationId: r.CorrelationId, payload: r.Payload || "{}" })} className="toolbar-btn" title="Resend with data"><FileText size={12} /></button>
-                    <button onClick={() => setOverlay({ type: "sendResult", correlationId: r.CorrelationId })} className="toolbar-btn" title="Send result"><Send size={12} /></button>
+                    <button onClick={() => setOverlay({ type: "action", mode: "resend", row: r })} className="toolbar-btn" title="Resend"><RotateCcw size={12} /></button>
+                    <button onClick={() => setOverlay({ type: "action", mode: "resendWithData", row: r })} className="toolbar-btn" title="Resend with new data"><FileText size={12} /></button>
+                    {r.ExchangeType === "CommandExchange" && (
+                      <button onClick={() => setOverlay({ type: "action", mode: "sendResult", row: r })} className="toolbar-btn" title="Send command result"><Send size={12} /></button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -205,11 +205,10 @@ export function ErrorsTable({ errorType }: ErrorsTableProps) {
         </div>
       )}
 
-      {(overlay.type === "resend" || overlay.type === "resendWithData" || overlay.type === "sendResult") && api && (
+      {overlay.type === "action" && api && (
         <ErrorActionDialog
-          mode={overlay.type === "resend" ? "resend" : overlay.type === "resendWithData" ? "resendWithData" : "sendResult"}
-          correlationId={overlay.correlationId}
-          payload={overlay.type === "resendWithData" ? overlay.payload : undefined}
+          mode={overlay.mode}
+          row={overlay.row}
           api={api}
           onClose={() => setOverlay({ type: "none" })}
           onDone={() => { setOverlay({ type: "none" }); load(); }}

@@ -87,7 +87,7 @@ export function RecordDialog({ model, mode, record, onSubmit, onClose }: RecordD
       className="flex flex-col bg-sidebar border border-border"
       style={{
         width: "60vw",
-        height: "80vh",
+        height: "75vh",
         minWidth: 400,
         minHeight: 300,
         maxWidth: "90vw",

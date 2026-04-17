@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import { X } from "lucide-react";
 import { ProcessListPanel } from "./components/ProcessListPanel";
@@ -8,6 +8,7 @@ import { JsonEditor } from "@/pages/command-tester/components/JsonEditor";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { SidePanel } from "@/components/layout/SidePanel";
 import { useContourApi } from "@/lib/ws-api";
+import { useNavigation } from "@/providers/NavigationProvider";
 import type { ProcessTab, ViewerTab, ProcessDetail } from "./types";
 
 type Overlay =
@@ -19,9 +20,14 @@ type Overlay =
 
 export function ViewerPage() {
   const api = useContourApi();
+  const { navigateTo, consumeIntent, currentSection } = useNavigation();
   const [tabs, setTabs] = useState<ProcessTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<Overlay>({ type: "none" });
+  // Активная вкладка списка процессов (Completed/Manual/Idle) — поднята
+  // сюда, чтобы переключать её при навигации из Run (для процессов
+  // в manualcontrol, например).
+  const [listTab, setListTab] = useState<ViewerTab>("completed");
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
 
@@ -137,6 +143,24 @@ export function ViewerPage() {
     }
   };
 
+  const handleEditProcess = useCallback((processName: string) => {
+    navigateTo("configurator", { kind: "openProcessInConfigurator", processName });
+  }, [navigateTo]);
+
+  // Подхватить навигационный intent «открой процесс в Viewer»
+  // (например, от RunProcessPanel в Configurator). ViewerPage остаётся
+  // замаунченным между переключениями секций (Shell прячет её через
+  // display:none), поэтому эффект должен перепроверять intent при
+  // КАЖДОЙ активации секции — ключом служит `currentSection`.
+  useEffect(() => {
+    if (currentSection !== "viewer") return;
+    const intent = consumeIntent("viewer");
+    if (!intent || intent.kind !== "openProcessInViewer") return;
+    const tab = intent.tab ?? "completed";
+    setListTab(tab);
+    handleSelectProcess(intent.processId, intent.name, tab);
+  }, [currentSection, consumeIntent, handleSelectProcess]);
+
   const handleRestart = useCallback(
     async (data?: unknown) => {
       if (!api || (overlay.type !== "restart" && overlay.type !== "restartWithData")) return;
@@ -160,6 +184,8 @@ export function ViewerPage() {
           <ProcessListPanel
             onSelectProcess={handleSelectProcess}
             selectedProcessId={activeTab?.processId ?? null}
+            activeTab={listTab}
+            onActiveTabChange={setListTab}
           />
         </SidePanel>
       </Panel>
@@ -221,7 +247,6 @@ export function ViewerPage() {
             <div className="flex-1 overflow-hidden relative">
               <ProcessDetailPanel
                 detail={activeTab.detail}
-                childProcesses={activeTab.children}
                 tab={activeTab.tab}
                 onViewJson={handleViewJson}
                 onViewStageContext={handleViewStageContext}
@@ -233,6 +258,7 @@ export function ViewerPage() {
                   const stageName = findStageName(activeTab.detail!, stageIndex);
                   setOverlay({ type: "restartWithData", processId: activeTab.processId, stageIndex, stageName });
                 }}
+                onEditProcess={handleEditProcess}
               />
 
               {/* Overlay: JSON viewer */}

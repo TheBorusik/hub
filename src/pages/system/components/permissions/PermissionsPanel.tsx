@@ -1,13 +1,21 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { RefreshCw, FolderPlus, KeyRound, ChevronsUpDown, ChevronsDownUp, Search, ChevronRight, ChevronDown, Folder, Key, Pencil, Trash2 } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo, useRef, memo, useDeferredValue } from "react";
+import {
+  RefreshCw, FolderPlus, KeyRound, ChevronsUpDown, ChevronsDownUp,
+  Search, ChevronRight, ChevronDown, Folder, FolderOpen,
+  Pencil, Trash2, Plus, GripVertical,
+} from "lucide-react";
 import { useContourApi } from "@/lib/ws-api";
 import { PermissionDialog } from "./PermissionDialog";
 import type { PermissionTreeNode } from "../../types";
 
+function isCatalogNode(n: PermissionTreeNode): boolean {
+  return n.Type?.toLowerCase() === "catalog";
+}
+
 type Overlay =
   | { type: "none" }
-  | { type: "addCatalog"; editing: PermissionTreeNode | null }
-  | { type: "addPermission"; editing: PermissionTreeNode | null }
+  | { type: "addCatalog"; editing: PermissionTreeNode | null; parentCatalogId?: number }
+  | { type: "addPermission"; editing: PermissionTreeNode | null; catalogId?: number }
   | { type: "confirm"; title: string; onConfirm: () => void };
 
 export function PermissionsPanel() {
@@ -15,9 +23,13 @@ export function PermissionsPanel() {
   const [tree, setTree] = useState<PermissionTreeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("");
+  const deferredFilter = useDeferredValue(filter);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [allExpanded, setAllExpanded] = useState(true);
+  const [allExpanded, setAllExpanded] = useState(false);
   const [overlay, setOverlay] = useState<Overlay>({ type: "none" });
+  const [draggedNode, setDraggedNode] = useState<PermissionTreeNode | null>(null);
+  const draggedNodeRef = useRef<PermissionTreeNode | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!api) return;
@@ -48,44 +60,49 @@ export function PermissionsPanel() {
     }
   }, [tree, allExpanded, collectIds]);
 
-  const expandAll = () => { setExpanded(new Set(collectIds(tree))); setAllExpanded(true); };
-  const collapseAll = () => { setExpanded(new Set()); setAllExpanded(false); };
+  const expandAll = useCallback(() => { setExpanded(new Set(collectIds(tree))); setAllExpanded(true); }, [collectIds, tree]);
+  const collapseAll = useCallback(() => { setExpanded(new Set()); setAllExpanded(false); }, []);
 
-  const toggleNode = (id: string) => {
+  const toggleNode = useCallback((id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-  };
-
-  const filterMatch = useCallback((node: PermissionTreeNode, q: string): boolean => {
-    if (node.Name.toLowerCase().includes(q) || (node.Description ?? "").toLowerCase().includes(q)) return true;
-    if (node.PermissionTree?.some((c) => filterMatch(c, q))) return true;
-    return false;
   }, []);
 
-  const filteredTree = useMemo(() => {
-    if (!filter) return tree;
-    const q = filter.toLowerCase();
-    const filterNodes = (nodes: PermissionTreeNode[]): PermissionTreeNode[] =>
-      nodes
-        .filter((n) => filterMatch(n, q))
-        .map((n) => ({
-          ...n,
-          PermissionTree: n.PermissionTree ? filterNodes(n.PermissionTree) : undefined,
-        }));
-    return filterNodes(tree);
-  }, [tree, filter, filterMatch]);
+  const visibleIds = useMemo<Set<string> | null>(() => {
+    if (!deferredFilter) return null;
+    const q = deferredFilter.toLowerCase();
+    const result = new Set<string>();
 
-  const handleDelete = (node: PermissionTreeNode) => {
+    const markVisible = (nodes: PermissionTreeNode[]): boolean => {
+      let anyMatch = false;
+      for (const n of nodes) {
+        const id = nodeId(n);
+        const nameMatch = n.Name.toLowerCase().includes(q) || (n.Description ?? "").toLowerCase().includes(q);
+        const childMatch = n.PermissionTree?.length ? markVisible(n.PermissionTree) : false;
+        if (nameMatch || childMatch) {
+          result.add(id);
+          anyMatch = true;
+        }
+      }
+      return anyMatch;
+    };
+    markVisible(tree);
+    return result;
+  }, [tree, deferredFilter]);
+
+  const isFiltering = filter !== deferredFilter;
+
+  const handleDelete = useCallback((node: PermissionTreeNode) => {
     if (!api) return;
-    const isCatalog = node.Type === "catalog";
+    const isCat = isCatalogNode(node);
     setOverlay({
       type: "confirm",
-      title: `Delete ${isCatalog ? "catalog" : "permission"} "${node.Name}"?`,
+      title: `Delete ${isCat ? "catalog" : "permission"} "${node.Name}"?`,
       onConfirm: async () => {
-        if (isCatalog && node.CatalogId != null) {
+        if (isCat && node.CatalogId != null) {
           await api.removePermissionCatalog(node.CatalogId);
         } else if (node.PermissionId != null) {
           await api.removePermission(node.PermissionId);
@@ -94,7 +111,59 @@ export function PermissionsPanel() {
         load();
       },
     });
-  };
+  }, [api, load]);
+
+  const startDrag = useCallback((node: PermissionTreeNode) => {
+    draggedNodeRef.current = node;
+    setDraggedNode(node);
+  }, []);
+
+  const endDrag = useCallback(() => {
+    draggedNodeRef.current = null;
+    setDraggedNode(null);
+    setDropTargetId(null);
+  }, []);
+
+  const handleDrop = useCallback(async (targetCatalogId: number | null) => {
+    const dragged = draggedNodeRef.current;
+    if (!api || !dragged) return;
+    const isCat = isCatalogNode(dragged);
+    try {
+      if (isCat && dragged.CatalogId != null) {
+        await api.upsertPermissionCatalog({
+          CatalogId: dragged.CatalogId,
+          Name: dragged.Name,
+          Description: dragged.Description ?? "",
+          ParentId: targetCatalogId,
+        });
+      } else if (dragged.PermissionId != null) {
+        await api.upsertPermission({
+          PermissionId: dragged.PermissionId,
+          StrId: dragged.StrId ?? undefined,
+          Name: dragged.Name,
+          Description: dragged.Description ?? "",
+          CatalogId: targetCatalogId,
+          PermissionSettings: dragged.PermissionSettings ?? undefined,
+        });
+      }
+      load();
+    } catch { /* ignore */ }
+    endDrag();
+  }, [api, load, endDrag]);
+
+  const onEdit = useCallback((n: PermissionTreeNode) => {
+    setOverlay({ type: isCatalogNode(n) ? "addCatalog" : "addPermission", editing: n });
+  }, []);
+
+  const onAddCatalog = useCallback((parentId: number) => {
+    setOverlay({ type: "addCatalog", editing: null, parentCatalogId: parentId });
+  }, []);
+
+  const onAddPermission = useCallback((catId: number) => {
+    setOverlay({ type: "addPermission", editing: null, catalogId: catId });
+  }, []);
+
+  const handleDropTargetChange = useCallback((id: string | null) => setDropTargetId(id), []);
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ position: "relative" }}>
@@ -117,24 +186,46 @@ export function PermissionsPanel() {
         <div className="flex items-center gap-1" style={{ marginLeft: "auto" }}>
           <Search size={14} style={{ color: "var(--color-text-muted)" }} />
           <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter..." style={searchStyle} />
+          {isFiltering && <span style={{ fontSize: 9, color: "var(--color-text-muted)" }}>...</span>}
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto" style={{ padding: "4px 0" }}>
-        {filteredTree.map((node) => (
+      <div className="flex-1 overflow-auto" style={{ padding: "4px 0", opacity: isFiltering ? 0.6 : 1, transition: "opacity 100ms" }}>
+        <DropRootZone
+          isOver={dropTargetId === "ROOT"}
+          onDragOver={() => setDropTargetId("ROOT")}
+          onDragLeave={() => setDropTargetId(null)}
+          onDrop={() => handleDrop(null)}
+        />
+
+        {tree.map((node) => (
           <PermTreeNode
             key={nodeId(node)}
             node={node}
             depth={0}
             expanded={expanded}
+            visibleIds={visibleIds}
             onToggle={toggleNode}
-            onEdit={(n) => setOverlay({ type: n.Type === "catalog" ? "addCatalog" : "addPermission", editing: n })}
+            onEdit={onEdit}
             onDelete={handleDelete}
+            onAddCatalog={onAddCatalog}
+            onAddPermission={onAddPermission}
+            draggedNode={draggedNode}
+            dropTargetId={dropTargetId}
+            onDragStart={startDrag}
+            onDragEnd={endDrag}
+            onDropTargetChange={handleDropTargetChange}
+            onDrop={handleDrop}
           />
         ))}
-        {filteredTree.length === 0 && !loading && (
+        {visibleIds?.size === 0 && !loading && (
           <div style={{ textAlign: "center", color: "var(--color-text-muted)", padding: 24, fontSize: 12 }}>
-            No permissions found
+            Ничего не найдено
+          </div>
+        )}
+        {!deferredFilter && tree.length === 0 && !loading && (
+          <div style={{ textAlign: "center", color: "var(--color-text-muted)", padding: 24, fontSize: 12 }}>
+            Нет permissions
           </div>
         )}
       </div>
@@ -143,6 +234,8 @@ export function PermissionsPanel() {
         <PermissionDialog
           mode={overlay.type === "addCatalog" ? "catalog" : "permission"}
           editing={overlay.editing}
+          parentCatalogId={overlay.type === "addCatalog" ? overlay.parentCatalogId : undefined}
+          catalogId={overlay.type === "addPermission" ? overlay.catalogId : undefined}
           api={api}
           onClose={() => setOverlay({ type: "none" })}
           onDone={() => { setOverlay({ type: "none" }); load(); }}
@@ -163,7 +256,7 @@ function nodeId(node: PermissionTreeNode): string {
   const cached = _nodeKeyCache.get(node);
   if (cached) return cached;
   let id: string;
-  if (node.Type === "catalog" && node.CatalogId != null) {
+  if (isCatalogNode(node) && node.CatalogId != null) {
     id = `cat-${node.CatalogId}`;
   } else if (node.PermissionId != null) {
     id = `perm-${node.PermissionId}`;
@@ -178,64 +271,233 @@ interface PermTreeNodeProps {
   node: PermissionTreeNode;
   depth: number;
   expanded: Set<string>;
+  visibleIds: Set<string> | null;
   onToggle: (id: string) => void;
   onEdit: (node: PermissionTreeNode) => void;
   onDelete: (node: PermissionTreeNode) => void;
+  onAddCatalog: (parentCatalogId: number) => void;
+  onAddPermission: (catalogId: number) => void;
+  draggedNode: PermissionTreeNode | null;
+  dropTargetId: string | null;
+  onDragStart: (node: PermissionTreeNode) => void;
+  onDragEnd: () => void;
+  onDropTargetChange: (id: string | null) => void;
+  onDrop: (targetCatalogId: number | null) => void;
 }
 
-function PermTreeNode({ node, depth, expanded, onToggle, onEdit, onDelete }: PermTreeNodeProps) {
+const PermTreeNode = memo(function PermTreeNode({
+  node, depth, expanded, visibleIds, onToggle, onEdit, onDelete,
+  onAddCatalog, onAddPermission,
+  draggedNode, dropTargetId, onDragStart, onDragEnd, onDropTargetChange, onDrop,
+}: PermTreeNodeProps) {
   const id = nodeId(node);
+
+  if (visibleIds !== null && !visibleIds.has(id)) return null;
+
   const hasChildren = node.PermissionTree && node.PermissionTree.length > 0;
-  const isExpanded = expanded.has(id);
-  const isCatalog = node.Type === "catalog";
+  const isExpanded = visibleIds !== null ? true : expanded.has(id);
+  const isCatalog = isCatalogNode(node);
+  const isDropTarget = dropTargetId === id && isCatalog;
+  const isDragging = draggedNode && nodeId(draggedNode) === id;
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", id);
+    onDragStart(node);
+  }, [id, node, onDragStart]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!isCatalog) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    onDropTargetChange(id);
+  }, [isCatalog, id, onDropTargetChange]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.stopPropagation();
+    onDropTargetChange(null);
+    if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
+  }, [onDropTargetChange]);
+
+  const handleDropOnThis = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
+    if (isCatalog && node.CatalogId != null) {
+      onDrop(node.CatalogId);
+    }
+  }, [isCatalog, node.CatalogId, onDrop]);
+
+  useEffect(() => {
+    if (isDropTarget && !isExpanded && hasChildren && !hoverTimerRef.current) {
+      hoverTimerRef.current = setTimeout(() => { onToggle(id); hoverTimerRef.current = null; }, 800);
+    }
+    if (!isDropTarget && hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }, [isDropTarget, isExpanded, hasChildren, id, onToggle]);
 
   return (
     <>
       <div
         className="group flex items-center gap-1"
+        onDragEnd={onDragEnd}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDropOnThis}
         style={{
-          height: 24,
+          height: 26,
           paddingLeft: depth * 16 + 8,
           paddingRight: 8,
           fontSize: 12,
           cursor: hasChildren ? "pointer" : "default",
           userSelect: "none",
+          opacity: isDragging ? 0.4 : 1,
+          backgroundColor: isDropTarget ? "rgba(14,99,156,0.25)" : "transparent",
+          borderTop: isDropTarget ? "2px solid #0e639c" : "2px solid transparent",
+          transition: "background-color 120ms",
         }}
         onClick={() => hasChildren && onToggle(id)}
-        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+        onMouseEnter={(e) => { if (!isDropTarget) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
+        onMouseLeave={(e) => { if (!isDropTarget) e.currentTarget.style.backgroundColor = "transparent"; }}
       >
+        <span
+          draggable
+          onDragStart={handleDragStart}
+          style={{ display: "inline-flex", alignItems: "center", flexShrink: 0, cursor: "grab", padding: "2px 0" }}
+        >
+          <GripVertical size={10} style={{ opacity: 0.25 }} />
+        </span>
+
         {hasChildren ? (
           isExpanded ? <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.6 }} /> : <ChevronRight size={14} style={{ flexShrink: 0, opacity: 0.6 }} />
         ) : (
           <span style={{ width: 14, flexShrink: 0 }} />
         )}
+
         {isCatalog ? (
-          <Folder size={14} style={{ flexShrink: 0, color: "#dcb67a" }} />
+          isExpanded && hasChildren
+            ? <FolderOpen size={14} style={{ flexShrink: 0, color: "#dcb67a" }} />
+            : <Folder size={14} style={{ flexShrink: 0, color: "#dcb67a" }} />
         ) : (
-          <Key size={14} style={{ flexShrink: 0, color: "#5CADD5" }} />
+          <KeyRound size={14} style={{ flexShrink: 0, color: "#5CADD5" }} />
         )}
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--color-text)" }}>
+
+        <span style={{
+          flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          color: isCatalog ? "#dcb67a" : "var(--color-text)",
+          fontWeight: isCatalog ? 500 : 400,
+        }}>
           {node.Name}
         </span>
+
         {node.PermissionId != null && (
-          <span style={{ fontSize: 10, color: "var(--color-text-muted)", marginRight: 4 }}>#{node.PermissionId}</span>
+          <span style={{ fontSize: 9, color: "var(--color-text-muted)", background: "rgba(255,255,255,0.06)", borderRadius: 3, padding: "0 4px", lineHeight: "16px", flexShrink: 0 }}>
+            #{node.PermissionId}
+          </span>
         )}
-        <button onClick={(e) => { e.stopPropagation(); onEdit(node); }} className="toolbar-btn" style={actionBtn} title="Edit"><Pencil size={11} /></button>
-        <button onClick={(e) => { e.stopPropagation(); onDelete(node); }} className="toolbar-btn" style={actionBtn} title="Delete"><Trash2 size={11} /></button>
+
+        {node.PermissionSettings?.ConfirmationRequired && (
+          <span style={{ fontSize: 9, color: "#F59E0B", background: "rgba(245,158,11,0.1)", borderRadius: 3, padding: "0 3px", lineHeight: "16px", flexShrink: 0 }} title="Confirmation Required">
+            CR
+          </span>
+        )}
+
+        <div className="flex items-center gap-0" style={{ flexShrink: 0 }}>
+          {isCatalog && node.CatalogId != null && (<>
+            <button onClick={(e) => { e.stopPropagation(); onAddCatalog(node.CatalogId!); }} className="tree-action-btn" title="Add Catalog"><FolderPlus size={11} /></button>
+            <button onClick={(e) => { e.stopPropagation(); onAddPermission(node.CatalogId!); }} className="tree-action-btn" title="Add Permission"><Plus size={11} /></button>
+          </>)}
+          <button onClick={(e) => { e.stopPropagation(); onEdit(node); }} className="tree-action-btn" title="Edit"><Pencil size={11} /></button>
+          <button onClick={(e) => { e.stopPropagation(); onDelete(node); }} className="tree-action-btn" style={{ color: "#F44336" }} title="Delete"><Trash2 size={11} /></button>
+        </div>
       </div>
+
       {hasChildren && isExpanded && node.PermissionTree!.map((child) => (
         <PermTreeNode
           key={nodeId(child)}
           node={child}
           depth={depth + 1}
           expanded={expanded}
+          visibleIds={visibleIds}
           onToggle={onToggle}
           onEdit={onEdit}
           onDelete={onDelete}
+          onAddCatalog={onAddCatalog}
+          onAddPermission={onAddPermission}
+          draggedNode={draggedNode}
+          dropTargetId={dropTargetId}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDropTargetChange={onDropTargetChange}
+          onDrop={onDrop}
         />
       ))}
     </>
+  );
+}, (prev, next) => {
+  const id = nodeId(prev.node);
+  if (prev.node !== next.node) return false;
+  if (prev.depth !== next.depth) return false;
+
+  if (prev.visibleIds !== next.visibleIds) {
+    const prevVis = prev.visibleIds === null || prev.visibleIds.has(id);
+    const nextVis = next.visibleIds === null || next.visibleIds.has(id);
+    if (prevVis !== nextVis) return false;
+    if (nextVis && prev.visibleIds !== next.visibleIds) return false;
+  }
+
+  if (next.visibleIds === null) {
+    const prevExp = prev.expanded.has(id);
+    const nextExp = next.expanded.has(id);
+    if (prevExp !== nextExp) return false;
+    if (nextExp && prev.expanded !== next.expanded) return false;
+  }
+
+  const prevDrop = prev.dropTargetId === id;
+  const nextDrop = next.dropTargetId === id;
+  if (prevDrop !== nextDrop) return false;
+  const prevDrag = prev.draggedNode ? nodeId(prev.draggedNode) === id : false;
+  const nextDrag = next.draggedNode ? nodeId(next.draggedNode) === id : false;
+  if (prevDrag !== nextDrag) return false;
+  if (prev.onToggle !== next.onToggle) return false;
+  if (prev.onEdit !== next.onEdit) return false;
+  if (prev.onDelete !== next.onDelete) return false;
+  if (prev.onAddCatalog !== next.onAddCatalog) return false;
+  if (prev.onAddPermission !== next.onAddPermission) return false;
+  if (prev.onDragStart !== next.onDragStart) return false;
+  if (prev.onDragEnd !== next.onDragEnd) return false;
+  if (prev.onDropTargetChange !== next.onDropTargetChange) return false;
+  if (prev.onDrop !== next.onDrop) return false;
+  return true;
+});
+
+function DropRootZone({ isOver, onDragOver, onDragLeave, onDrop }: {
+  isOver: boolean;
+  onDragOver: () => void;
+  onDragLeave: () => void;
+  onDrop: () => void;
+}) {
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); onDragOver(); }}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => { e.preventDefault(); onDrop(); }}
+      style={{
+        height: 28, display: "flex", alignItems: "center", gap: 6,
+        padding: "0 12px", fontSize: 11, color: "var(--color-text-muted)",
+        background: isOver ? "rgba(14,99,156,0.2)" : "rgba(255,255,255,0.02)",
+        borderBottom: "1px dashed var(--color-border)",
+        transition: "background 120ms",
+      }}
+    >
+      <Folder size={12} style={{ opacity: 0.4 }} />
+      Drop here to move to root
+    </div>
   );
 }
 
@@ -254,7 +516,6 @@ function ConfirmOverlay({ title, onConfirm, onCancel }: { title: string; onConfi
   );
 }
 
-const actionBtn: React.CSSProperties = { opacity: 0.5 };
 const searchStyle: React.CSSProperties = { background: "var(--color-input-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)", fontSize: 12, padding: "2px 6px", height: 22, width: 160, borderRadius: 3, outline: "none" };
 const overlayBg: React.CSSProperties = { position: "absolute", inset: 0, zIndex: 20, backgroundColor: "rgba(0,0,0,0.3)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 60 };
 const dialogStyle: React.CSSProperties = { backgroundColor: "var(--color-sidebar)", border: "1px solid var(--color-border)", borderRadius: 6, padding: 20, minWidth: 340, maxWidth: "80%", boxShadow: "0 4px 24px rgba(0,0,0,0.4)" };
