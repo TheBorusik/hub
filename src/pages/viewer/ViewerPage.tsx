@@ -1,12 +1,15 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Group, Panel } from "react-resizable-panels";
-import { X } from "lucide-react";
+import { X, FileSearch } from "lucide-react";
 import { ProcessListPanel } from "./components/ProcessListPanel";
 import { ProcessDetailPanel } from "./components/ProcessDetailPanel";
 import { RestartDialog } from "./components/RestartDialog";
 import { JsonEditor } from "@/pages/command-tester/components/JsonEditor";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { SidePanel } from "@/components/layout/SidePanel";
+import { Tabs } from "@/components/ui/Tabs";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { StatusDot } from "@/components/ui/StatusDot";
 import { useContourApi } from "@/lib/ws-api";
 import { useNavigation } from "@/providers/NavigationProvider";
 import type { ProcessTab, ViewerTab, ProcessDetail } from "./types";
@@ -176,6 +179,17 @@ export function ViewerPage() {
     [api, overlay, refreshActiveTab],
   );
 
+  const tabItems = useMemo(
+    () =>
+      tabs.map((tab) => ({
+        id: tab.id,
+        label: `#${tab.processId} ${tab.name}`,
+        closable: true,
+        icon: tab.loading ? <StatusDot tone="info" size={8} glow /> : undefined,
+      })),
+    [tabs],
+  );
+
   return (
     <Group orientation="horizontal" id="viewer-main">
       {/* Side Panel */}
@@ -194,53 +208,17 @@ export function ViewerPage() {
       {/* Editor Area */}
       <Panel id="viewer-editor" minSize="30%">
         <div className="flex flex-col h-full overflow-hidden">
-          {/* Process Tabs */}
-          <div
-            className="flex items-center shrink-0 select-none overflow-x-auto bg-tab-inactive"
-            style={{ height: 35, borderBottom: "1px solid var(--color-border)" }}
-          >
-            {tabs.map((tab) => {
-              const isActive = tab.id === activeTabId;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTabId(tab.id)}
-                  className="flex items-center shrink-0 cursor-pointer border-none"
-                  style={{
-                    height: 35,
-                    padding: "0 10px",
-                    gap: 6,
-                    fontSize: 13,
-                    background: isActive ? "var(--color-tab-active)" : "transparent",
-                    color: isActive ? "var(--color-text-active)" : "var(--color-text-muted)",
-                    borderRight: "1px solid var(--color-border)",
-                    ...(isActive ? { borderBottom: "1px solid var(--color-tab-active)" } : {}),
-                  }}
-                >
-                  {tab.loading && (
-                    <span
-                      style={{
-                        width: 6, height: 6, borderRadius: "50%",
-                        background: "var(--color-accent)",
-                        animation: "pulse 1s infinite",
-                        flexShrink: 0,
-                      }}
-                    />
-                  )}
-                  <span className="truncate" style={{ maxWidth: 200 }}>
-                    #{tab.processId} {tab.name}
-                  </span>
-                  <span
-                    onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                    className="flex items-center justify-center toolbar-btn"
-                    style={{ width: 16, height: 16, flexShrink: 0 }}
-                  >
-                    <X size={12} />
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {/* Process Tabs (chrome variant) */}
+          {tabItems.length > 0 && (
+            <Tabs
+              items={tabItems}
+              activeId={activeTabId ?? ""}
+              onChange={(id) => setActiveTabId(id)}
+              onClose={closeTab}
+              variant="chrome"
+              aria-label="Open processes"
+            />
+          )}
 
           {/* Content */}
           {activeTab?.detail ? (
@@ -309,12 +287,16 @@ export function ViewerPage() {
               )}
             </div>
           ) : activeTab?.loading ? (
-            <div className="flex-1 flex items-center justify-center" style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-              Loading process details...
+            <div className="flex-1 flex items-center justify-center">
+              <EmptyState title="Loading process details..." hint="Fetching stages and context from server." />
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center" style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-              Select a process from the list to view its details
+            <div className="flex-1 flex items-center justify-center">
+              <EmptyState
+                icon={<FileSearch size={36} />}
+                title="Select a process"
+                hint="Pick a process from the list on the left to view its stages, context and actions."
+              />
             </div>
           )}
         </div>

@@ -14,6 +14,12 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   busy?: boolean;
   /** Внешне показывает "активное" состояние (например, фильтр включён). */
   active?: boolean;
+  /**
+   * Маленький значок в правом-верхнем углу (обычно CountBadge с числом,
+   * напр. число применённых фильтров). Визуально — absolute-позиционирование
+   * внутри обёртки; кнопка при этом остаётся кнопкой.
+   */
+  badge?: ReactNode;
 }
 
 const SIZE_BOX: Record<IconButtonSize, string> = {
@@ -35,6 +41,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
     size = "sm",
     busy = false,
     active = false,
+    badge,
     disabled,
     className,
     style,
@@ -70,6 +77,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       data-active={active || undefined}
       className={className}
       style={{
+        position: "relative",
         width: box,
         height: box,
         display: "inline-flex",
@@ -89,6 +97,19 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       {...rest}
     >
       {busy ? <Loader2 size={12} className="animate-spin" /> : icon}
+      {badge && (
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: -3,
+            right: -3,
+            pointerEvents: "none",
+          }}
+        >
+          {badge}
+        </span>
+      )}
     </button>
   );
 });

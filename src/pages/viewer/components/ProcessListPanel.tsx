@@ -1,8 +1,16 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { RefreshCw, ChevronDown, ArrowRight, Trash2, Filter as FilterIcon } from "lucide-react";
+import { RefreshCw, ArrowRight, Trash2, Filter as FilterIcon } from "lucide-react";
 import { useContourApi } from "@/lib/ws-api";
 import { useToast } from "@/providers/ToastProvider";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Tabs } from "@/components/ui/Tabs";
+import { PanelToolbar } from "@/components/ui/PanelToolbar";
+import { IconButton, Button } from "@/components/ui/Button";
+import { CountBadge } from "@/components/ui/CountBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadMoreRow } from "@/components/ui/LoadMoreRow";
+import { MassActionBar } from "@/components/ui/MassActionBar";
+import { t as tok } from "@/lib/design-tokens";
 import { ProcessFiltersPanel, buildServerFilters, EMPTY_FILTERS, type ViewerFiltersState } from "./ProcessFiltersPanel";
 import type { ViewerTab } from "../types";
 import type { ViewerProcessRow } from "@/lib/ws-api-models";
@@ -230,68 +238,47 @@ export function ProcessListPanel({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Tab buttons */}
-      <div className="flex shrink-0" style={{ borderBottom: "1px solid var(--color-border)" }}>
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className="flex-1 cursor-pointer border-none"
-            style={{
-              height: 28,
-              fontSize: 12,
-              fontWeight: activeTab === t.id ? 600 : 400,
-              background: activeTab === t.id ? "var(--color-tab-active)" : "transparent",
-              color: activeTab === t.id ? "var(--color-text-active)" : "var(--color-text-muted)",
-              borderBottom: activeTab === t.id ? "2px solid var(--color-focus-border)" : "2px solid transparent",
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Tabs (inline variant, stretched) */}
+      <Tabs
+        items={TABS.map((t) => ({ id: t.id, label: t.label }))}
+        activeId={activeTab}
+        onChange={setActiveTab}
+        variant="inline"
+        aria-label="Process status"
+      />
 
-      {/* Toolbar: search + refresh + filter toggle */}
-      <div className="flex items-center shrink-0" style={{ padding: "4px 6px", gap: 4, borderBottom: "1px solid var(--color-border)" }}>
-        <input
-          type="text"
-          placeholder="Search..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: 1, fontSize: 12 }}
-        />
-        <button
-          onClick={() => setShowFilters((v) => !v)}
-          className="toolbar-btn"
-          title="Filters"
-          style={{
-            position: "relative",
-            color: activeFilterCount > 0 ? "var(--color-accent)" : undefined,
-          }}
-        >
-          <FilterIcon size={14} />
-          {activeFilterCount > 0 && (
-            <span
-              style={{
-                position: "absolute", top: -4, right: -4,
-                minWidth: 14, height: 14, borderRadius: 7, padding: "0 3px",
-                background: "var(--color-accent)", color: "#fff",
-                fontSize: 9, lineHeight: "14px", textAlign: "center",
-              }}
-            >
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => loadProcesses(activeTab)}
-          disabled={loading}
-          className="toolbar-btn"
-          title="Refresh"
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-        </button>
-      </div>
+      {/* Toolbar: search + filters + refresh */}
+      <PanelToolbar
+        dense
+        left={
+          <input
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ flex: 1, fontSize: 12, minWidth: 0 }}
+          />
+        }
+        right={
+          <>
+            <IconButton
+              icon={<FilterIcon size={13} />}
+              label="Filters"
+              size="sm"
+              active={showFilters || activeFilterCount > 0}
+              onClick={() => setShowFilters((v) => !v)}
+              badge={activeFilterCount > 0 ? <CountBadge value={activeFilterCount} tone="accent" /> : undefined}
+            />
+            <IconButton
+              icon={<RefreshCw size={13} className={loading ? "animate-spin" : ""} />}
+              label="Refresh"
+              size="sm"
+              onClick={() => loadProcesses(activeTab)}
+              disabled={loading}
+            />
+          </>
+        }
+      />
 
       {/* Filters panel */}
       {showFilters && (
@@ -304,38 +291,41 @@ export function ProcessListPanel({
       )}
 
       {/* Mass action bar */}
-      {selected.size > 0 && (
-        <div
-          className="flex items-center shrink-0"
-          style={{ padding: "3px 6px", gap: 6, fontSize: 12, borderBottom: "1px solid var(--color-border)", background: "rgba(0,122,204,0.1)" }}
-        >
-          <span style={{ color: "var(--color-text-muted)" }}>{selected.size} selected</span>
-          <button
-            onClick={handleDeleteAction}
-            className="flex items-center cursor-pointer"
-            style={{ marginLeft: "auto", fontSize: 11, padding: "2px 8px", background: "#c62828", color: "#fff", border: "none", gap: 4 }}
-            title="Delete selected processes (cascade)"
-          >
-            <Trash2 size={12} />
-            Delete
-          </button>
-          <button
-            onClick={handleMoveAction}
-            className="flex items-center cursor-pointer"
-            style={{ fontSize: 11, padding: "2px 8px", background: "var(--color-accent)", color: "#fff", border: "none", gap: 4 }}
-          >
-            <ArrowRight size={12} />
-            {activeTab === "completed" ? "Move to Last State" : "Move to Completed"}
-          </button>
-        </div>
-      )}
+      <MassActionBar
+        selectedCount={selected.size}
+        noun="selected"
+        onClear={() => setSelected(new Set())}
+        actions={
+          <>
+            <Button
+              size="sm"
+              variant="danger"
+              icon={<Trash2 size={11} />}
+              onClick={handleDeleteAction}
+              title="Delete selected processes (cascade)"
+            >
+              Delete
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              icon={<ArrowRight size={11} />}
+              onClick={handleMoveAction}
+            >
+              {activeTab === "completed" ? "Move to Last State" : "Move to Completed"}
+            </Button>
+          </>
+        }
+      />
 
       {/* Process list */}
       <div className="flex-1 overflow-y-auto" style={{ paddingTop: 2 }}>
         {filtered.length === 0 && !loading && (
-          <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: "var(--color-text-muted)" }}>
-            {processes.length === 0 ? "No processes" : "No matches"}
-          </div>
+          <EmptyState
+            dense
+            title={processes.length === 0 ? "No processes" : "No matches"}
+            hint={processes.length === 0 ? "Try changing filters or switch tab" : "Try a different search query"}
+          />
         )}
         {filtered.map((p) => {
           const isActive = p.ProcessId === selectedProcessId;
@@ -395,37 +385,32 @@ export function ProcessListPanel({
 
         {/* Load more */}
         {processes.length > 0 && processes.length < totalCount && (
-          <button
+          <LoadMoreRow
             onClick={() => loadProcesses(activeTab, true)}
-            disabled={loading}
-            className="flex items-center justify-center cursor-pointer disabled:opacity-50"
-            style={{
-              width: "100%",
-              height: 28,
-              fontSize: 12,
-              background: "transparent",
-              border: "none",
-              color: "var(--color-accent)",
-              gap: 4,
-            }}
-          >
-            <ChevronDown size={14} />
-            Load more ({processes.length} / {totalCount})
-          </button>
+            loading={loading}
+            loaded={processes.length}
+            total={totalCount}
+          />
         )}
       </div>
 
       {/* Select all / footer */}
       <div
         className="flex items-center shrink-0"
-        style={{ padding: "2px 6px", gap: 6, fontSize: 11, color: "var(--color-text-muted)", borderTop: "1px solid var(--color-border)" }}
+        style={{
+          padding: `${tok.space[1]} ${tok.space[3]}`,
+          gap: tok.space[3],
+          fontSize: tok.font.size.xs,
+          color: tok.color.text.muted,
+          borderTop: `1px solid ${tok.color.border.default}`,
+        }}
       >
         <label className="flex items-center cursor-pointer" style={{ gap: 4 }}>
           <input
             type="checkbox"
             checked={filtered.length > 0 && selected.size === filtered.length}
             onChange={toggleSelectAll}
-            style={{ width: 12, height: 12, accentColor: "var(--color-accent)" }}
+            style={{ width: 12, height: 12, accentColor: tok.color.accent }}
           />
           All
         </label>

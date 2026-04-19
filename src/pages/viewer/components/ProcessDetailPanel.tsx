@@ -4,6 +4,10 @@ import {
   Braces, FileJson, AlertTriangle,
   UnfoldVertical, FoldVertical, Code2,
 } from "lucide-react";
+import { Button, IconButton } from "@/components/ui/Button";
+import { PanelToolbar } from "@/components/ui/PanelToolbar";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { t as tok } from "@/lib/design-tokens";
 import type { ProcessDetail, StageNode, StageData, ViewerTab } from "../types";
 import { STAGE_COLORS, getStageContextButtons } from "../types";
 
@@ -135,20 +139,16 @@ export function ProcessDetailPanel({
             {detail.Status}
           </span>
           {onEditProcess && (
-            <button
+            <Button
               onClick={() => onEditProcess(detail.Name)}
-              className="toolbar-btn"
               title="Open this process in Configurator"
-              style={{
-                marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4,
-                padding: "2px 8px", fontSize: 11,
-                border: "1px solid var(--color-border)", borderRadius: 3,
-                color: "var(--color-accent)",
-              }}
+              size="sm"
+              variant="secondary"
+              icon={<Code2 size={12} />}
+              style={{ marginLeft: "auto", color: tok.color.text.link }}
             >
-              <Code2 size={12} />
               Edit Process
-            </button>
+            </Button>
           )}
         </div>
         <div className="flex items-center flex-wrap" style={{ gap: 10, fontSize: 11, color: "var(--color-text-muted)" }}>
@@ -159,51 +159,52 @@ export function ProcessDetailPanel({
       </div>
 
       {/* Top-level JSON buttons + expand/collapse */}
-      <div className="flex items-center shrink-0 flex-wrap justify-between" style={{ padding: "4px 12px", gap: 4, borderBottom: "1px solid var(--color-border)" }}>
-        <div className="flex items-center flex-wrap" style={{ gap: 4 }}>
-          {[
-            { label: "Context", data: detail.Context },
-            { label: "Init Object", data: detail.InitObject },
-            { label: "Init Session", data: detail.InitSession },
-            { label: "Session", data: detail.Session },
-          ].filter((b) => b.data != null).map((b) => (
-            <button
-              key={b.label}
-              onClick={() => onViewJson(b.data, `${detail.Name} — ${b.label}`)}
-              className="toolbar-btn"
-              style={{ padding: "2px 8px", fontSize: 11, border: "1px solid var(--color-border)", color: "var(--color-accent)", gap: 4 }}
-            >
-              <Braces size={11} />
-              {b.label}
-            </button>
-          ))}
-          {detail.ManualControlCause != null && (
-            <button
-              onClick={() => onViewJson(detail.ManualControlCause, `${detail.Name} — ManualControlCause`)}
-              className="toolbar-btn"
-              style={{ padding: "2px 8px", fontSize: 11, border: "1px solid rgba(252,166,237,0.4)", color: "#FCA6ED", gap: 4 }}
-            >
-              <AlertTriangle size={11} />
-              ManualCause
-            </button>
-          )}
-        </div>
-        <div className="flex items-center" style={{ gap: 2 }}>
-          <button onClick={expandAll} className="toolbar-btn" title="Expand all" style={{ padding: "2px 6px" }}>
-            <UnfoldVertical size={13} />
-          </button>
-          <button onClick={collapseAll} className="toolbar-btn" title="Collapse all" style={{ padding: "2px 6px" }}>
-            <FoldVertical size={13} />
-          </button>
-        </div>
-      </div>
+      <PanelToolbar
+        dense
+        left={
+          <>
+            {[
+              { label: "Context", data: detail.Context },
+              { label: "Init Object", data: detail.InitObject },
+              { label: "Init Session", data: detail.InitSession },
+              { label: "Session", data: detail.Session },
+            ].filter((b) => b.data != null).map((b) => (
+              <Button
+                key={b.label}
+                onClick={() => onViewJson(b.data, `${detail.Name} — ${b.label}`)}
+                size="sm"
+                variant="secondary"
+                icon={<Braces size={11} />}
+                style={{ color: tok.color.text.link }}
+              >
+                {b.label}
+              </Button>
+            ))}
+            {detail.ManualControlCause != null && (
+              <Button
+                onClick={() => onViewJson(detail.ManualControlCause, `${detail.Name} — ManualControlCause`)}
+                size="sm"
+                variant="secondary"
+                icon={<AlertTriangle size={11} />}
+                style={{ color: "#FCA6ED", borderColor: "rgba(252,166,237,0.4)" }}
+              >
+                ManualCause
+              </Button>
+            )}
+          </>
+        }
+        right={
+          <>
+            <IconButton icon={<UnfoldVertical size={13} />} label="Expand all" onClick={expandAll} size="sm" />
+            <IconButton icon={<FoldVertical size={13} />} label="Collapse all" onClick={collapseAll} size="sm" />
+          </>
+        }
+      />
 
       {/* Stage table (flat grid) */}
       <div className="flex-1 overflow-auto">
         {rows.length === 0 ? (
-          <div style={{ padding: "12px 16px", fontSize: 12, color: "var(--color-text-muted)" }}>
-            No stages loaded
-          </div>
+          <EmptyState dense title="No stages loaded" hint="Process has no visible stages yet." />
         ) : (
           <div
             style={{
