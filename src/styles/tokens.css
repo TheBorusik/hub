@@ -1,0 +1,181 @@
+/* =============================================================================
+ *  Design tokens (Block A foundation).
+ *
+ *  Three levels (per docs/ui-redesign-tz.md §5):
+ *    1) Primitive   — raw palette.  Do not use directly in components.
+ *    2) Semantic    — role-based.   This is the main consumer surface.
+ *    3) Component   — tuned to specific widgets (panel header height, etc.).
+ *
+ *  Notes:
+ *    - Existing variables from globals.css (--color-surface-*, --color-sidebar,
+ *      --color-editor, --color-activitybar, --color-accent, --color-danger,
+ *      --color-success, --color-warning, --color-text-*, --color-border,
+ *      --color-stage-*) are kept untouched to avoid regressions. The new
+ *      semantic names below are either additive or aliases.
+ *    - Tailwind v4 picks up --color-* vars inside @theme as utilities; the
+ *      non-color ones (--space-*, --z-*, --radius-*, --shadow-*, --duration-*)
+ *      are just plain CSS vars — fine either way.
+ * ============================================================================= */
+
+@theme {
+  /* ----- 1) Primitive palette (grays aligned with VS Code dark+) ----------- */
+  --gray-0:    #000000;
+  --gray-50:   #0a0a0a;
+  --gray-100:  #121212;
+  --gray-150:  #181818;
+  --gray-200:  #1e1e1e;
+  --gray-250:  #252526;
+  --gray-300:  #2d2d2d;
+  --gray-350:  #333333;
+  --gray-400:  #3c3c3c;
+  --gray-500:  #505050;
+  --gray-600:  #606060;
+  --gray-700:  #787878;
+  --gray-800:  #a1a1a1;
+  --gray-900:  #cccccc;
+  --gray-1000: #ffffff;
+
+  --blue-50:   #cce4f7;
+  --blue-100:  #99caf0;
+  --blue-300:  #64b5f6;
+  --blue-400:  #1f7acb;
+  --blue-500:  #007acc; /* VS Code status bar / accent */
+  --blue-600:  #005fa3;
+  --blue-700:  #003e6b;
+
+  --red-300:   #ef9a9a;
+  --red-500:   #f14c4c; /* VS Code problems-error */
+  --red-600:   #c62828;
+  --red-700:   #8b1e1e;
+
+  --amber-300: #ffcc80;
+  --amber-500: #ff9800;
+  --amber-600: #ef6c00;
+
+  --green-300: #a5d6a7;
+  --green-500: #4caf50;
+  --green-600: #2e7d32;
+
+  --cyan-500:  #4ec9b0;  /* Monaco type color in dark+ */
+  --magenta-500: #c586c0;
+
+  /* ----- 2) Semantic (aliases over existing vars + new roles) -------------- */
+  /*                                                                           */
+  /*  Backgrounds.                                                             */
+  --color-bg-app:          var(--color-surface-100);
+  --color-bg-activitybar:  var(--color-activitybar);
+  --color-bg-sidebar:      var(--color-sidebar);
+  --color-bg-panel:        var(--color-surface-200);
+  --color-bg-editor:       var(--color-editor);
+  --color-bg-titlebar:     var(--color-titlebar);
+  --color-bg-statusbar:    var(--color-statusbar);
+  --color-bg-toolbar:      var(--color-surface-200);
+  --color-bg-tab-active:   var(--color-tab-active);
+  --color-bg-tab-inactive: var(--color-tab-inactive);
+
+  --color-bg-hover:         rgba(255, 255, 255, 0.06);
+  --color-bg-hover-strong:  rgba(255, 255, 255, 0.10);
+  --color-bg-selected:      rgba(0, 122, 204, 0.25);
+  --color-bg-selected-soft: rgba(0, 122, 204, 0.10);
+  --color-bg-accent-soft:   rgba(0, 122, 204, 0.15);
+  --color-bg-danger-soft:   rgba(241, 76, 76, 0.12);
+  --color-bg-warning-soft:  rgba(255, 152, 0, 0.12);
+  --color-bg-success-soft:  rgba(76, 175, 80, 0.12);
+  --color-bg-info-soft:     rgba(100, 181, 246, 0.12);
+  --color-bg-backdrop:      rgba(0, 0, 0, 0.45);
+
+  /*  Text.                                                                    */
+  --color-text-inverse: #0a0a0a;
+  --color-text-link:    var(--blue-300);
+  --color-text-danger:  var(--red-300);
+  --color-text-warning: var(--amber-300);
+  --color-text-success: var(--green-300);
+  --color-text-info:    var(--blue-300);
+
+  /*  Borders and focus.                                                       */
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-strong: var(--gray-500);
+  --color-focus-ring:    var(--blue-500);
+
+  /*  Status / alert colors (keep aliases for existing --color-danger etc.)   */
+  --color-info:    var(--blue-300);
+  --color-danger-fg: var(--red-500);
+  --color-warning-fg: var(--amber-500);
+  --color-success-fg: var(--green-500);
+
+  /* ----- 3) Component tokens (tuned to widget sizes) ----------------------- */
+  --panel-header-height:          28px;
+  --panel-header-padding-x:       12px;
+  --panel-header-padding-y:       4px;
+  --panel-header-font-size:       11px;
+  --panel-header-letter-spacing:  0.04em;
+
+  --toolbar-height:         30px;
+  --toolbar-padding-x:      8px;
+  --toolbar-padding-y:      4px;
+
+  --activitybar-width:      48px;
+  --statusbar-height:       22px;
+  --tab-height:             35px;
+  --subtab-height:          28px;
+  --input-height:           24px;
+  --button-height:          26px;
+  --button-height-sm:       22px;
+
+  /* ----- 4) Spacing scale (multiples of 2px) ------------------------------- */
+  --space-0:   0;
+  --space-1:   2px;
+  --space-2:   4px;
+  --space-3:   6px;
+  --space-4:   8px;
+  --space-5:   10px;
+  --space-6:   12px;
+  --space-7:   14px;
+  --space-8:   16px;
+  --space-10:  20px;
+  --space-12:  24px;
+  --space-16:  32px;
+  --space-20:  40px;
+
+  /* ----- 5) Radii ---------------------------------------------------------- */
+  --radius-sm:  2px;
+  --radius-md:  3px;
+  --radius-lg:  6px;
+  --radius-xl:  10px;
+  --radius-full: 9999px;
+
+  /* ----- 6) Shadows / elevation ------------------------------------------- */
+  --shadow-elev-1: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-elev-2: 0 8px 32px rgba(0, 0, 0, 0.55);
+  --shadow-elev-3: 0 12px 48px rgba(0, 0, 0, 0.65);
+
+  /* ----- 7) Typography ---------------------------------------------------- */
+  --font-ui:   -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: Consolas, "Courier New", monospace;
+
+  --font-size-xs:   11px;
+  --font-size-sm:   12px;
+  --font-size-md:   13px;
+  --font-size-lg:   14px;
+  --font-size-xl:   16px;
+
+  /* ----- 8) Motion -------------------------------------------------------- */
+  --duration-fast:  120ms;
+  --duration-base:  150ms;
+  --duration-slow:  240ms;
+
+  /* ----- 9) Z-index stack (single source of truth) ------------------------ */
+  --z-base:             0;
+  --z-tabs:             10;
+  --z-panel-toolbar:    20;
+  --z-panel-overlay:    30;
+  --z-sticky-header:    40;
+  --z-dropdown:         1000;
+  --z-tooltip:          4000;
+  --z-modal-backdrop:   5000;
+  --z-modal:            5001;
+  --z-context-menu:     6000;
+  --z-command-palette:  7000;
+  --z-toast:            9000;
+  --z-system:           10000;
+}
