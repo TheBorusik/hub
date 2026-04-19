@@ -2,9 +2,13 @@ import { useState, useMemo, useCallback } from "react";
 import {
   ChevronRight, ChevronDown, FolderOpen, Folder,
   RefreshCw, ChevronsUpDown, ChevronsDownUp,
-  Search, X, Pencil,
+  X, Pencil,
 } from "lucide-react";
 import type { Catalog, ProcessModel } from "@/lib/ws-api-models";
+import { PanelToolbar } from "@/components/ui/PanelToolbar";
+import { IconButton } from "@/components/ui/Button/IconButton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { t as tok } from "@/lib/design-tokens";
 
 /* ─── Props ─────────────────────────────────────────── */
 
@@ -97,46 +101,59 @@ export function ProcessTree({
   return (
     <div className="flex flex-col h-full">
       {/* Filter + actions */}
-      <div className="flex items-center gap-1 shrink-0" style={{ padding: "2px 8px", borderBottom: "1px solid var(--color-border)" }}>
-        {/* <Search size={14} style={{ color: "var(--color-text-muted)", flexShrink: 0 }} /> */}
-        <input
-          type="text"
-          placeholder="Filter processes..."
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="flex-1"
-          style={{ fontSize: 12 }}
-        />
-        <button className="toolbar-btn" title="Refresh" onClick={onRefresh} disabled={loading}>
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-        </button>
-        <button className="toolbar-btn" title={allExpanded ? "Collapse all" : "Expand all"} onClick={handleToggleAll}>
-          {allExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
-        </button>
-      </div>
+      <PanelToolbar
+        dense
+        left={
+          <input
+            type="text"
+            placeholder="Filter processes..."
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="flex-1"
+            style={{ fontSize: tok.font.size.xs, minWidth: 120 }}
+          />
+        }
+        right={
+          <>
+            <IconButton
+              size="xs"
+              label="Refresh"
+              icon={<RefreshCw size={14} className={loading ? "animate-spin" : ""} />}
+              onClick={onRefresh}
+              disabled={loading}
+            />
+            <IconButton
+              size="xs"
+              label={allExpanded ? "Collapse all" : "Expand all"}
+              icon={allExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
+              onClick={handleToggleAll}
+            />
+          </>
+        }
+      />
 
       {/* Flags */}
-      <div className="flex flex-wrap items-center gap-1 shrink-0" style={{ padding: "2px 8px", borderBottom: "1px solid var(--color-border)" }}>
+      <div className="flex flex-wrap items-center gap-1 shrink-0" style={{ padding: "2px 8px", borderBottom: `1px solid ${tok.color.border.default}` }}>
         {FLAG_NAMES.map((flag) => (
           <button
             key={flag}
             onClick={() => toggleFlag(flag)}
             style={{
-              fontSize: 9, padding: "0 4px", lineHeight: "16px", borderRadius: 3,
-              border: "1px solid var(--color-border)",
+              fontSize: 9, padding: "0 4px", lineHeight: "16px", borderRadius: tok.radius.sm,
+              border: `1px solid ${tok.color.border.default}`,
               background: activeFlags.has(flag) ? "rgba(14,99,156,0.3)" : "transparent",
-              color: activeFlags.has(flag) ? "var(--color-accent)" : "var(--color-text-muted)",
+              color: activeFlags.has(flag) ? tok.color.accent : tok.color.text.muted,
               cursor: "pointer",
             }}
           >
             {flag}
           </button>
         ))}
-        <label style={{ fontSize: 9, color: "var(--color-text-muted)", display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
+        <label style={{ fontSize: 9, color: tok.color.text.muted, display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
           <input type="checkbox" checked={includeTests} onChange={(e) => setIncludeTests(e.target.checked)} style={{ width: 10, height: 10 }} />
           Tests
         </label>
-        <span style={{ marginLeft: "auto", fontSize: 9, color: "var(--color-text-muted)" }}>{totalCount}</span>
+        <span style={{ marginLeft: "auto", fontSize: 9, color: tok.color.text.muted }}>{totalCount}</span>
       </div>
 
       {/* Tree */}
@@ -149,9 +166,7 @@ export function ProcessTree({
           />
         ))}
         {filtered.length === 0 && !loading && (
-          <div style={{ padding: 16, color: "var(--color-text-muted)", fontSize: 11, textAlign: "center" }}>
-            No processes found
-          </div>
+          <EmptyState dense title="No processes found" />
         )}
       </div>
     </div>

@@ -6,6 +6,10 @@ import { JsonEditor } from "@/pages/command-tester/components/JsonEditor";
 import type { HubWsApi } from "@/lib/ws-api";
 import { useNavigation } from "@/providers/NavigationProvider";
 import type { ViewerTab } from "@/pages/viewer/types";
+import { PanelToolbar } from "@/components/ui/PanelToolbar";
+import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/Button/IconButton";
+import { t as tok } from "@/lib/design-tokens";
 
 interface RunEntry {
   id: number;
@@ -132,33 +136,25 @@ export function RunProcessPanel({ api, processName }: RunProcessPanelProps) {
     <Group orientation="vertical" id="run-process">
       <Panel defaultSize="40%" minSize="20%">
         <div className="flex flex-col h-full">
-          <div
-            className="flex items-center gap-2 shrink-0"
-            style={{
-              padding: "6px 12px",
-              borderBottom: "1px solid var(--color-border)",
-              background: "var(--color-sidebar)",
-            }}
-          >
-            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-primary)" }}>
-              Run: {processName}
-            </span>
-            <div style={{ flex: 1 }} />
-            <button
-              className="toolbar-btn"
-              style={{
-                padding: "3px 10px",
-                background: running ? undefined : "#0e639c",
-                color: running ? undefined : "#fff",
-                borderRadius: 3,
-              }}
-              onClick={handleRun}
-              disabled={running}
-            >
-              {running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-              <span style={{ marginLeft: 4, fontSize: 12 }}>{running ? "Running..." : "Run"}</span>
-            </button>
-          </div>
+          <PanelToolbar
+            dense
+            left={
+              <span style={{ fontSize: tok.font.size.xs, fontWeight: 600, color: tok.color.text.primary }}>
+                Run: {processName}
+              </span>
+            }
+            right={
+              <Button
+                size="sm"
+                variant="primary"
+                icon={running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                onClick={handleRun}
+                disabled={running}
+              >
+                {running ? "Running..." : "Run"}
+              </Button>
+            }
+          />
           <div className="flex-1 min-h-0">
             <JsonEditor
               value={initData}
@@ -171,69 +167,76 @@ export function RunProcessPanel({ api, processName }: RunProcessPanelProps) {
       <ResizeHandle direction="vertical" />
       <Panel minSize="20%">
         <div className="flex flex-col h-full">
-          <div
-            className="flex items-center gap-2 shrink-0"
-            style={{
-              padding: "4px 12px",
-              borderBottom: "1px solid var(--color-border)",
-              background: "var(--color-sidebar)",
-            }}
-          >
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase" }}>
-              Result
-            </span>
-            {selectedRun && (
-              <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>
-                {selectedRun.timestamp} • {selectedRun.elapsed}ms
-                {selectedRun.processId ? ` • #${selectedRun.processId}` : ""}
-              </span>
-            )}
-            <div style={{ flex: 1 }} />
-            {selectedRun?.processId && (
-              <button
-                className="toolbar-btn"
-                title="Open this process in Viewer"
-                onClick={() => openInViewer(selectedRun)}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 4,
-                  padding: "2px 8px", fontSize: 11,
-                  border: "1px solid var(--color-border)", borderRadius: 3,
-                  color: "var(--color-accent)",
-                }}
-              >
-                <ExternalLink size={12} />
-                Open in Viewer
-              </button>
-            )}
-            {history.length > 0 && (
+          <PanelToolbar
+            dense
+            left={
               <>
-                <select
+                <span
                   style={{
                     fontSize: 11,
-                    background: "var(--color-surface-400)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: 3,
-                    color: "var(--color-text-primary)",
-                    padding: "2px 4px",
-                  }}
-                  value={selectedRun?.id ?? ""}
-                  onChange={(e) => {
-                    const run = history.find((r) => r.id === Number(e.target.value));
-                    if (run) setSelectedRun(run);
+                    fontWeight: 600,
+                    color: tok.color.text.muted,
+                    textTransform: "uppercase",
                   }}
                 >
-                  {history.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      #{r.id} {r.timestamp} {r.error ? "ERR" : "OK"} ({r.elapsed}ms)
-                    </option>
-                  ))}
-                </select>
-                <button className="toolbar-btn" title="Clear history" onClick={clearHistory}>
-                  <Trash2 size={12} />
-                </button>
+                  Result
+                </span>
+                {selectedRun && (
+                  <span style={{ fontSize: 10, color: tok.color.text.muted, marginLeft: tok.space[3] }}>
+                    {selectedRun.timestamp} • {selectedRun.elapsed}ms
+                    {selectedRun.processId ? ` • #${selectedRun.processId}` : ""}
+                  </span>
+                )}
               </>
-            )}
-          </div>
+            }
+            right={
+              <>
+                {selectedRun?.processId && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={<ExternalLink size={12} />}
+                    onClick={() => openInViewer(selectedRun)}
+                    title="Open this process in Viewer"
+                    style={{ color: tok.color.accent }}
+                  >
+                    Open in Viewer
+                  </Button>
+                )}
+                {history.length > 0 && (
+                  <>
+                    <select
+                      style={{
+                        fontSize: 11,
+                        background: tok.color.bg.panel,
+                        border: `1px solid ${tok.color.border.default}`,
+                        borderRadius: tok.radius.sm,
+                        color: tok.color.text.primary,
+                        padding: "2px 4px",
+                      }}
+                      value={selectedRun?.id ?? ""}
+                      onChange={(e) => {
+                        const run = history.find((r) => r.id === Number(e.target.value));
+                        if (run) setSelectedRun(run);
+                      }}
+                    >
+                      {history.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          #{r.id} {r.timestamp} {r.error ? "ERR" : "OK"} ({r.elapsed}ms)
+                        </option>
+                      ))}
+                    </select>
+                    <IconButton
+                      size="xs"
+                      label="Clear history"
+                      icon={<Trash2 size={12} />}
+                      onClick={clearHistory}
+                    />
+                  </>
+                )}
+              </>
+            }
+          />
           <div className="flex-1 min-h-0">
             <JsonEditor
               value={resultText}
