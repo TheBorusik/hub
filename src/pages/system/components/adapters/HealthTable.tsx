@@ -2,15 +2,20 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { RefreshCw, Trash2, Search, ArrowUp, ArrowDown } from "lucide-react";
 import { useContourApi } from "@/lib/ws-api";
 import type { AdapterHealth } from "../../types";
+import { PanelToolbar } from "@/components/ui/PanelToolbar";
+import { IconButton } from "@/components/ui/Button/IconButton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { StatusDot } from "@/components/ui/StatusDot";
+import { t as tok } from "@/lib/design-tokens";
 
 type SortKey = keyof AdapterHealth;
 type SortDir = "asc" | "desc";
 
-const STATE_COLORS: Record<string, string> = {
-  Up: "#4CAF50",
-  Down: "#F44336",
-  Unknown: "#9E9E9E",
-  NotResponding: "#FF9800",
+const STATE_TONES: Record<string, "ok" | "err" | "muted" | "warn"> = {
+  Up: "ok",
+  Down: "err",
+  Unknown: "muted",
+  NotResponding: "warn",
 };
 
 export function HealthTable() {
@@ -95,39 +100,39 @@ export function HealthTable() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Toolbar */}
-      <div
-        className="flex items-center gap-2 shrink-0"
-        style={{ height: 35, padding: "0 12px", borderBottom: "1px solid var(--color-border)" }}
-      >
-        <button
-          onClick={load}
-          disabled={loading}
-          className="toolbar-btn"
-          title="Refresh"
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-        </button>
-        <div className="flex items-center gap-1" style={{ marginLeft: "auto" }}>
-          <Search size={14} style={{ color: "var(--color-text-muted)" }} />
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter..."
-            style={{
-              background: "var(--color-input-bg)",
-              border: "1px solid var(--color-border)",
-              color: "var(--color-text)",
-              fontSize: 12,
-              padding: "2px 6px",
-              height: 22,
-              width: 180,
-              borderRadius: 3,
-              outline: "none",
-            }}
+      <PanelToolbar
+        dense
+        left={
+          <IconButton
+            size="xs"
+            label="Refresh"
+            icon={<RefreshCw size={14} className={loading ? "animate-spin" : ""} />}
+            onClick={load}
+            disabled={loading}
           />
-        </div>
-      </div>
+        }
+        right={
+          <div className="flex items-center gap-1">
+            <Search size={14} style={{ color: tok.color.text.muted }} />
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter..."
+              style={{
+                background: tok.color.bg.panel,
+                border: `1px solid ${tok.color.border.default}`,
+                color: tok.color.text.primary,
+                fontSize: 12,
+                padding: "2px 6px",
+                height: 22,
+                width: 180,
+                borderRadius: tok.radius.sm,
+                outline: "none",
+              }}
+            />
+          </div>
+        }
+      />
       {/* Table */}
       <div className="flex-1 overflow-auto">
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -192,33 +197,19 @@ export function HealthTable() {
                 <td style={tdStyle}>{formatTime(row.LastStateUpdateTime)}</td>
                 <td style={tdStyle}>
                   <span className="flex items-center gap-1">
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        backgroundColor: STATE_COLORS[row.State] ?? "#9E9E9E",
-                        flexShrink: 0,
-                      }}
-                    />
+                    <StatusDot tone={STATE_TONES[row.State] ?? "muted"} size={8} />
                     {row.State}
                   </span>
                 </td>
                 <td style={{ ...tdStyle, textAlign: "center" }}>
-                  <button
-                    onClick={() => handleDelete(row)}
-                    className="tree-action-btn"
-                    title="Delete"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  <IconButton size="xs" label="Delete" icon={<Trash2 size={13} />} onClick={() => handleDelete(row)} />
                 </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ ...tdStyle, textAlign: "center", color: "var(--color-text-muted)", padding: 24 }}>
-                  {loading ? "Loading..." : "No adapters found"}
+                <td colSpan={9}>
+                  <EmptyState dense title={loading ? "Loading..." : "No adapters found"} />
                 </td>
               </tr>
             )}

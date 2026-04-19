@@ -1,9 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { RefreshCw, Trash2, Search, RotateCcw, Send, FileText, X } from "lucide-react";
+import { RefreshCw, Trash2, Search, RotateCcw, Send, FileText } from "lucide-react";
 import { useContourApi } from "@/lib/ws-api";
 import { JsonEditor } from "@/pages/command-tester/components/JsonEditor";
 import { ErrorActionDialog } from "./ErrorActionDialog";
 import type { ErrorOperation, ErrorType } from "../../types";
+import { PanelToolbar } from "@/components/ui/PanelToolbar";
+import { IconButton } from "@/components/ui/Button/IconButton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadMoreRow } from "@/components/ui/LoadMoreRow";
+import { Modal } from "@/components/ui/Modal";
+import { CountBadge } from "@/components/ui/CountBadge";
+import { t as tok } from "@/lib/design-tokens";
 
 interface ErrorsTableProps {
   errorType: ErrorType;
@@ -100,30 +107,43 @@ export function ErrorsTable({ errorType }: ErrorsTableProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ position: "relative" }}>
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 shrink-0" style={{ height: 35, padding: "0 12px", borderBottom: "1px solid var(--color-border)" }}>
-        <button onClick={() => load()} disabled={loading} className="toolbar-btn" title="Refresh">
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-        </button>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase" }}>
-          {errorType} errors
-        </span>
-        {selected.size > 0 && (
-          <button onClick={handleDeleteSelected} className="toolbar-btn" style={{ color: "#F44336" }} title="Delete selected">
-            <Trash2 size={14} />
-            <span style={{ fontSize: 11, marginLeft: 2 }}>({selected.size})</span>
-          </button>
-        )}
-        <div className="flex items-center gap-1" style={{ marginLeft: "auto" }}>
-          <Search size={14} style={{ color: "var(--color-text-muted)" }} />
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter..."
-            style={searchStyle}
-          />
-        </div>
-      </div>
+      <PanelToolbar
+        dense
+        left={
+          <>
+            <IconButton
+              size="xs"
+              label="Refresh"
+              icon={<RefreshCw size={14} className={loading ? "animate-spin" : ""} />}
+              onClick={() => load()}
+              disabled={loading}
+            />
+            <span style={{ fontSize: 11, fontWeight: 600, color: tok.color.text.muted, textTransform: "uppercase" }}>
+              {errorType} errors
+            </span>
+            {selected.size > 0 && (
+              <IconButton
+                size="xs"
+                label={`Delete selected (${selected.size})`}
+                icon={<Trash2 size={14} style={{ color: "#F44336" }} />}
+                badge={<CountBadge value={selected.size} tone="danger" />}
+                onClick={handleDeleteSelected}
+              />
+            )}
+          </>
+        }
+        right={
+          <div className="flex items-center gap-1">
+            <Search size={14} style={{ color: tok.color.text.muted }} />
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter..."
+              style={searchStyle}
+            />
+          </div>
+        }
+      />
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
@@ -167,43 +187,42 @@ export function ErrorsTable({ errorType }: ErrorsTableProps) {
                 </td>
                 <td style={tdStyle}>
                   <div className="flex gap-1">
-                    <button onClick={() => setOverlay({ type: "action", mode: "resend", row: r })} className="toolbar-btn" title="Resend"><RotateCcw size={12} /></button>
-                    <button onClick={() => setOverlay({ type: "action", mode: "resendWithData", row: r })} className="toolbar-btn" title="Resend with new data"><FileText size={12} /></button>
+                    <IconButton size="xs" label="Resend" icon={<RotateCcw size={12} />} onClick={() => setOverlay({ type: "action", mode: "resend", row: r })} />
+                    <IconButton size="xs" label="Resend with new data" icon={<FileText size={12} />} onClick={() => setOverlay({ type: "action", mode: "resendWithData", row: r })} />
                     {r.ExchangeType === "CommandExchange" && (
-                      <button onClick={() => setOverlay({ type: "action", mode: "sendResult", row: r })} className="toolbar-btn" title="Send command result"><Send size={12} /></button>
+                      <IconButton size="xs" label="Send command result" icon={<Send size={12} />} onClick={() => setOverlay({ type: "action", mode: "sendResult", row: r })} />
                     )}
                   </div>
                 </td>
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={9} style={{ ...tdStyle, textAlign: "center", color: "var(--color-text-muted)", padding: 24 }}>
-                {loading ? "Loading..." : "No errors"}
+              <tr><td colSpan={9}>
+                <EmptyState dense title={loading ? "Loading..." : "No errors"} />
               </td></tr>
             )}
           </tbody>
         </table>
         {rows.length > 0 && (
-          <div style={{ textAlign: "center", padding: 8 }}>
-            <button onClick={loadMore} style={{ ...primaryBtnStyle, fontSize: 11 }}>Load more</button>
-          </div>
+          <LoadMoreRow onClick={loadMore} loaded={rows.length} />
         )}
       </div>
 
-      {/* Overlays */}
-      {overlay.type === "json" && (
-        <div style={overlayBg}>
-          <div style={{ ...dialogSt, width: "55vw", height: "55vh", display: "flex", flexDirection: "column", resize: "both", overflow: "hidden" }}>
-            <div className="flex items-center justify-between" style={{ marginBottom: 8, flexShrink: 0 }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{overlay.title}</span>
-              <button onClick={() => setOverlay({ type: "none" })} className="toolbar-btn"><X size={14} /></button>
-            </div>
-            <div style={{ flex: 1, minHeight: 0 }}>
+      <Modal
+        open={overlay.type === "json"}
+        onClose={() => setOverlay({ type: "none" })}
+        size="xl"
+        aria-label={overlay.type === "json" ? overlay.title : "JSON viewer"}
+      >
+        {overlay.type === "json" && (
+          <>
+            <Modal.Header title={overlay.title} />
+            <Modal.Body style={{ height: "55vh", padding: 0 }}>
               <JsonEditor value={overlay.data} readOnly height="100%" />
-            </div>
-          </div>
-        </div>
-      )}
+            </Modal.Body>
+          </>
+        )}
+      </Modal>
 
       {overlay.type === "action" && api && (
         <ErrorActionDialog
@@ -223,6 +242,3 @@ const thStyle: React.CSSProperties = { position: "sticky", top: 0, background: "
 const tdStyle: React.CSSProperties = { padding: "2px 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", height: 26, maxWidth: 180 };
 const trStyle: React.CSSProperties = { borderBottom: "1px solid var(--color-border)" };
 const searchStyle: React.CSSProperties = { background: "var(--color-input-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)", fontSize: 12, padding: "2px 6px", height: 22, width: 180, borderRadius: 3, outline: "none" };
-const overlayBg: React.CSSProperties = { position: "absolute", inset: 0, zIndex: 20, backgroundColor: "rgba(0,0,0,0.3)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 60 };
-const dialogSt: React.CSSProperties = { backgroundColor: "var(--color-sidebar)", border: "1px solid var(--color-border)", borderRadius: 6, padding: 20, minWidth: 340, maxWidth: "80%", boxShadow: "0 4px 24px rgba(0,0,0,0.4)" };
-const primaryBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "#0e639c", border: "none", color: "#fff", borderRadius: 3, cursor: "pointer" };

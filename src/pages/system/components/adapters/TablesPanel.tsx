@@ -3,11 +3,17 @@ import { RefreshCw, Trash2, Plus, Pencil, X, Search } from "lucide-react";
 import { useContourApi } from "@/lib/ws-api";
 import { JsonEditor } from "@/pages/command-tester/components/JsonEditor";
 import type { FieldInfo } from "../../types";
+import { PanelToolbar } from "@/components/ui/PanelToolbar";
+import { IconButton } from "@/components/ui/Button/IconButton";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Modal } from "@/components/ui/Modal";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { t as tok } from "@/lib/design-tokens";
 
 type Overlay =
   | { type: "none" }
-  | { type: "upsertRow"; existingRow: Record<string, unknown> | null }
-  | { type: "confirm"; title: string; onConfirm: () => void };
+  | { type: "upsertRow"; existingRow: Record<string, unknown> | null };
 
 interface TableEntry {
   Name: string;
@@ -16,6 +22,7 @@ interface TableEntry {
 
 export function TablesPanel() {
   const api = useContourApi();
+  const confirm = useConfirm();
   const [tables, setTables] = useState<TableEntry[]>([]);
   const [selected, setSelected] = useState("");
   const [meta, setMeta] = useState<FieldInfo[]>([]);
@@ -62,17 +69,17 @@ export function TablesPanel() {
   const colName = (f: FieldInfo) => f.FieldName || f.ColumnName;
   const cols = meta.length > 0 ? meta.map(colName) : (data.length > 0 ? Object.keys(data[0]) : []);
 
-  const handleDelete = (row: Record<string, unknown>) => {
+  const handleDelete = async (row: Record<string, unknown>) => {
     if (!api || !selected) return;
-    setOverlay({
-      type: "confirm",
-      title: `Delete this row from "${selected}"?`,
-      onConfirm: async () => {
-        await api.deleteTableData(selected, [row]);
-        setOverlay({ type: "none" });
-        loadData(selected);
-      },
+    const ok = await confirm({
+      title: "Delete Row",
+      message: `Delete this row from "${selected}"?`,
+      confirmLabel: "Delete",
+      tone: "danger",
     });
+    if (!ok) return;
+    await api.deleteTableData(selected, [row]);
+    loadData(selected);
   };
 
   const handleUpsert = async (json: string) => {
@@ -120,48 +127,94 @@ export function TablesPanel() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ position: "relative" }}>
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 shrink-0" style={{ height: 35, padding: "0 12px", borderBottom: "1px solid var(--color-border)" }}>
-        <select
-          value={selected}
-          onChange={(e) => { setSelected(e.target.value); setFilter(""); }}
-          style={{ fontSize: 12, padding: "2px 6px", height: 22, borderRadius: 3 }}
-        >
-          <option value="">Select table...</option>
-          {tables.map((t) => (
-            <option key={t.Name} value={t.Name}>
-              {t.Name}{t.ExportedData != null ? ` (Exported: ${t.ExportedData})` : ""}
-            </option>
-          ))}
-        </select>
-        <button onClick={() => { if (selected) loadData(selected); }} disabled={loading || !selected} className="toolbar-btn" title="Refresh">
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-        </button>
-        {selected && (
-          <button onClick={() => setOverlay({ type: "upsertRow", existingRow: null })} className="toolbar-btn" title="Add Row">
-            <Plus size={14} />
-          </button>
-        )}
-        {selected && (
-          <div className="flex items-center gap-1" style={{ marginLeft: 8, background: "var(--color-surface-200)", border: "1px solid var(--color-border)", borderRadius: 3, padding: "0 6px", height: 22 }}>
-            <Search size={12} style={{ flexShrink: 0, opacity: 0.5 }} />
-            <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter rows..." style={{ flex: 1, background: "none", border: "none", color: "var(--color-text-primary)", fontSize: 11, outline: "none", height: "100%", width: 140 }} />
-            {filter && <button onClick={() => setFilter("")} className="toolbar-btn" style={{ padding: 0 }}><X size={10} /></button>}
-          </div>
-        )}
-        {selected && <span style={{ fontSize: 10, color: "var(--color-text-muted)", marginLeft: "auto" }}>{filteredData.length} rows</span>}
-      </div>
+      <PanelToolbar
+        dense
+        left={
+          <>
+            <select
+              value={selected}
+              onChange={(e) => { setSelected(e.target.value); setFilter(""); }}
+              style={{
+                fontSize: tok.font.size.xs,
+                padding: "2px 6px",
+                height: 22,
+                borderRadius: tok.radius.sm,
+                background: tok.color.bg.panel,
+                border: `1px solid ${tok.color.border.default}`,
+                color: tok.color.text.primary,
+              }}
+            >
+              <option value="">Select table...</option>
+              {tables.map((t) => (
+                <option key={t.Name} value={t.Name}>
+                  {t.Name}{t.ExportedData != null ? ` (Exported: ${t.ExportedData})` : ""}
+                </option>
+              ))}
+            </select>
+            <IconButton
+              size="xs"
+              label="Refresh"
+              icon={<RefreshCw size={14} className={loading ? "animate-spin" : ""} />}
+              onClick={() => { if (selected) loadData(selected); }}
+              disabled={loading || !selected}
+            />
+            {selected && (
+              <IconButton
+                size="xs"
+                label="Add Row"
+                icon={<Plus size={14} />}
+                onClick={() => setOverlay({ type: "upsertRow", existingRow: null })}
+              />
+            )}
+          </>
+        }
+        right={
+          <>
+            {selected && (
+              <div
+                className="flex items-center gap-1"
+                style={{
+                  background: tok.color.bg.panel,
+                  border: `1px solid ${tok.color.border.default}`,
+                  borderRadius: tok.radius.sm,
+                  padding: "0 6px",
+                  height: 22,
+                }}
+              >
+                <Search size={12} style={{ flexShrink: 0, color: tok.color.text.muted }} />
+                <input
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Filter rows..."
+                  style={{
+                    flex: 1,
+                    background: "none",
+                    border: "none",
+                    color: tok.color.text.primary,
+                    fontSize: 11,
+                    outline: "none",
+                    height: "100%",
+                    width: 140,
+                  }}
+                />
+                {filter && (
+                  <IconButton size="xs" label="Clear filter" icon={<X size={10} />} onClick={() => setFilter("")} />
+                )}
+              </div>
+            )}
+            {selected && (
+              <span style={{ fontSize: 10, color: tok.color.text.muted }}>{filteredData.length} rows</span>
+            )}
+          </>
+        }
+      />
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
         {!selected ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--color-text-muted)", fontSize: 12 }}>
-            Select a table
-          </div>
+          <EmptyState title="Select a table" />
         ) : loading ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--color-text-muted)", fontSize: 12 }}>
-            Loading...
-          </div>
+          <EmptyState title="Loading..." />
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
@@ -188,46 +241,55 @@ export function TablesPanel() {
                   ))}
                   <td style={{ ...tdStyle, textAlign: "center" }}>
                     <span className="hidden group-hover:inline-flex" style={{ gap: 2 }}>
-                      <button onClick={() => setOverlay({ type: "upsertRow", existingRow: row })} className="tree-action-btn" title="Edit"><Pencil size={12} /></button>
-                      <button onClick={() => handleDelete(row)} className="tree-action-btn" style={{ color: "#F44336" }} title="Delete"><Trash2 size={12} /></button>
+                      <IconButton size="xs" label="Edit" icon={<Pencil size={12} />} onClick={() => setOverlay({ type: "upsertRow", existingRow: row })} />
+                      <IconButton size="xs" label="Delete" icon={<Trash2 size={12} style={{ color: "#F44336" }} />} onClick={() => handleDelete(row)} />
                     </span>
                   </td>
                 </tr>
               ))}
               {filteredData.length === 0 && (
-                <tr><td colSpan={cols.length + 1} style={{ ...tdStyle, textAlign: "center", color: "var(--color-text-muted)", padding: 24 }}>
-                  {filter ? "No matching rows" : "No data"}
-                </td></tr>
+                <tr>
+                  <td colSpan={cols.length + 1}>
+                    <EmptyState dense title={filter ? "No matching rows" : "No data"} />
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         )}
       </div>
 
-      {overlay.type === "upsertRow" && (
-        <UpsertRowOverlay
-          initialJson={buildRowJson(overlay.existingRow)}
-          isEdit={!!overlay.existingRow}
-          tableName={selected}
-          onSave={handleUpsert}
-          onClose={() => setOverlay({ type: "none" })}
-        />
-      )}
-
-      {overlay.type === "confirm" && (
-        <ConfirmOverlay title={overlay.title} onConfirm={overlay.onConfirm} onCancel={() => setOverlay({ type: "none" })} />
-      )}
+      <UpsertRowModal
+        open={overlay.type === "upsertRow"}
+        initialJson={overlay.type === "upsertRow" ? buildRowJson(overlay.existingRow) : ""}
+        isEdit={overlay.type === "upsertRow" && !!overlay.existingRow}
+        tableName={selected}
+        onSave={handleUpsert}
+        onClose={() => setOverlay({ type: "none" })}
+      />
     </div>
   );
 }
 
-function UpsertRowOverlay({ initialJson, isEdit, tableName, onSave, onClose }: {
-  initialJson: string; isEdit: boolean; tableName: string;
-  onSave: (json: string) => Promise<void>; onClose: () => void;
+function UpsertRowModal({ open, initialJson, isEdit, tableName, onSave, onClose }: {
+  open: boolean;
+  initialJson: string;
+  isEdit: boolean;
+  tableName: string;
+  onSave: (json: string) => Promise<void>;
+  onClose: () => void;
 }) {
   const [json, setJson] = useState(initialJson);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setJson(initialJson);
+      setError("");
+      setSubmitting(false);
+    }
+  }, [open, initialJson]);
 
   const handleSave = async () => {
     setError("");
@@ -242,47 +304,34 @@ function UpsertRowOverlay({ initialJson, isEdit, tableName, onSave, onClose }: {
   };
 
   return (
-    <div style={overlayBg}>
-      <div style={{ ...dialogStyle, width: "50vw", height: "50vh", display: "flex", flexDirection: "column", resize: "both", overflow: "hidden" }}>
-        <div className="flex items-center justify-between" style={{ marginBottom: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{isEdit ? "Edit" : "Add"} Row in {tableName}</span>
-          <button onClick={onClose} className="toolbar-btn"><X size={14} /></button>
+    <Modal open={open} onClose={onClose} size="lg" aria-label={`${isEdit ? "Edit" : "Add"} row`}>
+      <Modal.Header title={`${isEdit ? "Edit" : "Add"} Row in ${tableName}`} />
+      <Modal.Body padded={false} style={{ height: "50vh", padding: 0 }}>
+        <JsonEditor value={json} onChange={setJson} height="100%" />
+      </Modal.Body>
+      {error && (
+        <div
+          style={{
+            color: "#F44336",
+            fontSize: 11,
+            padding: `${tok.space[2]} ${tok.space[6]}`,
+            background: tok.color.bg.panel,
+            borderTop: `1px solid ${tok.color.border.default}`,
+          }}
+        >
+          {error}
         </div>
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <JsonEditor value={json} onChange={setJson} height="100%" />
-        </div>
-        {error && <div style={{ color: "#F44336", fontSize: 11, marginTop: 4 }}>{error}</div>}
-        <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 12, flexShrink: 0 }}>
-          <button onClick={onClose} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
-          <button onClick={handleSave} disabled={submitting} style={primaryBtnStyle}>
-            {submitting ? "Saving..." : "Save"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ConfirmOverlay({ title, onConfirm, onCancel }: { title: string; onConfirm: () => void; onCancel: () => void }) {
-  const [submitting, setSubmitting] = useState(false);
-  return (
-    <div style={overlayBg}>
-      <div style={dialogStyle}>
-        <p style={{ fontSize: 13, marginBottom: 16 }}>{title}</p>
-        <div className="flex gap-2" style={{ justifyContent: "flex-end" }}>
-          <button onClick={onCancel} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
-          <button onClick={async () => { setSubmitting(true); await onConfirm(); setSubmitting(false); }} disabled={submitting} style={dangerBtnStyle}>{submitting ? "Deleting..." : "Delete"}</button>
-        </div>
-      </div>
-    </div>
+      )}
+      <Modal.Footer>
+        <Button size="sm" variant="secondary" onClick={onClose} disabled={submitting}>Cancel</Button>
+        <Button size="sm" variant="primary" onClick={handleSave} disabled={submitting}>
+          {submitting ? "Saving..." : "Save"}
+        </Button>
+      </Modal.Footer>
+    </Modal>
   );
 }
 
 const thStyle: React.CSSProperties = { padding: "4px 8px", textAlign: "left", fontWeight: 600, color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)", fontSize: 11, whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--color-sidebar)" };
 const tdStyle: React.CSSProperties = { padding: "3px 8px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", height: 28, maxWidth: 300 };
 const trStyle: React.CSSProperties = { borderBottom: "1px solid var(--color-border)" };
-const overlayBg: React.CSSProperties = { position: "absolute", inset: 0, zIndex: 20, backgroundColor: "rgba(0,0,0,0.3)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 60 };
-const dialogStyle: React.CSSProperties = { backgroundColor: "var(--color-sidebar)", border: "1px solid var(--color-border)", borderRadius: 6, padding: 20, minWidth: 340, maxWidth: "80%", boxShadow: "0 4px 24px rgba(0,0,0,0.4)" };
-const cancelBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "none", border: "1px solid var(--color-border)", color: "var(--color-text-muted)", borderRadius: 3, cursor: "pointer" };
-const primaryBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "#0e639c", border: "none", color: "#fff", borderRadius: 3, cursor: "pointer" };
-const dangerBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "#c53030", border: "none", color: "#fff", borderRadius: 3, cursor: "pointer" };

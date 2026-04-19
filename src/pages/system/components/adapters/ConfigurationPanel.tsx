@@ -8,13 +8,18 @@ import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { useContourApi } from "@/lib/ws-api";
 import { BuildRulesEditor, BuildRulesToggleButton, BUILD_RULES_TEMPLATE } from "./BuildRulesEditor";
 import type { AdapterType, AdapterConfiguration, ConfigSection } from "../../types";
+import { PanelToolbar } from "@/components/ui/PanelToolbar";
+import { PanelHeader } from "@/components/ui/PanelHeader";
+import { IconButton } from "@/components/ui/Button/IconButton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { t as tok } from "@/lib/design-tokens";
 
 type Overlay =
   | { type: "none" }
   | { type: "upsertType"; editing: AdapterType | null }
   | { type: "upsertConfig"; editing: AdapterConfiguration | null; adapterType: string }
-  | { type: "createSection"; configId: number }
-  | { type: "confirm"; title: string; onConfirm: () => void };
+  | { type: "createSection"; configId: number };
 
 interface OpenTab {
   config: AdapterConfiguration;
@@ -23,6 +28,7 @@ interface OpenTab {
 
 export function ConfigurationPanel() {
   const api = useContourApi();
+  const confirm = useConfirm();
   const [types, setTypes] = useState<AdapterType[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("");
@@ -137,27 +143,31 @@ export function ConfigurationPanel() {
 
   /* ---- CRUD actions ---- */
 
-  const handleDeleteType = (t: AdapterType) => {
+  const handleDeleteType = async (t: AdapterType) => {
     if (!api) return;
-    setOverlay({
-      type: "confirm",
-      title: `Delete adapter type "${t.AdapterType}"?`,
-      onConfirm: async () => { await api.deleteAdapterType(t.AdapterType); setOverlay({ type: "none" }); loadTypes(); },
+    const ok = await confirm({
+      title: "Delete Adapter Type",
+      message: `Delete adapter type "${t.AdapterType}"?`,
+      confirmLabel: "Delete",
+      tone: "danger",
     });
+    if (!ok) return;
+    await api.deleteAdapterType(t.AdapterType);
+    loadTypes();
   };
 
-  const handleDeleteConfig = (c: AdapterConfiguration) => {
+  const handleDeleteConfig = async (c: AdapterConfiguration) => {
     if (!api) return;
-    setOverlay({
-      type: "confirm",
-      title: `Delete configuration "${c.Name}"?`,
-      onConfirm: async () => {
-        await api.deleteAdapterConfiguration(c.ConfigurationId);
-        setOverlay({ type: "none" });
-        closeTab(c.ConfigurationId);
-        loadConfigs(c.AdapterType);
-      },
+    const ok = await confirm({
+      title: "Delete Configuration",
+      message: `Delete configuration "${c.Name}"?`,
+      confirmLabel: "Delete",
+      tone: "danger",
     });
+    if (!ok) return;
+    await api.deleteAdapterConfiguration(c.ConfigurationId);
+    closeTab(c.ConfigurationId);
+    loadConfigs(c.AdapterType);
   };
 
   const handleSetDefault = async (c: AdapterConfiguration) => {
@@ -186,18 +196,18 @@ export function ConfigurationPanel() {
     loadConfigs(c.AdapterType);
   };
 
-  const handleDeleteSection = (section: ConfigSection, configId: number) => {
+  const handleDeleteSection = async (section: ConfigSection, configId: number) => {
     if (!api) return;
-    setOverlay({
-      type: "confirm",
-      title: `Delete section "${section.DisplayName || section.Name}"?`,
-      onConfirm: async () => {
-        await api.deleteSection(section.SectionId);
-        setOverlay({ type: "none" });
-        loadSections(configId);
-        selectSection(configId, null);
-      },
+    const ok = await confirm({
+      title: "Delete Section",
+      message: `Delete section "${section.DisplayName || section.Name}"?`,
+      confirmLabel: "Delete",
+      tone: "danger",
     });
+    if (!ok) return;
+    await api.deleteSection(section.SectionId);
+    loadSections(configId);
+    selectSection(configId, null);
   };
 
   const handleSaveSection = async (section: ConfigSection, editedJson: string, editedBuildRules?: string, editedBuildTable?: string) => {
@@ -264,22 +274,40 @@ export function ConfigurationPanel() {
       <Group direction="horizontal" id="config-master-detail">
         {/* === Left: tree === */}
         <Panel defaultSize="280px" minSize="180px" maxSize="45%" groupResizeBehavior="preserve-pixel-size">
-          <div className="flex flex-col h-full" style={{ background: "var(--color-sidebar)" }}>
-            <div className="flex items-center gap-1 shrink-0" style={{ height: 35, padding: "0 8px", borderBottom: "1px solid var(--color-border)" }}>
-              <button onClick={loadTypes} disabled={loading} className="toolbar-btn" title="Refresh">
-                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-              </button>
-              <button onClick={() => setOverlay({ type: "upsertType", editing: null })} className="toolbar-btn" title="Add Adapter Type">
-                <Plus size={14} />
-              </button>
-              {treeSelectedType && (
-                <button onClick={() => setOverlay({ type: "upsertConfig", editing: null, adapterType: treeSelectedType })} className="toolbar-btn" title={`Add Configuration to ${treeSelectedType}`}>
-                  <Settings size={13} style={{ marginRight: -3 }} /><Plus size={9} />
-                </button>
-              )}
-              <div style={{ flex: 1 }} />
-              <span style={{ fontSize: 10, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase" }}>Configuration</span>
-            </div>
+          <div className="flex flex-col h-full" style={{ background: tok.color.bg.sidebar }}>
+            <PanelToolbar
+              dense
+              left={
+                <>
+                  <IconButton
+                    size="xs"
+                    label="Refresh"
+                    icon={<RefreshCw size={14} className={loading ? "animate-spin" : ""} />}
+                    onClick={loadTypes}
+                    disabled={loading}
+                  />
+                  <IconButton
+                    size="xs"
+                    label="Add Adapter Type"
+                    icon={<Plus size={14} />}
+                    onClick={() => setOverlay({ type: "upsertType", editing: null })}
+                  />
+                  {treeSelectedType && (
+                    <IconButton
+                      size="xs"
+                      label={`Add Configuration to ${treeSelectedType}`}
+                      icon={<span style={{ display: "inline-flex", alignItems: "center" }}><Settings size={13} style={{ marginRight: -3 }} /><Plus size={9} /></span>}
+                      onClick={() => setOverlay({ type: "upsertConfig", editing: null, adapterType: treeSelectedType })}
+                    />
+                  )}
+                </>
+              }
+              right={
+                <span style={{ fontSize: 10, fontWeight: 600, color: tok.color.text.muted, textTransform: "uppercase" }}>
+                  Configuration
+                </span>
+              }
+            />
             <div className="shrink-0" style={{ padding: "4px 8px", borderBottom: "1px solid var(--color-border)" }}>
               <div className="flex items-center gap-1" style={{ background: "var(--color-input-bg)", border: "1px solid var(--color-border)", borderRadius: 3, padding: "0 6px", height: 24 }}>
                 <Search size={12} style={{ flexShrink: 0, opacity: 0.5 }} />
@@ -334,7 +362,9 @@ export function ConfigurationPanel() {
                   </div>
                 );
               })}
-              {filteredTypes.length === 0 && !loading && <div style={{ textAlign: "center", color: "var(--color-text-muted)", padding: 24, fontSize: 12 }}>{filter ? "No matches" : "No adapter types"}</div>}
+              {filteredTypes.length === 0 && !loading && (
+                <EmptyState dense title={filter ? "No matches" : "No adapter types"} />
+              )}
             </div>
           </div>
         </Panel>
@@ -388,7 +418,6 @@ export function ConfigurationPanel() {
       </Group>
 
       {/* Overlays */}
-      {overlay.type === "confirm" && <ConfirmOverlay title={overlay.title} onConfirm={overlay.onConfirm} onCancel={() => setOverlay({ type: "none" })} />}
       {overlay.type === "upsertType" && <UpsertTypeOverlay editing={overlay.editing} api={api} onClose={() => { setOverlay({ type: "none" }); loadTypes(); }} />}
       {overlay.type === "upsertConfig" && <UpsertConfigOverlay editing={overlay.editing} adapterType={overlay.adapterType} api={api} onClose={() => { setOverlay({ type: "none" }); loadConfigs(overlay.adapterType); }} />}
       {overlay.type === "createSection" && <CreateSectionOverlay configId={overlay.configId} api={api} onClose={() => { setOverlay({ type: "none" }); loadSections(overlay.configId); }} />}
@@ -528,34 +557,40 @@ function ConfigTabContent({ tab, sections, isLoadingSections, onSelectSection, o
       <Panel minSize="30%">
         <div className="flex flex-col h-full" style={{ background: "#1e1e1e" }}>
           {selectedSection ? (<>
-            {/* Editor toolbar */}
-            <div className="shrink-0 flex items-center gap-2" style={{ padding: "0 12px", height: 32, borderBottom: "1px solid var(--color-border)" }}>
-              <Folder size={12} style={{ opacity: 0.5, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: "var(--color-text)", fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {selectedSection.DisplayName || selectedSection.Name}
-                {isDirty && <span style={{ color: "var(--color-text-muted)", marginLeft: 4 }}>• modified</span>}
-              </span>
-              <span style={{ fontSize: 10, color: "var(--color-text-muted)", flexShrink: 0 }}>
-                ID: {selectedSection.SectionId}
-                {selectedSection.Inherited && " · Inherited"}
-              </span>
-              <BuildRulesToggleButton hasBuildRules={hasBuildRules} onCreateBuildRules={handleCreateBuildRules} />
-              <button onClick={() => onToggleLock(selectedSection)} className="toolbar-btn" style={{ color: selectedSection.Locked ? "#F6511D" : undefined }} title={selectedSection.Locked ? "Unlock" : "Lock"}>
-                {selectedSection.Locked ? <Lock size={14} /> : <Unlock size={14} />}
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={!isDirty || saving}
-                className="toolbar-btn"
-                style={{ color: isDirty ? "#4CAF50" : undefined, opacity: isDirty ? 1 : 0.4 }}
-                title="Save (Ctrl+S)"
-              >
-                <Save size={14} />
-              </button>
-              <button onClick={() => onDeleteSection(selectedSection)} className="toolbar-btn" style={{ color: "#F44336" }} title="Delete Section">
-                <Trash2 size={14} />
-              </button>
-            </div>
+            <PanelHeader
+              icon={<Folder size={12} style={{ color: tok.color.text.muted }} />}
+              title={
+                <span>
+                  {selectedSection.DisplayName || selectedSection.Name}
+                  {isDirty && <span style={{ color: tok.color.text.muted, marginLeft: 4, fontWeight: 400 }}>• modified</span>}
+                </span>
+              }
+              hint={`ID: ${selectedSection.SectionId}${selectedSection.Inherited ? " · Inherited" : ""}`}
+              actions={
+                <>
+                  <BuildRulesToggleButton hasBuildRules={hasBuildRules} onCreateBuildRules={handleCreateBuildRules} />
+                  <IconButton
+                    size="xs"
+                    label={selectedSection.Locked ? "Unlock" : "Lock"}
+                    icon={selectedSection.Locked ? <Lock size={14} style={{ color: "#F6511D" }} /> : <Unlock size={14} />}
+                    onClick={() => onToggleLock(selectedSection)}
+                  />
+                  <IconButton
+                    size="xs"
+                    label="Save (Ctrl+S)"
+                    icon={<Save size={14} style={{ color: isDirty ? "#4CAF50" : undefined }} />}
+                    onClick={handleSave}
+                    disabled={!isDirty || saving}
+                  />
+                  <IconButton
+                    size="xs"
+                    label="Delete Section"
+                    icon={<Trash2 size={14} style={{ color: "#F44336" }} />}
+                    onClick={() => onDeleteSection(selectedSection)}
+                  />
+                </>
+              }
+            />
             <div className="flex-1" style={{ minHeight: 0 }}>
               <BuildRulesEditor
                 sectionId={selectedSection.SectionId}
@@ -621,19 +656,6 @@ function tryFormatJson(raw: unknown): string {
 }
 
 /* ===== Overlays ===== */
-
-function ConfirmOverlay({ title, onConfirm, onCancel }: { title: string; onConfirm: () => void; onCancel: () => void }) {
-  const [submitting, setSubmitting] = useState(false);
-  return (
-    <div style={overlayBg}><div style={dialogStyle}>
-      <p style={{ fontSize: 13, marginBottom: 16 }}>{title}</p>
-      <div className="flex gap-2" style={{ justifyContent: "flex-end" }}>
-        <button onClick={onCancel} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
-        <button onClick={async () => { setSubmitting(true); await onConfirm(); setSubmitting(false); }} disabled={submitting} style={dangerBtnStyle}>{submitting ? "Deleting..." : "Delete"}</button>
-      </div>
-    </div></div>
-  );
-}
 
 function CreateSectionOverlay({ configId, api, onClose }: { configId: number; api: ReturnType<typeof useContourApi>; onClose: () => void }) {
   const [name, setName] = useState("");
@@ -1055,4 +1077,3 @@ const labelStyle: React.CSSProperties = { display: "flex", flexDirection: "colum
 const inputStyle: React.CSSProperties = { background: "var(--color-input-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)", fontSize: 12, padding: "4px 8px", height: 24, borderRadius: 3, outline: "none" };
 const cancelBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "none", border: "1px solid var(--color-border)", color: "var(--color-text-muted)", borderRadius: 3, cursor: "pointer" };
 const primaryBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "#0e639c", border: "none", color: "#fff", borderRadius: 3, cursor: "pointer" };
-const dangerBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "#c53030", border: "none", color: "#fff", borderRadius: 3, cursor: "pointer" };
