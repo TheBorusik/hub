@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { X, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/Button/IconButton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { t as tok } from "@/lib/design-tokens";
 
 interface UsingsDialogProps {
   usings: string[];
@@ -27,35 +32,9 @@ export function UsingsDialog({ usings, onSave, onClose }: UsingsDialogProps) {
   };
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 1000,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--color-sidebar)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 6,
-          width: 520,
-          maxHeight: "70vh",
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
-        }}
-      >
-        <div
-          className="flex items-center justify-between shrink-0"
-          style={{ padding: "10px 14px", borderBottom: "1px solid var(--color-border)" }}
-        >
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Usings</span>
-          <button className="toolbar-btn" onClick={onClose}><X size={14} /></button>
-        </div>
-
+    <Modal open onClose={onClose} size="md" aria-label="Usings">
+      <Modal.Header title="Usings" />
+      <Modal.Body padded={false}>
         <div style={{ padding: "10px 14px", display: "flex", gap: 6 }}>
           <input
             type="text"
@@ -67,31 +46,22 @@ export function UsingsDialog({ usings, onSave, onClose }: UsingsDialogProps) {
             placeholder="e.g. System.Text.RegularExpressions"
             style={{
               flex: 1,
-              background: "var(--color-surface-400)",
-              border: "1px solid var(--color-border)",
+              background: tok.color.bg.panel,
+              border: `1px solid ${tok.color.border.default}`,
               padding: "4px 8px",
-              color: "var(--color-text-primary)",
+              color: tok.color.text.primary,
               fontSize: 12,
               fontFamily: "Consolas, monospace",
-              borderRadius: 3,
+              borderRadius: tok.radius.sm,
               outline: "none",
             }}
           />
-          <button
-            className="toolbar-btn"
-            onClick={addUsing}
-            title="Add using"
-            style={{ padding: "4px 8px" }}
-          >
-            <Plus size={14} />
-          </button>
+          <IconButton size="sm" label="Add using" icon={<Plus size={14} />} onClick={addUsing} />
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 14px 10px" }}>
+        <div style={{ padding: "0 14px 10px" }}>
           {items.length === 0 ? (
-            <div style={{ padding: 12, fontSize: 12, color: "var(--color-text-muted)", textAlign: "center" }}>
-              No usings. The process relies only on the default set.
-            </div>
+            <EmptyState dense title="No usings" hint="The process relies only on the default set." />
           ) : (
             items.map((u, i) => (
               <div
@@ -101,42 +71,28 @@ export function UsingsDialog({ usings, onSave, onClose }: UsingsDialogProps) {
                   alignItems: "center",
                   gap: 6,
                   padding: "4px 6px",
-                  borderBottom: "1px solid var(--color-border)",
+                  borderBottom: `1px solid ${tok.color.border.default}`,
                   fontSize: 12,
                   fontFamily: "Consolas, monospace",
                 }}
               >
-                <span style={{ color: "var(--color-text-muted)" }}>using</span>
+                <span style={{ color: tok.color.text.muted }}>using</span>
                 <span style={{ flex: 1 }}>{u};</span>
-                <button
-                  className="toolbar-btn"
-                  title="Remove"
+                <IconButton
+                  size="xs"
+                  label="Remove"
+                  icon={<Trash2 size={12} style={{ color: "#f44336" }} />}
                   onClick={() => removeAt(i)}
-                  style={{ color: "#f44336" }}
-                >
-                  <Trash2 size={12} />
-                </button>
+                />
               </div>
             ))
           )}
         </div>
-
-        <div
-          className="flex items-center justify-end shrink-0"
-          style={{ gap: 8, padding: "10px 14px", borderTop: "1px solid var(--color-border)" }}
-        >
-          <button className="toolbar-btn" style={{ padding: "4px 12px" }} onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="toolbar-btn"
-            style={{ padding: "4px 12px", background: "#0e639c", color: "#fff", borderRadius: 3 }}
-            onClick={() => onSave(items)}
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button size="sm" variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button size="sm" variant="primary" onClick={() => onSave(items)}>Save</Button>
+      </Modal.Footer>
+    </Modal>
   );
 }

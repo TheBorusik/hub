@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { t as tok } from "@/lib/design-tokens";
 
 interface CreateProcessDialogProps {
   /** Префил имени процесса (например, имя подпроцесса, которого не нашли). */
@@ -43,7 +45,6 @@ export function CreateProcessDialog({
   const handleNameChange = (next: string) => {
     setName(next);
     setError("");
-    // Пока пользователь не трогал TypeName вручную — автогенерим его из Name.
     if (!typeNameTouched) {
       setTypeName(next.replace(/\./g, ""));
     }
@@ -69,80 +70,56 @@ export function CreateProcessDialog({
     onSubmit({ name: n, typeName: t });
   };
 
-  return createPortal(
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }}
-      onMouseDown={onCancel}
-    >
-      <div
-        style={{
-          background: "var(--color-sidebar)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 6,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-          padding: "16px 20px",
-          width: 420,
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 4 }}>
-          Create new process
-        </div>
-        <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginBottom: 14 }}>
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "6px 8px",
+    fontSize: 13,
+    background: tok.color.bg.editor,
+    border: `1px solid ${tok.color.border.default}`,
+    borderRadius: tok.radius.sm,
+    color: tok.color.text.primary,
+    outline: "none",
+    boxSizing: "border-box",
+    fontFamily: "var(--font-mono, monospace)",
+  };
+
+  return (
+    <Modal open onClose={onCancel} size="md" initialFocus={inputRef} aria-label="Create new process">
+      <Modal.Header title="Create new process" />
+      <Modal.Body>
+        <div style={{ fontSize: 11, color: tok.color.text.muted, marginBottom: 14 }}>
           A draft process will be created and opened in a new tab. Save it to persist.
         </div>
 
         <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 11, color: "var(--color-text-muted)", fontWeight: 600, display: "block", marginBottom: 4 }}>
+          <label style={{ fontSize: 11, color: tok.color.text.muted, fontWeight: 600, display: "block", marginBottom: 4 }}>
             Process Name
           </label>
           <input
             ref={inputRef}
             value={name}
             onChange={(e) => handleNameChange(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); if (e.key === "Escape") onCancel(); }}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
             placeholder="App.Domain.Subdomain.Action"
-            style={{
-              width: "100%",
-              padding: "6px 8px",
-              fontSize: 13,
-              background: "var(--color-editor)",
-              border: "1px solid var(--color-border)",
-              borderRadius: 3,
-              color: "var(--color-text-primary)",
-              outline: "none",
-              boxSizing: "border-box",
-              fontFamily: "var(--font-mono, monospace)",
-            }}
+            style={inputStyle}
           />
-          <div style={{ fontSize: 10, color: "var(--color-text-muted)", marginTop: 2 }}>
+          <div style={{ fontSize: 10, color: tok.color.text.muted, marginTop: 2 }}>
             Value of <code>[Process("...")]</code>.
           </div>
         </div>
 
         <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 11, color: "var(--color-text-muted)", fontWeight: 600, display: "block", marginBottom: 4 }}>
+          <label style={{ fontSize: 11, color: tok.color.text.muted, fontWeight: 600, display: "block", marginBottom: 4 }}>
             Type Name
           </label>
           <input
             value={typeName}
             onChange={(e) => { setTypeName(e.target.value); setTypeNameTouched(true); setError(""); }}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); if (e.key === "Escape") onCancel(); }}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
             placeholder="AppDomainSubdomainAction"
-            style={{
-              width: "100%",
-              padding: "6px 8px",
-              fontSize: 13,
-              background: "var(--color-editor)",
-              border: "1px solid var(--color-border)",
-              borderRadius: 3,
-              color: "var(--color-text-primary)",
-              outline: "none",
-              boxSizing: "border-box",
-              fontFamily: "var(--font-mono, monospace)",
-            }}
+            style={inputStyle}
           />
-          <div style={{ fontSize: 10, color: "var(--color-text-muted)", marginTop: 2 }}>
+          <div style={{ fontSize: 10, color: tok.color.text.muted, marginTop: 2 }}>
             C# class name. Autofilled from Name (without dots), you can override.
           </div>
         </div>
@@ -150,33 +127,11 @@ export function CreateProcessDialog({
         {error && (
           <div style={{ fontSize: 11, color: "#f44336", marginTop: 2, marginBottom: 4 }}>{error}</div>
         )}
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "5px 14px", fontSize: 12, borderRadius: 3,
-              border: "1px solid var(--color-border)",
-              background: "transparent", color: "var(--color-text-primary)",
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            style={{
-              padding: "5px 14px", fontSize: 12, borderRadius: 3,
-              border: "none",
-              background: "var(--color-accent)", color: "#fff",
-              cursor: "pointer",
-            }}
-          >
-            Create
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+      </Modal.Body>
+      <Modal.Footer>
+        <Button size="sm" variant="secondary" onClick={onCancel}>Cancel</Button>
+        <Button size="sm" variant="primary" onClick={handleSubmit}>Create</Button>
+      </Modal.Footer>
+    </Modal>
   );
 }

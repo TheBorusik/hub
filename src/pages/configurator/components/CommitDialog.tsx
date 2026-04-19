@@ -1,7 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
-import { GitCommitHorizontal, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { GitCommitHorizontal } from "lucide-react";
 import type { HubWsApi } from "@/lib/ws-api";
 import type { ProcessModel } from "@/lib/ws-api-models";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { t as tok } from "@/lib/design-tokens";
 
 interface CommitDialogProps {
   api: HubWsApi;
@@ -67,52 +71,22 @@ export function CommitDialog({ api, onClose, onCommitted }: CommitDialogProps) {
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: "var(--color-sidebar)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 6,
-          width: 560,
-          maxHeight: "80vh",
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between shrink-0" style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-border)" }}>
-          <div className="flex items-center gap-2">
-            <GitCommitHorizontal size={16} />
-            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)" }}>Commit Changes</span>
-          </div>
-          <button className="toolbar-btn" onClick={onClose}><X size={16} /></button>
-        </div>
-
-        {result ? (
+    <Modal open onClose={onClose} size="md" aria-label="Commit Changes">
+      <Modal.Header title="Commit Changes" icon={<GitCommitHorizontal size={16} />} />
+      {result ? (
+        <Modal.Body>
           <div style={{ padding: 20, textAlign: "center" }}>
             <div style={{ fontSize: 14, color: "#4ec9b0", marginBottom: 8 }}>Committed successfully</div>
-            <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Hash: {result.hash}</div>
-            <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: tok.color.text.muted }}>Hash: {result.hash}</div>
+            <div style={{ fontSize: 12, color: tok.color.text.muted, marginTop: 4 }}>
               {result.names.length} file(s)
             </div>
           </div>
-        ) : (
-          <>
-            {/* Search */}
-            <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--color-border)" }}>
+        </Modal.Body>
+      ) : (
+        <>
+          <Modal.Body padded={false}>
+            <div style={{ padding: "8px 16px", borderBottom: `1px solid ${tok.color.border.default}` }}>
               <input
                 type="text"
                 placeholder="Search..."
@@ -120,39 +94,38 @@ export function CommitDialog({ api, onClose, onCommitted }: CommitDialogProps) {
                 onChange={(e) => setFilter(e.target.value)}
                 style={{
                   width: "100%",
-                  background: "var(--color-surface-400)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 3,
+                  background: tok.color.bg.panel,
+                  border: `1px solid ${tok.color.border.default}`,
+                  borderRadius: tok.radius.sm,
                   padding: "4px 8px",
                   fontSize: 12,
-                  color: "var(--color-text-primary)",
+                  color: tok.color.text.primary,
                   outline: "none",
                 }}
               />
             </div>
 
-            {/* Table */}
             <div style={{ flex: 1, overflow: "auto", minHeight: 100, maxHeight: 300 }}>
               {loading ? (
-                <div style={{ padding: 20, textAlign: "center", color: "var(--color-text-muted)", fontSize: 12 }}>Loading...</div>
+                <EmptyState dense title="Loading..." />
               ) : filtered.length === 0 ? (
-                <div style={{ padding: 20, textAlign: "center", color: "var(--color-text-muted)", fontSize: 12 }}>No changed models</div>
+                <EmptyState dense title="No changed models" />
               ) : (
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead>
-                    <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <tr style={{ borderBottom: `1px solid ${tok.color.border.default}` }}>
                       <th style={{ padding: "4px 8px", width: 30 }}>
                         <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} />
                       </th>
-                      <th style={{ padding: "4px 8px", textAlign: "left", color: "var(--color-text-muted)", fontWeight: 600 }}>Category</th>
-                      <th style={{ padding: "4px 8px", textAlign: "left", color: "var(--color-text-muted)", fontWeight: 600 }}>TypeName</th>
+                      <th style={{ padding: "4px 8px", textAlign: "left", color: tok.color.text.muted, fontWeight: 600 }}>Category</th>
+                      <th style={{ padding: "4px 8px", textAlign: "left", color: tok.color.text.muted, fontWeight: 600 }}>TypeName</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map((m) => (
                       <tr
                         key={m.TypeName}
-                        style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
+                        style={{ borderBottom: `1px solid ${tok.color.border.default}`, cursor: "pointer" }}
                         onClick={() => toggle(m.TypeName)}
                         onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-list-hover)"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
@@ -160,8 +133,8 @@ export function CommitDialog({ api, onClose, onCommitted }: CommitDialogProps) {
                         <td style={{ padding: "4px 8px", textAlign: "center" }}>
                           <input type="checkbox" checked={selected.has(m.TypeName)} readOnly />
                         </td>
-                        <td style={{ padding: "4px 8px", color: "var(--color-text-muted)" }}>{m.Category}</td>
-                        <td style={{ padding: "4px 8px", color: "var(--color-text-primary)" }}>{m.TypeName}</td>
+                        <td style={{ padding: "4px 8px", color: tok.color.text.muted }}>{m.Category}</td>
+                        <td style={{ padding: "4px 8px", color: tok.color.text.primary }}>{m.TypeName}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -169,9 +142,8 @@ export function CommitDialog({ api, onClose, onCommitted }: CommitDialogProps) {
               )}
             </div>
 
-            {/* Message */}
-            <div style={{ padding: "8px 16px", borderTop: "1px solid var(--color-border)" }}>
-              <span style={{ fontSize: 11, color: "var(--color-text-muted)", fontWeight: 600 }}>Commit Message</span>
+            <div style={{ padding: "8px 16px", borderTop: `1px solid ${tok.color.border.default}` }}>
+              <span style={{ fontSize: 11, color: tok.color.text.muted, fontWeight: 600 }}>Commit Message</span>
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -179,47 +151,36 @@ export function CommitDialog({ api, onClose, onCommitted }: CommitDialogProps) {
                 style={{
                   width: "100%",
                   marginTop: 4,
-                  background: "var(--color-surface-400)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 3,
+                  background: tok.color.bg.panel,
+                  border: `1px solid ${tok.color.border.default}`,
+                  borderRadius: tok.radius.sm,
                   padding: "6px 8px",
                   fontSize: 12,
-                  color: "var(--color-text-primary)",
+                  color: tok.color.text.primary,
                   outline: "none",
                   resize: "vertical",
                 }}
               />
             </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-end gap-2" style={{ padding: "8px 16px", borderTop: "1px solid var(--color-border)" }}>
-              <span style={{ fontSize: 11, color: "var(--color-text-muted)", marginRight: "auto" }}>
-                {selected.size} of {models.length} selected
-              </span>
-              <button
-                className="toolbar-btn"
-                style={{ padding: "4px 12px" }}
-                onClick={onClose}
-              >
-                Cancel
-              </button>
-              <button
-                className="toolbar-btn"
-                style={{
-                  padding: "4px 12px",
-                  background: selected.size > 0 ? "#0e639c" : undefined,
-                  color: selected.size > 0 ? "#fff" : undefined,
-                  borderRadius: 3,
-                }}
+          </Modal.Body>
+          <Modal.Footer align="between">
+            <span style={{ fontSize: 11, color: tok.color.text.muted }}>
+              {selected.size} of {models.length} selected
+            </span>
+            <div style={{ display: "flex", gap: tok.space[2] }}>
+              <Button size="sm" variant="secondary" onClick={onClose}>Cancel</Button>
+              <Button
+                size="sm"
+                variant="primary"
                 onClick={handleCommit}
                 disabled={selected.size === 0 || committing}
               >
                 {committing ? "Committing..." : "Commit"}
-              </button>
+              </Button>
             </div>
-          </>
-        )}
-      </div>
-    </div>
+          </Modal.Footer>
+        </>
+      )}
+    </Modal>
   );
 }
