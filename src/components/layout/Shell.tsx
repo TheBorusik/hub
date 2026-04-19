@@ -2,6 +2,8 @@ import { useCallback } from "react";
 import { TabBar } from "./TabBar";
 import { ActivityBar, type SectionId } from "./ActivityBar";
 import { StatusBar } from "./StatusBar";
+import { CommandPalette } from "./CommandPalette";
+import { CommandSeed } from "./CommandSeed";
 import { ContourWebSocketProvider } from "@/providers/ContourWebSocketProvider";
 import { useContours, type ContourConfig } from "@/providers/ContourProvider";
 import { AuthGate } from "@/components/layout/AuthGate";
@@ -63,6 +65,9 @@ function ContourPanel({ contour, isActive }: ContourPanelProps) {
         <div style={{ display: isActive ? "flex" : "none" }}>
           <StatusBar />
         </div>
+        {/* CommandPalette слушает глобальный хоткей (Ctrl/Cmd+Shift+P) и
+            рендерится только когда открыт — лёгкий по стоимости. */}
+        {isActive && <CommandPalette />}
       </NavigationProvider>
     </ContourWebSocketProvider>
   );
@@ -92,6 +97,7 @@ function ContourBody() {
   // произойдёт.
   return (
     <>
+      <CommandSeed />
       <ActivityBar activeSection={currentSection} onSectionChange={onSectionChange} />
       <div className="flex-1 overflow-hidden bg-editor relative">
         {Array.from(visitedSections).map((sectionId) => {

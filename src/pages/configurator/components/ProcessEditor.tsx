@@ -22,7 +22,7 @@ import { CodePreview } from "./CodePreview";
 import { DiffView } from "./DiffView";
 import { RunProcessPanel } from "./RunProcessPanel";
 import { ModelClassDialog } from "./ModelClassDialog";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AddStageDialog } from "./AddStageDialog";
 import { QuickPickDialog, type QuickPickItem } from "./QuickPickDialog";
 import { UsingsDialog } from "./UsingsDialog";
@@ -903,29 +903,29 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
         />
       )}
 
-      {deleteStageTarget && (
-        <ConfirmDialog
-          title="Delete Stage"
-          message={`Are you sure you want to delete "${deleteStageTarget}"?`}
-          confirmLabel="Delete"
-          danger
-          onConfirm={() => {
-            const name = deleteStageTarget;
-            const newStages = { ...stages };
-            delete newStages[name];
-            const newWebStages = { ...(process.WebData?.Stages ?? {}) };
-            delete newWebStages[name];
-            onProcessUpdate(recomputeReturnStages({
-              ...process,
-              Stages: newStages,
-              WebData: process.WebData ? { ...process.WebData, Stages: newWebStages } : process.WebData,
-            }));
-            closeStageTab(name);
-            setDeleteStageTarget(null);
-          }}
-          onCancel={() => setDeleteStageTarget(null)}
-        />
-      )}
+      <ConfirmDialog
+        open={deleteStageTarget !== null}
+        title="Delete Stage"
+        message={deleteStageTarget ? `Are you sure you want to delete "${deleteStageTarget}"?` : ""}
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={() => {
+          if (!deleteStageTarget) return;
+          const name = deleteStageTarget;
+          const newStages = { ...stages };
+          delete newStages[name];
+          const newWebStages = { ...(process.WebData?.Stages ?? {}) };
+          delete newWebStages[name];
+          onProcessUpdate(recomputeReturnStages({
+            ...process,
+            Stages: newStages,
+            WebData: process.WebData ? { ...process.WebData, Stages: newWebStages } : process.WebData,
+          }));
+          closeStageTab(name);
+          setDeleteStageTarget(null);
+        }}
+        onCancel={() => setDeleteStageTarget(null)}
+      />
 
       {createStagePrefill != null && (
         <AddStageDialog

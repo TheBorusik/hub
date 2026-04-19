@@ -1,3 +1,3 @@
 export { commandRegistry } from "./registry";
-export { useCommand, useCommandList } from "./useCommand";
+export { useCommand, useCommands, useCommandList } from "./useCommand";
 export type { Command, CommandContext } from "./types";

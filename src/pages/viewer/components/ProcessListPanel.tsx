@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { RefreshCw, ChevronDown, ArrowRight, Trash2, Filter as FilterIcon } from "lucide-react";
 import { useContourApi } from "@/lib/ws-api";
 import { useToast } from "@/providers/ToastProvider";
-import { ConfirmDialog } from "@/components/layout/ConfirmDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ProcessFiltersPanel, buildServerFilters, EMPTY_FILTERS, type ViewerFiltersState } from "./ProcessFiltersPanel";
 import type { ViewerTab } from "../types";
 import type { ViewerProcessRow } from "@/lib/ws-api-models";
@@ -433,22 +433,24 @@ export function ProcessListPanel({
       </div>
 
       {/* Confirm: delete */}
-      {confirm.kind === "delete" && (
-        <ConfirmDialog
-          title="Delete processes"
-          message={
-            `Are you sure you want to permanently delete ${confirm.ids.length} process(es)?\n\n` +
-            `This removes the process, its sub-processes and related command results from both worked (processes) and completed (completed_processes) tables. The action cannot be undone.`
-          }
-          confirmLabel={`Delete ${confirm.ids.length}`}
-          cancelLabel="Cancel"
-          danger
-          busy={confirm.busy}
-          error={confirm.error}
-          onConfirm={performDelete}
-          onCancel={() => setConfirm({ kind: "none" })}
-        />
-      )}
+      <ConfirmDialog
+        open={confirm.kind === "delete"}
+        title="Delete processes"
+        message={
+          confirm.kind === "delete"
+            ? `Are you sure you want to permanently delete ${confirm.ids.length} process(es)?\n\n` +
+              `This removes the process, its sub-processes and related command results from both worked (processes) and completed (completed_processes) tables. The action cannot be undone.`
+            : ""
+        }
+        confirmLabel={confirm.kind === "delete" ? `Delete ${confirm.ids.length}` : "Delete"}
+        cancelLabel="Cancel"
+        tone="danger"
+        busy={confirm.kind === "delete" ? confirm.busy : false}
+        error={confirm.kind === "delete" ? confirm.error : null}
+        onConfirm={performDelete}
+        onCancel={() => setConfirm({ kind: "none" })}
+      />
+
     </div>
   );
 }

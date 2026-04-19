@@ -17,6 +17,20 @@ class CommandRegistry {
     return () => this.unregister(cmd.id);
   }
 
+  /** Зарегистрировать несколько команд атомарно — один emit в конце. */
+  registerMany(cmds: Command[]): () => void {
+    const ids = cmds.map((c) => c.id);
+    for (const c of cmds) this.commands.set(c.id, c);
+    this.emit();
+    return () => {
+      let changed = false;
+      for (const id of ids) {
+        if (this.commands.delete(id)) changed = true;
+      }
+      if (changed) this.emit();
+    };
+  }
+
   unregister(id: string): void {
     if (this.commands.delete(id)) this.emit();
   }

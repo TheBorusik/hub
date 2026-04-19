@@ -14,6 +14,15 @@ export function useCommand(command: Command, deps: readonly unknown[] = []): voi
   }, deps);
 }
 
+/** Регистрирует список команд атомарно (см. `useCommand`). */
+export function useCommands(commands: Command[], deps: readonly unknown[] = []): void {
+  useEffect(() => {
+    const dispose = commandRegistry.registerMany(commands);
+    return dispose;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}
+
 /** Подписка на список зарегистрированных команд (для CommandPalette). */
 export function useCommandList(): Command[] {
   return useSyncExternalStore(

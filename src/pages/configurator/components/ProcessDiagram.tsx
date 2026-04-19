@@ -19,7 +19,7 @@ import type { WebProcess, ProcessStage } from "@/lib/ws-api-models";
 import type { HubWsApi } from "@/lib/ws-api";
 import StageNode, { type StageNodeData } from "./StageNode";
 import { AddStageDialog } from "./AddStageDialog";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LineSettingsDialog } from "./LineSettingsDialog";
 import { recomputeReturnStages } from "../utils/recomputeReturnStages";
 
@@ -394,16 +394,15 @@ function DiagramInner({ process, onProcessUpdate, onSelectStage, onValidate, val
         />
       )}
 
-      {deleteTarget && (
-        <ConfirmDialog
-          title="Delete Stage"
-          message={`Are you sure you want to delete "${deleteTarget}"?`}
-          confirmLabel="Delete"
-          danger
-          onConfirm={() => doDeleteStage(deleteTarget)}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete Stage"
+        message={deleteTarget ? `Are you sure you want to delete "${deleteTarget}"?` : ""}
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={() => deleteTarget && doDeleteStage(deleteTarget)}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {lineSettingsTarget && (
         <LineSettingsDialog

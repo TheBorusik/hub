@@ -13,7 +13,7 @@ import { BranchSelector } from "./components/BranchSelector";
 import { ProcessTree } from "./components/ProcessTree";
 import { ProcessEditor } from "./components/ProcessEditor";
 import { CommitDialog } from "./components/CommitDialog";
-import { ConfirmDialog } from "./components/ConfirmDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CreateProcessDialog } from "./components/CreateProcessDialog";
 import { recomputeReturnStages } from "./utils/recomputeReturnStages";
 import { stableJson } from "./utils/stableJson";
@@ -558,16 +558,15 @@ export function ConfiguratorPage() {
         />
       )}
 
-      {removeDraftTarget && (
-        <ConfirmDialog
-          title="Remove Draft"
-          message={`Remove draft for ${removeDraftTarget}?`}
-          confirmLabel="Remove"
-          danger
-          onConfirm={doRemoveDraft}
-          onCancel={() => setRemoveDraftTarget(null)}
-        />
-      )}
+      <ConfirmDialog
+        open={removeDraftTarget !== null}
+        title="Remove Draft"
+        message={removeDraftTarget ? `Remove draft for ${removeDraftTarget}?` : ""}
+        confirmLabel="Remove"
+        tone="danger"
+        onConfirm={doRemoveDraft}
+        onCancel={() => setRemoveDraftTarget(null)}
+      />
 
       {createProcessPrefill !== null && (
         <CreateProcessDialog
