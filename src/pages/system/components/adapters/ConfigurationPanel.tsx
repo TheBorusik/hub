@@ -400,21 +400,40 @@ export function ConfigurationPanel() {
                   );
                 })}
               </div>
-              {activeTab && (
-                <div className="flex-1" style={{ minHeight: 0 }}>
-                  <ConfigTabContent
-                    tab={activeTab}
-                    sections={configSections[activeTab.config.ConfigurationId] ?? []}
-                    isLoadingSections={loadingSections.has(activeTab.config.ConfigurationId)}
-                    onSelectSection={(sid) => selectSection(activeTab.config.ConfigurationId, sid)}
-                    onAddSection={() => setOverlay({ type: "createSection", configId: activeTab.config.ConfigurationId })}
-                    onSaveSection={handleSaveSection}
-                    onDeleteSection={(s) => handleDeleteSection(s, activeTab.config.ConfigurationId)}
-                    onToggleLock={handleToggleLock}
-                    onDirtyChange={(dirty) => markDirty(activeTab.config.ConfigurationId, dirty)}
-                  />
-                </div>
-              )}
+              {/*
+                Keep-alive: рендерим ВСЕ открытые вкладки и скрываем неактивные
+                через display:none. Monaco-редактор внутри BuildRulesEditor не
+                пересоздаётся при переключении таба → переключение мгновенное.
+              */}
+              <div className="flex-1" style={{ minHeight: 0, position: "relative" }}>
+                {openTabs.map((tab) => {
+                  const isActive = tab.config.ConfigurationId === activeTabId;
+                  return (
+                    <div
+                      key={tab.config.ConfigurationId}
+                      style={{
+                        display: isActive ? "flex" : "none",
+                        flexDirection: "column",
+                        position: "absolute",
+                        inset: 0,
+                      }}
+                    >
+                      <ConfigTabContent
+                        tab={tab}
+                        isActive={isActive}
+                        sections={configSections[tab.config.ConfigurationId] ?? []}
+                        isLoadingSections={loadingSections.has(tab.config.ConfigurationId)}
+                        onSelectSection={(sid) => selectSection(tab.config.ConfigurationId, sid)}
+                        onAddSection={() => setOverlay({ type: "createSection", configId: tab.config.ConfigurationId })}
+                        onSaveSection={handleSaveSection}
+                        onDeleteSection={(s) => handleDeleteSection(s, tab.config.ConfigurationId)}
+                        onToggleLock={handleToggleLock}
+                        onDirtyChange={(dirty) => markDirty(tab.config.ConfigurationId, dirty)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </>)}
           </div>
         </Panel>
@@ -430,8 +449,10 @@ export function ConfigurationPanel() {
 
 /* ===== Tab content: sections list + JSON editor ===== */
 
-function ConfigTabContent({ tab, sections, isLoadingSections, onSelectSection, onAddSection, onSaveSection, onDeleteSection, onToggleLock, onDirtyChange }: {
+function ConfigTabContent({ tab, isActive, sections, isLoadingSections, onSelectSection, onAddSection, onSaveSection, onDeleteSection, onToggleLock, onDirtyChange }: {
   tab: OpenTab;
+  /** true — эта вкладка сейчас видимая, только она обрабатывает Ctrl+S. */
+  isActive: boolean;
   sections: ConfigSection[];
   isLoadingSections: boolean;
   onSelectSection: (sectionId: number | null) => void;
@@ -508,6 +529,9 @@ function ConfigTabContent({ tab, sections, isLoadingSections, onSelectSection, o
   };
 
   useEffect(() => {
+    // keep-alive: слушатель работает только для активной вкладки, иначе
+    // Ctrl+S сохранил бы во всех открытых табах одновременно.
+    if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s" && isDirty && selectedSection) {
         e.preventDefault();
@@ -517,7 +541,7 @@ function ConfigTabContent({ tab, sections, isLoadingSections, onSelectSection, o
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDirty, selectedSection, editedJson, editedBuildRules, editedBuildTable]);
+  }, [isActive, isDirty, selectedSection, editedJson, editedBuildRules, editedBuildTable]);
 
   return (
     <Group direction="horizontal" id={`tab-sections-${tab.config.ConfigurationId}`}>
@@ -537,11 +561,10 @@ function ConfigTabContent({ tab, sections, isLoadingSections, onSelectSection, o
             {sections.map((s) => {
               const isSel = s.SectionId === tab.selectedSectionId;
               return (
-                <div key={s.SectionId} className="flex items-center group"
+                <div key={s.SectionId} className="flex items-center group adapter-tree-row"
+                  data-selected={isSel ? "true" : undefined}
                   onClick={() => onSelectSection(s.SectionId)}
-                  style={{ height: 26, padding: "0 10px", cursor: "pointer", fontSize: 12, gap: 6, color: isSel ? "var(--color-text)" : "var(--color-text-muted)", backgroundColor: isSel ? "rgba(255,255,255,0.07)" : "transparent", fontWeight: isSel ? 500 : 400 }}
-                  onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
-                  onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = "transparent"; }}
+                  style={{ height: 26, padding: "0 10px", cursor: "pointer", fontSize: 12, gap: 6, color: isSel ? "var(--color-text)" : "var(--color-text-muted)", fontWeight: isSel ? 500 : 400 }}
                 >
                   {s.Locked ? <Lock size={12} style={{ flexShrink: 0, color: "#F6511D" }} /> : <Folder size={12} style={{ flexShrink: 0, opacity: 0.6 }} />}
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.DisplayName || s.Name}</span>
@@ -624,11 +647,10 @@ function TreeRow({ depth, icon, label, sublabel, badge, expanded, selected, dotI
   const hasChildren = expanded !== undefined;
   const paddingLeft = 8 + depth * 16;
   return (
-    <div className="flex items-center group"
-      style={{ height: 26, paddingLeft, paddingRight: 6, cursor: "pointer", userSelect: "none", backgroundColor: selected ? "rgba(255,255,255,0.07)" : "transparent", gap: 4 }}
+    <div className="flex items-center group adapter-tree-row"
+      data-selected={selected ? "true" : undefined}
+      style={{ height: 26, paddingLeft, paddingRight: 6, cursor: "pointer", userSelect: "none", gap: 4 }}
       onClick={onClick}
-      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
-      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.backgroundColor = "transparent"; }}
     >
       {hasChildren ? (
         <span onClick={(e) => { e.stopPropagation(); onToggle?.(); }} style={{ display: "inline-flex", alignItems: "center", flexShrink: 0, width: 16 }}>

@@ -294,6 +294,21 @@ a {
   color: var(--color-text-primary);
 }
 
+/* Строки дерева/списка в System → Configuration: hover + выделение через CSS,
+   чтобы не висели дорогие onMouseEnter/Leave на каждой строке (DOM writes). */
+.adapter-tree-row {
+  background-color: transparent;
+}
+.adapter-tree-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+.adapter-tree-row[data-selected="true"] {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+.adapter-tree-row[data-selected="true"]:hover {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+
 .resize-handle-h {
   width: 4px !important;
   min-width: 4px !important;
