@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import Editor, { type Monaco } from "@monaco-editor/react";
+import type { Monaco } from "@monaco-editor/react";
 import type { editor as MonacoEditor } from "monaco-editor";
 import { FileCheck, Wand2, Loader2, AlertCircle, ArrowLeftRight, RefreshCw } from "lucide-react";
 import type { HubWsApi } from "@/lib/ws-api";
 import type { WebProcess, DiagnosticModel } from "@/lib/ws-api-models";
 import { setupWfmCSharp } from "../monaco/wfm-csharp";
+import { CodeEditor, type CodeEditorMarker } from "@/components/ui/CodeEditor";
 
 interface CodePreviewProps {
   api: HubWsApi;
@@ -64,24 +65,20 @@ export function CodePreview({ api, process, onApplyToProcess }: CodePreviewProps
     reloadFromProcess();
   }, [processName, reloadFromProcess]);
 
-  // Применяем markers в Monaco при изменении diagnostics.
-  useEffect(() => {
-    const monaco = monacoRef.current;
-    const editor = editorRef.current;
-    if (!monaco || !editor) return;
-    const model = editor.getModel();
-    if (!model) return;
-    const markers: MonacoEditor.IMarkerData[] = diagnostics.map((d) => ({
-      severity: monaco.MarkerSeverity.Error,
-      message: d.Message || d.Text,
-      startLineNumber: Math.max(1, d.StartLine),
-      startColumn: Math.max(1, d.StartColumn),
-      endLineNumber: Math.max(1, d.EndLine || d.StartLine),
-      endColumn: Math.max(1, d.EndColumn || d.StartColumn + 1),
-      source: "wfm",
-    }));
-    monaco.editor.setModelMarkers(model, "wfm", markers);
-  }, [diagnostics]);
+  // Преобразуем WFM-диагностики в формат CodeEditor (единый markerOwner="wfm").
+  const codeMarkers = useMemo<CodeEditorMarker[]>(
+    () =>
+      diagnostics.map((d) => ({
+        severity: "error",
+        message: d.Message || d.Text,
+        startLineNumber: Math.max(1, d.StartLine),
+        startColumn: Math.max(1, d.StartColumn),
+        endLineNumber: Math.max(1, d.EndLine || d.StartLine),
+        endColumn: Math.max(1, d.EndColumn || d.StartColumn + 1),
+        source: "wfm",
+      })),
+    [diagnostics],
+  );
 
   const handleValidate = useCallback(async () => {
     try {
@@ -233,40 +230,22 @@ export function CodePreview({ api, process, onApplyToProcess }: CodePreviewProps
 
       {/* Editor */}
       <div className="flex-1 min-h-0">
-        <Editor
+        <CodeEditor
           path={`inmemory://code/${processName}`}
           language="csharp"
           value={code}
-          onChange={(v) => { setCode(v ?? ""); setStatus("idle"); setCodeDirty(true); }}
+          onChange={(v) => { setCode(v); setStatus("idle"); setCodeDirty(true); }}
           theme="wfm-dark"
+          markers={codeMarkers}
+          markerOwner="wfm"
+          minimap
+          beforeMount={setupWfmCSharp}
           onMount={(editor, monaco: Monaco) => {
             editorRef.current = editor;
             monacoRef.current = monaco;
-            setupWfmCSharp(monaco);
-            // Применяем уже накопленные diagnostics (на случай когда
-            // данные пришли до монтирования).
-            const model = editor.getModel();
-            if (model && diagnostics.length > 0) {
-              const markers: MonacoEditor.IMarkerData[] = diagnostics.map((d) => ({
-                severity: monaco.MarkerSeverity.Error,
-                message: d.Message || d.Text,
-                startLineNumber: Math.max(1, d.StartLine),
-                startColumn: Math.max(1, d.StartColumn),
-                endLineNumber: Math.max(1, d.EndLine || d.StartLine),
-                endColumn: Math.max(1, d.EndColumn || d.StartColumn + 1),
-                source: "wfm",
-              }));
-              monaco.editor.setModelMarkers(model, "wfm", markers);
-            }
           }}
           options={{
             fontSize: 13,
-            fontFamily: "Consolas, 'Courier New', monospace",
-            lineNumbers: "on",
-            scrollBeyondLastLine: false,
-            minimap: { enabled: true },
-            automaticLayout: true,
-            tabSize: 4,
             scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
             padding: { top: 8 },
           }}

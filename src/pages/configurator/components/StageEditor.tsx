@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import Editor, { type Monaco } from "@monaco-editor/react";
+import type { Monaco } from "@monaco-editor/react";
 import type * as MonacoNs from "monaco-editor";
 import { Group, Panel, usePanelRef } from "react-resizable-panels";
 import { ChevronRight, ChevronDown, ExternalLink } from "lucide-react";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
+import { CodeEditor } from "@/components/ui/CodeEditor";
 import type { HubWsApi } from "@/lib/ws-api";
 import type {
   ProcessModel, ProcessStage,
@@ -91,9 +92,12 @@ function CSharpEditor({
   const actionDisposablesRef = useRef<MonacoNs.IDisposable[]>([]);
   const editorRef = useRef<MonacoNs.editor.IStandaloneCodeEditor | null>(null);
 
+  const handleBeforeMount = useCallback((monaco: Monaco) => {
+    setupWfmCSharp(monaco);
+  }, []);
+
   const handleMount = useCallback(
     (editor: MonacoNs.editor.IStandaloneCodeEditor, monaco: Monaco) => {
-      setupWfmCSharp(monaco);
       editorRef.current = editor;
       const uri = editor.getModel()?.uri.toString();
       if (uri) {
@@ -126,22 +130,17 @@ function CSharpEditor({
         </span>
       )}
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-        <Editor
+        <CodeEditor
           path={path}
           language="csharp"
           value={value}
-          onChange={(v) => { const next = v ?? ""; if (next !== value) onChange(next); }}
+          onChange={(next) => { if (next !== value) onChange(next); }}
           theme="wfm-dark"
+          beforeMount={handleBeforeMount}
           onMount={handleMount}
+          wordWrap="on"
           options={{
             fontSize: 13,
-            fontFamily: "Consolas, 'Courier New', monospace",
-            lineNumbers: "on",
-            scrollBeyondLastLine: false,
-            minimap: { enabled: false },
-            automaticLayout: true,
-            tabSize: 4,
-            wordWrap: "on",
             scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
             padding: { top: 4 },
             // "smart" — как в VS Code: Enter принимает подсказку только когда

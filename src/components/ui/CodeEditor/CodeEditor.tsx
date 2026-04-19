@@ -48,6 +48,12 @@ export interface CodeEditorProps {
   width?: number | string;
   /** Вызывается один раз после монтирования Monaco. */
   onMount?: (editor: MonacoNs.editor.IStandaloneCodeEditor, monaco: Monaco) => void;
+  /**
+   * Вызывается до монтирования редактора, как только Monaco загружен. Нужен для
+   * регистрации тем/языков до того, как редактор попробует применить
+   * `theme` — иначе на секунду может мигнуть дефолтная тема.
+   */
+  beforeMount?: (monaco: Monaco) => void;
   /** Маркеры (ошибки/варнинги). Обновляются при каждом рендере. */
   markers?: CodeEditorMarker[];
   /** Имя owner'а для маркеров. default: "hub". */
@@ -96,6 +102,7 @@ export function CodeEditor({
   height = "100%",
   width = "100%",
   onMount,
+  beforeMount,
   markers,
   markerOwner = "hub",
   options,
@@ -166,6 +173,12 @@ export function CodeEditor({
         language={language}
         path={path}
         theme={effectiveTheme}
+        beforeMount={(monaco) => {
+          // Регистрируем hub-dark заранее — для c#-редакторов wfm-dark
+          // регистрируется через beforeMount consumer-а.
+          ensureHubDarkTheme(monaco, themeRegistered);
+          beforeMount?.(monaco);
+        }}
         onMount={handleMount}
         options={{
           readOnly: readOnly,

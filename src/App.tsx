@@ -3,6 +3,7 @@ import { ToastProvider } from "@/providers/ToastProvider";
 import { NotificationsProvider } from "@/providers/NotificationsProvider";
 import { ProblemsProvider } from "@/providers/ProblemsProvider";
 import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
+import { MonacoProvider } from "@/components/ui/CodeEditor";
 import { Shell } from "@/components/layout/Shell";
 
 export default function App() {
@@ -11,9 +12,11 @@ export default function App() {
       <NotificationsProvider>
         <ProblemsProvider>
           <ConfirmProvider>
-            <ContourProvider>
-              <Shell />
-            </ContourProvider>
+            <MonacoProvider>
+              <ContourProvider>
+                <Shell />
+              </ContourProvider>
+            </MonacoProvider>
           </ConfirmProvider>
         </ProblemsProvider>
       </NotificationsProvider>

@@ -1,29 +1,12 @@
-import { useRef, useCallback, useId } from "react";
-import Editor, { loader, type OnMount } from "@monaco-editor/react";
+import { useId } from "react";
+import { CodeEditor } from "@/components/ui/CodeEditor";
+import { t as tok } from "@/lib/design-tokens";
 
-let themeRegistered = false;
-
-function ensureTheme(monaco: Parameters<OnMount>[1]) {
-  if (themeRegistered) return;
-  monaco.editor.defineTheme("hub-dark", {
-    base: "vs-dark",
-    inherit: true,
-    rules: [],
-    colors: {
-      "editor.background": "#1e1e1e",
-    },
-  });
-  themeRegistered = true;
-}
-
-loader.init().then((monaco) => ensureTheme(monaco));
-
-function toSafeString(v: unknown): string {
-  if (typeof v === "string") return v;
-  if (v == null) return "";
-  try { return JSON.stringify(v, null, 2); } catch { return String(v); }
-}
-
+/**
+ * JSON-редактор с опциональным label-заголовком. С Block C это тонкая
+ * обёртка над общим `<CodeEditor>`: единая тема, единые маркеры, единый
+ * MonacoProvider в корне приложения (без повторной инициализации).
+ */
 interface JsonEditorProps {
   value: string;
   readOnly?: boolean;
@@ -31,7 +14,14 @@ interface JsonEditorProps {
   onChange?: (value: string) => void;
   label?: string;
   height?: string;
+  /** Путь модели Monaco — чтобы не мешать модели разных редакторов. */
   path?: string;
+}
+
+function toSafeString(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (v == null) return "";
+  try { return JSON.stringify(v, null, 2); } catch { return String(v); }
 }
 
 export function JsonEditor({
@@ -43,21 +33,8 @@ export function JsonEditor({
   path: customPath,
 }: JsonEditorProps) {
   const uid = useId();
-  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const modelPath = customPath ?? `inmemory://jsoneditor/${uid}`;
   const safeValue = toSafeString(value);
-
-  const handleMount: OnMount = useCallback((editor, monaco) => {
-    editorRef.current = editor;
-    ensureTheme(monaco);
-  }, []);
-
-  const handleChange = useCallback(
-    (val: string | undefined) => {
-      onChange?.(val ?? "");
-    },
-    [onChange],
-  );
 
   return (
     <div className="flex flex-col h-full">
@@ -67,10 +44,10 @@ export function JsonEditor({
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: "var(--color-text-muted)",
+            color: tok.color.text.muted,
             padding: "4px 12px",
-            background: "var(--color-sidebar)",
-            borderBottom: "1px solid var(--color-border)",
+            background: tok.color.bg.sidebar,
+            borderBottom: `1px solid ${tok.color.border.default}`,
             textTransform: "uppercase",
             letterSpacing: "0.04em",
           }}
@@ -79,24 +56,16 @@ export function JsonEditor({
         </div>
       )}
       <div className="flex-1 min-h-0">
-        <Editor
-          path={modelPath}
-          language="json"
+        <CodeEditor
           value={safeValue}
-          onChange={handleChange}
-          onMount={handleMount}
-          theme="hub-dark"
+          onChange={onChange}
+          language="json"
+          readOnly={readOnly}
+          path={modelPath}
+          minimap={minimap}
+          wordWrap="on"
           options={{
-            readOnly,
-            fontSize: 14,
-            fontFamily: "Consolas, 'Courier New', monospace",
-            lineNumbers: "on",
-            scrollBeyondLastLine: false,
-            minimap: { enabled: minimap },
-            automaticLayout: true,
             tabSize: 2,
-            wordWrap: "on",
-            scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
             padding: { top: 8 },
           }}
         />

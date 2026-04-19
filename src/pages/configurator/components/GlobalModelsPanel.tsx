@@ -7,8 +7,9 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
-import Editor, { type Monaco } from "@monaco-editor/react";
+import type { Monaco } from "@monaco-editor/react";
 import type { editor as MonacoEditor } from "monaco-editor";
+import { CodeEditor, type CodeEditorMarker } from "@/components/ui/CodeEditor";
 import {
   RefreshCw,
   Plus,
@@ -172,24 +173,20 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
     setDiagnostics([]);
   }, []);
 
-  // Применяем Monaco-маркеры при изменении diagnostics.
-  useEffect(() => {
-    const monaco = monacoRef.current;
-    const editor = editorRef.current;
-    if (!monaco || !editor) return;
-    const model = editor.getModel();
-    if (!model) return;
-    const markers: MonacoEditor.IMarkerData[] = diagnostics.map((d) => ({
-      severity: monaco.MarkerSeverity.Error,
-      message: d.Message || d.Text,
-      startLineNumber: Math.max(1, d.StartLine),
-      startColumn: Math.max(1, d.StartColumn),
-      endLineNumber: Math.max(1, d.EndLine || d.StartLine),
-      endColumn: Math.max(1, d.EndColumn || d.StartColumn + 1),
-      source: "wfm",
-    }));
-    monaco.editor.setModelMarkers(model, "wfm-global", markers);
-  }, [diagnostics]);
+  // Диагностики → формат CodeEditor (единый рендер через markers prop).
+  const codeMarkers = useMemo<CodeEditorMarker[]>(
+    () =>
+      diagnostics.map((d) => ({
+        severity: "error",
+        message: d.Message || d.Text,
+        startLineNumber: Math.max(1, d.StartLine),
+        startColumn: Math.max(1, d.StartColumn),
+        endLineNumber: Math.max(1, d.EndLine || d.StartLine),
+        endColumn: Math.max(1, d.EndColumn || d.StartColumn + 1),
+        source: "wfm",
+      })),
+    [diagnostics],
+  );
 
   // Сброс маркеров при смене выбранной модели (подсветка ошибок — только для текущей).
   useEffect(() => {
@@ -585,30 +582,24 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
 
             {/* Editor */}
             <div className="flex-1 min-h-0" style={{ background: "var(--color-editor)" }}>
-              <Editor
+              <CodeEditor
                 path={`inmemory://global/${selected.Category}/${selected.TypeName}.cs`}
                 language="csharp"
                 value={selected.Code ?? ""}
-                onChange={(v) => updateSelectedCode(v ?? "")}
-                theme="hub-dark"
-                beforeMount={(m) => setupWfmCSharp(m)}
+                onChange={updateSelectedCode}
+                theme="wfm-dark"
+                markers={codeMarkers}
+                markerOwner="wfm-global"
+                beforeMount={setupWfmCSharp}
                 onMount={(ed, m) => {
                   editorRef.current = ed;
                   monacoRef.current = m;
                 }}
                 options={{
                   fontSize: 13,
-                  fontFamily: "Consolas, 'Courier New', monospace",
-                  lineNumbers: "on",
-                  scrollBeyondLastLine: false,
-                  minimap: { enabled: false },
-                  automaticLayout: true,
-                  tabSize: 4,
                   padding: { top: 6 },
                   acceptSuggestionOnEnter: "smart",
                   tabCompletion: "on",
-                  renderLineHighlight: "line",
-                  smoothScrolling: true,
                 }}
               />
             </div>
