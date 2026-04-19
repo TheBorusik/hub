@@ -30,6 +30,13 @@ import type { HubWsApi } from "@/lib/ws-api";
 import type { WebGlobalModel, DiagnosticModel } from "@/lib/ws-api-models";
 import { setupWfmCSharp } from "../monaco/wfm-csharp";
 import { useToast } from "@/providers/ToastProvider";
+import { PanelHeader } from "@/components/ui/PanelHeader";
+import { PanelToolbar } from "@/components/ui/PanelToolbar";
+import { Button, IconButton } from "@/components/ui/Button";
+import { EmptyState as UIEmptyState } from "@/components/ui/EmptyState";
+import { CountBadge } from "@/components/ui/CountBadge";
+import { StatusDot } from "@/components/ui/StatusDot";
+import { t as tok } from "@/lib/design-tokens";
 
 interface GlobalModelsPanelProps {
   api: HubWsApi;
@@ -304,34 +311,26 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
         }}
       >
         {/* Header */}
-        <div
-          className="flex items-center shrink-0"
-          style={{ padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}
-        >
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--color-text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: 0.4,
-            }}
-          >
-            Global Models
-          </span>
-          <div style={{ flex: 1 }} />
-          <button
-            className="toolbar-btn"
-            title="Refresh"
-            onClick={() => void load(true)}
-            disabled={loading}
-          >
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-          </button>
-          <button className="toolbar-btn" title="Add" onClick={() => setShowAdd(true)}>
-            <Plus size={14} />
-          </button>
-        </div>
+        <PanelHeader
+          title="Global Models"
+          actions={
+            <>
+              <IconButton
+                icon={loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                label="Refresh"
+                size="xs"
+                onClick={() => void load(true)}
+                disabled={loading}
+              />
+              <IconButton
+                icon={<Plus size={12} />}
+                label="Add global model"
+                size="xs"
+                onClick={() => setShowAdd(true)}
+              />
+            </>
+          }
+        />
 
         {/* Filter */}
         <div
@@ -372,9 +371,11 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
         {/* Accordion list */}
         <div className="flex-1 overflow-auto" style={{ fontSize: 12 }}>
           {grouped.length === 0 && (
-            <div style={{ padding: "10px 12px", color: "var(--color-text-muted)", fontSize: 11 }}>
-              {loading ? "Loading..." : "No models"}
-            </div>
+            <UIEmptyState
+              dense
+              title={loading ? "Loading…" : "No models"}
+              hint={loading ? undefined : "Add a new class or change the filter"}
+            />
           )}
           {grouped.map((g) => {
             const isCollapsed = collapsed[g.Category] === true;
@@ -503,103 +504,84 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
         {selected ? (
           <>
             {/* Top bar */}
-            <div
-              className="flex items-center shrink-0"
-              style={{
-                padding: "4px 10px",
-                borderBottom: "1px solid var(--color-border)",
-                background: "var(--color-sidebar)",
-                gap: 6,
-              }}
-            >
-              <FileCode2 size={14} style={{ color: "var(--color-accent)", flexShrink: 0 }} />
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "var(--color-text-primary)",
-                  fontFamily: "'Consolas','Courier New',monospace",
-                }}
-              >
-                {selected.TypeName}
-              </span>
-              <span
-                style={{
-                  fontSize: 9,
-                  padding: "1px 5px",
-                  borderRadius: 2,
-                  background: categoryBadgeColor(selected.Category),
-                  color: "#1e1e1e",
-                  fontWeight: 700,
-                  lineHeight: "14px",
-                  letterSpacing: 0.4,
-                  flexShrink: 0,
-                }}
-              >
-                {selected.Category}
-              </span>
-              {isDirty && (
-                <span
-                  title="Unsaved changes"
-                  style={{ color: "var(--color-accent)", fontSize: 16, lineHeight: 1 }}
-                >
-                  ●
+            <PanelToolbar
+              dense
+              left={
+                <span style={{ display: "inline-flex", alignItems: "center", gap: tok.space[3], minWidth: 0 }}>
+                  <FileCode2 size={14} style={{ color: tok.color.accent, flexShrink: 0 }} />
+                  <span
+                    style={{
+                      fontSize: tok.font.size.md,
+                      fontWeight: 600,
+                      color: tok.color.text.primary,
+                      fontFamily: "'Consolas','Courier New',monospace",
+                    }}
+                  >
+                    {selected.TypeName}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      padding: "1px 5px",
+                      borderRadius: tok.radius.sm,
+                      background: categoryBadgeColor(selected.Category),
+                      color: "#1e1e1e",
+                      fontWeight: 700,
+                      lineHeight: "14px",
+                      letterSpacing: 0.4,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {selected.Category}
+                  </span>
+                  {isDirty && <StatusDot tone="accent" size={10} title="Unsaved changes" />}
                 </span>
-              )}
-              <div style={{ flex: 1 }} />
-              <button
-                className="toolbar-btn"
-                title="Validate (Ctrl+Shift+V)"
-                onClick={handleValidate}
-                disabled={busy !== "idle"}
-              >
-                {busy === "validating" ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <FileCheck size={13} />
-                )}
-                <span style={{ marginLeft: 4, fontSize: 12 }}>Validate</span>
-              </button>
-              <button
-                className="toolbar-btn"
-                title="Format (Shift+Alt+F)"
-                onClick={handleFormat}
-                disabled={busy !== "idle"}
-              >
-                {busy === "formatting" ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Wand2 size={13} />
-                )}
-                <span style={{ marginLeft: 4, fontSize: 12 }}>Format</span>
-              </button>
-              <button
-                className="toolbar-btn"
-                title="Save (Ctrl+S)"
-                onClick={handleSave}
-                disabled={busy !== "idle" || !isDirty}
-                style={{
-                  color: isDirty ? "var(--color-accent)" : undefined,
-                  fontWeight: isDirty ? 600 : undefined,
-                }}
-              >
-                {busy === "saving" ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Save size={13} />
-                )}
-                <span style={{ marginLeft: 4, fontSize: 12 }}>Save</span>
-              </button>
-              <button
-                className="toolbar-btn"
-                title="Commit"
-                onClick={() => setCommitOpen(true)}
-                disabled={busy !== "idle"}
-              >
-                <GitCommitHorizontal size={13} />
-                <span style={{ marginLeft: 4, fontSize: 12 }}>Commit</span>
-              </button>
-            </div>
+              }
+              right={
+                <>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={busy === "validating" ? <Loader2 size={13} className="animate-spin" /> : <FileCheck size={13} />}
+                    onClick={handleValidate}
+                    disabled={busy !== "idle"}
+                    title="Validate (Ctrl+Shift+V)"
+                  >
+                    Validate
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={busy === "formatting" ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
+                    onClick={handleFormat}
+                    disabled={busy !== "idle"}
+                    title="Format (Shift+Alt+F)"
+                  >
+                    Format
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={isDirty ? "primary" : "secondary"}
+                    icon={busy === "saving" ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                    onClick={handleSave}
+                    disabled={busy !== "idle" || !isDirty}
+                    title="Save (Ctrl+S)"
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={<GitCommitHorizontal size={13} />}
+                    onClick={() => setCommitOpen(true)}
+                    disabled={busy !== "idle"}
+                    title="Commit"
+                  >
+                    Commit
+                  </Button>
+                </>
+              }
+            />
 
             {/* Editor */}
             <div className="flex-1 min-h-0" style={{ background: "var(--color-editor)" }}>
@@ -638,28 +620,16 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
                 style={{
                   maxHeight: 140,
                   overflowY: "auto",
-                  borderTop: "1px solid var(--color-border)",
-                  background: "var(--color-sidebar)",
-                  fontSize: 12,
+                  borderTop: `1px solid ${tok.color.border.default}`,
+                  background: tok.color.bg.sidebar,
+                  fontSize: tok.font.size.xs,
                 }}
               >
-                <div
-                  style={{
-                    padding: "4px 10px",
-                    fontWeight: 600,
-                    color: "var(--color-text-muted)",
-                    fontSize: 11,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.4,
-                    borderBottom: "1px solid var(--color-border)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <AlertCircle size={12} style={{ color: "#f48771" }} />
-                  Problems ({diagnostics.length})
-                </div>
+                <PanelHeader
+                  title="Problems"
+                  icon={<AlertCircle size={12} style={{ color: tok.color.danger }} />}
+                  badge={<CountBadge value={diagnostics.length} tone="danger" />}
+                />
                 {diagnostics.map((d, i) => (
                   <button
                     key={i}
@@ -697,7 +667,18 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
             )}
           </>
         ) : (
-          <EmptyState onAdd={() => setShowAdd(true)} />
+          <div className="flex-1 flex items-center justify-center">
+            <UIEmptyState
+              icon={<FileCode2 size={40} />}
+              title="Select a class to view details"
+              hint="Choose a class from the left panel to start editing"
+              action={
+                <Button size="sm" variant="secondary" icon={<Plus size={12} />} onClick={() => setShowAdd(true)}>
+                  Add new class
+                </Button>
+              }
+            />
+          </div>
         )}
       </div>
 
@@ -721,36 +702,6 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
           onCommit={handleCommit}
         />
       )}
-    </div>
-  );
-}
-
-function EmptyState({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div
-      className="flex flex-col items-center justify-center flex-1"
-      style={{ color: "var(--color-text-muted)", gap: 10, padding: 40 }}
-    >
-      <FileCode2 size={48} style={{ opacity: 0.3 }} />
-      <div style={{ fontSize: 14, color: "var(--color-text-primary)" }}>
-        Select a class to view details
-      </div>
-      <div style={{ fontSize: 12 }}>
-        Choose a class from the left panel to start editing
-      </div>
-      <button
-        className="toolbar-btn"
-        onClick={onAdd}
-        style={{
-          marginTop: 6,
-          padding: "4px 12px",
-          border: "1px solid var(--color-border)",
-          borderRadius: 3,
-        }}
-      >
-        <Plus size={13} />
-        <span style={{ marginLeft: 4, fontSize: 12 }}>Add new class</span>
-      </button>
     </div>
   );
 }

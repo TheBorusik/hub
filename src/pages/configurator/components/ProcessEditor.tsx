@@ -4,11 +4,15 @@ function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 import {
-  Play, Save, Braces, X, LayoutGrid,
+  Play, Save, Braces, LayoutGrid,
   FileCode, GitCompareArrows,
   Copy, Trash2,
   Package, Upload, Clock,
 } from "lucide-react";
+import { Tabs, type TabItem } from "@/components/ui/Tabs";
+import { IconButton } from "@/components/ui/Button/IconButton";
+import { CountBadge } from "@/components/ui/CountBadge";
+import { t as tok } from "@/lib/design-tokens";
 import type { HubWsApi } from "@/lib/ws-api";
 import type {
   ProcessModel, WebProcess, ProcessStage,
@@ -46,6 +50,10 @@ interface ProcessEditorProps {
    * Если процесса нет — вызывающая сторона покажет диалог создания.
    */
   onOpenSubProcess?: (processName: string) => void;
+}
+
+function RailDivider() {
+  return <div style={{ width: 20, height: 1, background: tok.color.border.default, margin: "4px 0" }} />;
 }
 
 const STAGE_TYPE_COLORS: Record<string, string> = {
@@ -587,73 +595,45 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tab bar: Diagram + open stage tabs */}
-      <div
-        className="flex shrink-0 overflow-x-auto"
-        style={{
-          borderBottom: "1px solid var(--color-border)",
-          background: "var(--color-sidebar)",
-          height: 30,
-          minHeight: 30,
-        }}
-      >
-        {/* Diagram tab */}
-        <div
-          className="flex items-center shrink-0 select-none"
-          style={{
-            padding: "0 10px",
-            height: "100%",
-            fontSize: 11,
-            cursor: "pointer",
-            borderRight: "1px solid var(--color-border)",
-            borderBottom: isDiagram ? "2px solid var(--color-accent)" : "2px solid transparent",
-            background: isDiagram ? "var(--color-editor)" : "transparent",
-            color: isDiagram ? "var(--color-text-primary)" : "var(--color-text-muted)",
-            gap: 4,
-          }}
-          onClick={() => { setActiveTab("__diagram__"); setSpecialView(null); }}
-        >
-          <LayoutGrid size={12} />
-          Diagram
-        </div>
-
-        {/* Stage tabs */}
-        {openStageTabs.map((sn) => {
-          const st = stages[sn];
-          if (!st) return null;
-          const stColor = STAGE_TYPE_COLORS[st.Type] ?? "#888";
-          const isActive = activeTab === sn && !specialView;
-          return (
-            <div
-              key={sn}
-              className="flex items-center shrink-0 select-none"
-              style={{
-                padding: "0 4px 0 8px",
-                height: "100%",
-                fontSize: 11,
-                cursor: "pointer",
-                borderRight: "1px solid var(--color-border)",
-                borderBottom: isActive ? `2px solid ${stColor}` : "2px solid transparent",
-                background: isActive ? "var(--color-editor)" : "transparent",
-                color: isActive ? "var(--color-text-primary)" : "var(--color-text-muted)",
-              }}
-              onClick={() => { setActiveTab(sn); setSpecialView(null); }}
-            >
-              <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {dirtyStages.has(sn) ? "● " : ""}{st.DisplayName || sn}
-              </span>
-              <button
-                className="toolbar-btn"
-                style={{ marginLeft: 4, padding: 1 }}
-                onClick={(e) => { e.stopPropagation(); closeStageTab(sn); }}
-                title="Close"
-              >
-                <X size={10} />
-              </button>
-            </div>
-          );
-        })}
-
-      </div>
+      <Tabs
+        variant="chrome"
+        aria-label="Process editor tabs"
+        activeId={specialView ? "__none__" : activeTab}
+        onChange={(id) => { setActiveTab(id); setSpecialView(null); }}
+        onClose={(id) => { if (id !== "__diagram__") closeStageTab(id); }}
+        items={[
+          {
+            id: "__diagram__",
+            label: "Diagram",
+            icon: <LayoutGrid size={12} />,
+          } satisfies TabItem,
+          ...openStageTabs
+            .map<TabItem | null>((sn) => {
+              const st = stages[sn];
+              if (!st) return null;
+              return {
+                id: sn,
+                label: (
+                  <span
+                    style={{
+                      maxWidth: 140,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      display: "inline-block",
+                    }}
+                  >
+                    {st.DisplayName || sn}
+                  </span>
+                ),
+                title: st.DisplayName || sn,
+                dirty: dirtyStages.has(sn),
+                closable: true,
+              } satisfies TabItem;
+            })
+            .filter((x): x is TabItem => x !== null),
+        ]}
+      />
 
       {/* Main content area */}
       <div className="flex-1 overflow-hidden" style={{ display: "flex" }}>
@@ -728,49 +708,52 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
             alignItems: "center",
             gap: 2,
             padding: "6px 4px",
-            borderLeft: "1px solid var(--color-border)",
-            background: "var(--color-sidebar)",
+            borderLeft: `1px solid ${tok.color.border.default}`,
+            background: tok.color.bg.sidebar,
             width: 36,
             flexShrink: 0,
             overflow: "auto",
           }}
         >
-          <button className="toolbar-btn" title="Save Process (Ctrl+S)" onClick={handleSave} disabled={saving}>
-            <Save size={15} />
-          </button>
-          <button
-            className="toolbar-btn"
-            title={autoSaveEnabled ? "Auto Save: ON (5s debounce). Click to disable." : "Auto Save: OFF. Click to enable."}
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="Save Process (Ctrl+S)"
+            icon={<Save size={15} />}
+            onClick={handleSave}
+            disabled={saving}
+          />
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label={autoSaveEnabled ? "Auto Save: ON (5s debounce). Click to disable." : "Auto Save: OFF. Click to enable."}
+            icon={<Clock size={15} style={{ color: autoSaveEnabled ? "#4caf50" : undefined }} />}
             onClick={toggleAutoSave}
-            style={{ color: autoSaveEnabled ? "#4caf50" : undefined }}
-          >
-            <Clock size={15} />
-          </button>
-          <button
-            className="toolbar-btn"
-            title="Run Process"
+          />
+          <IconButton
+            variant={specialView === "run" ? "primary" : "ghost"}
+            size="sm"
+            label="Run Process"
+            icon={<Play size={15} />}
             onClick={() => setSpecialView(specialView === "run" ? null : "run")}
-            style={{ background: specialView === "run" ? "rgba(14,99,156,0.35)" : undefined }}
-          >
-            <Play size={15} />
-          </button>
+          />
 
-          <div style={{ width: 20, height: 1, background: "var(--color-border)", margin: "4px 0" }} />
+          <RailDivider />
 
-          <button
-            className="toolbar-btn"
-            title="Pack (download JSON dump of process)"
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="Pack (download JSON dump of process)"
+            icon={<Package size={15} />}
             onClick={handlePack}
-          >
-            <Package size={15} />
-          </button>
-          <button
-            className="toolbar-btn"
-            title="Unpack (load JSON dump from file)"
+          />
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="Unpack (load JSON dump from file)"
+            icon={<Upload size={15} />}
             onClick={handleUnpackClick}
-          >
-            <Upload size={15} />
-          </button>
+          />
           {/* Скрытый input — используется для Unpack. */}
           <input
             ref={fileInputRef}
@@ -780,115 +763,158 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
             style={{ display: "none" }}
           />
 
-          <div style={{ width: 20, height: 1, background: "var(--color-border)", margin: "4px 0" }} />
+          <RailDivider />
 
-          <button
-            className="toolbar-btn"
-            title="Code Preview"
+          <IconButton
+            variant={specialView === "code" ? "primary" : "ghost"}
+            size="sm"
+            label="Code Preview"
+            icon={<FileCode size={15} />}
             onClick={() => setSpecialView(specialView === "code" ? null : "code")}
-            style={{ background: specialView === "code" ? "rgba(14,99,156,0.35)" : undefined }}
-          >
-            <FileCode size={15} />
-          </button>
-          <button
-            className="toolbar-btn"
-            title="Diff"
+          />
+          <IconButton
+            variant={specialView === "diff" ? "primary" : "ghost"}
+            size="sm"
+            label="Diff"
+            icon={<GitCompareArrows size={15} />}
             onClick={() => setSpecialView(specialView === "diff" ? null : "diff")}
-            style={{ background: specialView === "diff" ? "rgba(14,99,156,0.35)" : undefined }}
-          >
-            <GitCompareArrows size={15} />
-          </button>
+          />
 
-          <div style={{ width: 20, height: 1, background: "var(--color-border)", margin: "4px 0" }} />
+          <RailDivider />
 
-          <button
-            className="toolbar-btn"
-            title="Usings"
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="Usings"
+            icon={<span style={{ fontSize: 11, fontWeight: 600 }}>U</span>}
             onClick={() => setUsingsDialogOpen(true)}
-          >
-            <span style={{ fontSize: 11, fontWeight: 600 }}>U</span>
-          </button>
-          <button
-            className="toolbar-btn"
-            title="Global Models"
+          />
+          <IconButton
+            variant={specialView === "global-models" ? "primary" : "ghost"}
+            size="sm"
+            label="Global Models"
+            icon={<span style={{ fontSize: 11, fontWeight: 600 }}>GM</span>}
             onClick={() => setSpecialView(specialView === "global-models" ? null : "global-models")}
-            style={{ background: specialView === "global-models" ? "rgba(14,99,156,0.35)" : undefined }}
-          >
-            <span style={{ fontSize: 11, fontWeight: 600 }}>GM</span>
-          </button>
-          <button
-            className="toolbar-btn"
-            title={
+          />
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label={
               compileDiagnostics.length > 0
                 ? `Show Syntax Errors in Code Preview (${compileDiagnostics.length})`
                 : "No syntax errors in current process"
             }
-            onClick={() => setSpecialView("code")}
-            style={{
-              position: "relative",
-              color: compileDiagnostics.length > 0 ? "#f48771" : undefined,
-            }}
-          >
-            <span style={{ fontSize: 11, fontWeight: 700 }}>!</span>
-            {compileDiagnostics.length > 0 && (
+            icon={
               <span
                 style={{
-                  position: "absolute", top: 0, right: 0,
-                  minWidth: 12, height: 12, padding: "0 3px",
-                  borderRadius: 6, background: "#f44336", color: "#fff",
-                  fontSize: 9, fontWeight: 700, lineHeight: "12px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: compileDiagnostics.length > 0 ? "#f48771" : undefined,
                 }}
               >
-                {compileDiagnostics.length > 99 ? "99+" : compileDiagnostics.length}
+                !
               </span>
-            )}
-          </button>
+            }
+            badge={
+              compileDiagnostics.length > 0 ? (
+                <CountBadge value={compileDiagnostics.length} tone="danger" />
+              ) : undefined
+            }
+            onClick={() => setSpecialView("code")}
+          />
 
-          <div style={{ width: 20, height: 1, background: "var(--color-border)", margin: "4px 0" }} />
+          <RailDivider />
 
-          <button className="toolbar-btn" title="InitObject" onClick={() => setModelDialog("InitObject")}>
-            <Braces size={14} />
-            <span style={{ fontSize: 8 }}>IO</span>
-          </button>
-          <button className="toolbar-btn" title="Context" onClick={() => setModelDialog("Context")}>
-            <Braces size={14} />
-            <span style={{ fontSize: 8 }}>Ctx</span>
-          </button>
-          <button className="toolbar-btn" title="ProcessResult" onClick={() => setModelDialog("ProcessResult")}>
-            <Braces size={14} />
-            <span style={{ fontSize: 8 }}>Res</span>
-          </button>
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="InitObject"
+            icon={
+              <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}>
+                <Braces size={14} />
+                <span style={{ fontSize: 8 }}>IO</span>
+              </span>
+            }
+            onClick={() => setModelDialog("InitObject")}
+          />
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="Context"
+            icon={
+              <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}>
+                <Braces size={14} />
+                <span style={{ fontSize: 8 }}>Ctx</span>
+              </span>
+            }
+            onClick={() => setModelDialog("Context")}
+          />
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="ProcessResult"
+            icon={
+              <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}>
+                <Braces size={14} />
+                <span style={{ fontSize: 8 }}>Res</span>
+              </span>
+            }
+            onClick={() => setModelDialog("ProcessResult")}
+          />
 
           {isStageOpen && (
             <>
-              <div style={{ width: 20, height: 1, background: "var(--color-border)", margin: "4px 0" }} />
-              <button
-                className="toolbar-btn"
-                title="Set Startup Stage"
+              <RailDivider />
+              <IconButton
+                variant="ghost"
+                size="sm"
+                label="Set Startup Stage"
                 disabled={process.Startup === activeTab}
+                icon={
+                  <span
+                    style={{
+                      fontSize: 14,
+                      transform: "rotate(45deg)",
+                      display: "inline-block",
+                      color:
+                        process.Startup === activeTab
+                          ? stages[activeTab]?.Type
+                            ? STAGE_TYPE_COLORS[stages[activeTab].Type]
+                            : tok.color.text.muted
+                          : tok.color.accent,
+                    }}
+                  >
+                    ⇒
+                  </span>
+                }
                 onClick={() => onProcessUpdate({ ...process, Startup: activeTab })}
-                style={{ opacity: process.Startup === activeTab ? 0.3 : 1 }}
-              >
-                <span style={{ fontSize: 14, transform: "rotate(45deg)", display: "inline-block", color: process.Startup === activeTab ? stages[activeTab]?.Type ? STAGE_TYPE_COLORS[stages[activeTab].Type] : "var(--color-text-muted)" : "var(--color-accent)" }}>⇒</span>
-              </button>
-              <button className="toolbar-btn" title="Go to Diagram (clone from there)" onClick={() => setActiveTab("__diagram__")}>
-                <Copy size={15} />
-              </button>
+              />
+              <IconButton
+                variant="ghost"
+                size="sm"
+                label="Go to Diagram (clone from there)"
+                icon={<Copy size={15} />}
+                onClick={() => setActiveTab("__diagram__")}
+              />
             </>
           )}
 
           <div style={{ flex: 1 }} />
 
           {isStageOpen && (
-            <button
-              className="toolbar-btn"
-              title="Delete Stage"
+            <IconButton
+              variant="ghost"
+              size="sm"
+              label="Delete Stage"
               disabled={process.Startup === activeTab}
-              style={{ color: process.Startup === activeTab ? "var(--color-text-muted)" : "#f44336" }}
+              icon={
+                <Trash2
+                  size={15}
+                  style={{ color: process.Startup === activeTab ? tok.color.text.muted : "#f44336" }}
+                />
+              }
               onClick={() => setDeleteStageTarget(activeTab)}
-            >
-              <Trash2 size={15} />
-            </button>
+            />
           )}
         </div>
       </div>
