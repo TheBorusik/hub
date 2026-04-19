@@ -1,15 +1,19 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { RefreshCw, Trash2, Search, ArrowUp, ArrowDown } from "lucide-react";
+import { RefreshCw, Trash2, Search } from "lucide-react";
 import { useContourApi } from "@/lib/ws-api";
 import type { AdapterHealth } from "../../types";
 import { PanelToolbar } from "@/components/ui/PanelToolbar";
 import { IconButton } from "@/components/ui/Button/IconButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusDot } from "@/components/ui/StatusDot";
+import {
+  DataTable,
+  type DataTableColumn,
+  type DataTableSort,
+} from "@/components/ui/DataTable";
 import { t as tok } from "@/lib/design-tokens";
 
 type SortKey = keyof AdapterHealth;
-type SortDir = "asc" | "desc";
 
 const STATE_TONES: Record<string, "ok" | "err" | "muted" | "warn"> = {
   Up: "ok",
@@ -18,13 +22,24 @@ const STATE_TONES: Record<string, "ok" | "err" | "muted" | "warn"> = {
   NotResponding: "warn",
 };
 
+function formatTime(val?: string): string {
+  if (!val) return "—";
+  try {
+    return new Date(val).toLocaleString();
+  } catch {
+    return val;
+  }
+}
+
 export function HealthTable() {
   const api = useContourApi();
   const [rows, setRows] = useState<AdapterHealth[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("Type");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [sort, setSort] = useState<DataTableSort<SortKey> | null>({
+    columnId: "Type",
+    dir: "asc",
+  });
 
   const load = useCallback(async () => {
     if (!api) return;
@@ -50,15 +65,6 @@ export function HealthTable() {
     } catch { /* ignore */ }
   }, [api]);
 
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  };
-
   const filtered = useMemo(() => {
     const q = filter.toLowerCase();
     let list = rows;
@@ -71,32 +77,66 @@ export function HealthTable() {
           r.State.toLowerCase().includes(q),
       );
     }
+    if (!sort) return list;
+    const { columnId, dir } = sort;
     return [...list].sort((a, b) => {
-      const av = String(a[sortKey] ?? "");
-      const bv = String(b[sortKey] ?? "");
-      return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      const av = String(a[columnId] ?? "");
+      const bv = String(b[columnId] ?? "");
+      return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [rows, filter, sortKey, sortDir]);
+  }, [rows, filter, sort]);
 
-  const formatTime = (val?: string) => {
-    if (!val) return "—";
-    try {
-      return new Date(val).toLocaleString();
-    } catch {
-      return val;
-    }
-  };
-
-  const columns: { key: SortKey; label: string; width?: number }[] = [
-    { key: "Contour", label: "Contour", width: 100 },
-    { key: "Type", label: "Type (Name)", width: 180 },
-    { key: "AdapterVersion", label: "Version", width: 90 },
-    { key: "SalVersion", label: "SAL", width: 80 },
-    { key: "StartTime", label: "Start Time", width: 150 },
-    { key: "DownTime", label: "Down Time", width: 150 },
-    { key: "LastStateUpdateTime", label: "Last Update", width: 150 },
-    { key: "State", label: "State", width: 100 },
-  ];
+  const columns = useMemo<DataTableColumn<AdapterHealth, SortKey>[]>(() => [
+    { id: "Contour", header: "Contour", cell: (r) => r.Contour, width: 100, sortable: true },
+    {
+      id: "Type",
+      header: "Type (Name)",
+      width: 180,
+      sortable: true,
+      cell: (r) => (
+        <>
+          <span style={{ fontWeight: 500 }}>{r.Type}</span>
+          <span style={{ color: tok.color.text.muted, marginLeft: 4 }}>({r.Name})</span>
+        </>
+      ),
+    },
+    { id: "AdapterVersion", header: "Version", cell: (r) => r.AdapterVersion ?? "", width: 90, sortable: true },
+    { id: "SalVersion", header: "SAL", cell: (r) => r.SalVersion ?? "", width: 80, sortable: true },
+    { id: "StartTime", header: "Start Time", cell: (r) => formatTime(r.StartTime), width: 150, sortable: true },
+    { id: "DownTime", header: "Down Time", cell: (r) => formatTime(r.DownTime), width: 150, sortable: true },
+    { id: "LastStateUpdateTime", header: "Last Update", cell: (r) => formatTime(r.LastStateUpdateTime), width: 150, sortable: true },
+    {
+      id: "State",
+      header: "State",
+      width: 100,
+      sortable: true,
+      cell: (r) => (
+        <span className="flex items-center gap-1">
+          <StatusDot tone={STATE_TONES[r.State] ?? "muted"} size={8} />
+          {r.State}
+        </span>
+      ),
+    },
+    {
+      id: "__actions",
+      header: "",
+      width: 40,
+      align: "center",
+      cell: (r) => (
+        <span className="ui-row-actions">
+          <IconButton
+            size="xs"
+            label="Delete"
+            icon={<Trash2 size={13} />}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(r);
+            }}
+          />
+        </span>
+      ),
+    },
+  ], [handleDelete]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -133,98 +173,18 @@ export function HealthTable() {
           </div>
         }
       />
-      {/* Table */}
-      <div className="flex-1 overflow-auto">
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr>
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  onClick={() => toggleSort(col.key)}
-                  style={{
-                    position: "sticky",
-                    top: 0,
-                    background: "var(--color-sidebar)",
-                    borderBottom: "1px solid var(--color-border)",
-                    padding: "4px 8px",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                    color: "var(--color-text-muted)",
-                    whiteSpace: "nowrap",
-                    width: col.width,
-                    userSelect: "none",
-                    fontSize: 11,
-                  }}
-                >
-                  <span className="flex items-center gap-1">
-                    {col.label}
-                    {sortKey === col.key && (sortDir === "asc" ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
-                  </span>
-                </th>
-              ))}
-              <th
-                style={{
-                  position: "sticky",
-                  top: 0,
-                  background: "var(--color-sidebar)",
-                  borderBottom: "1px solid var(--color-border)",
-                  width: 40,
-                  padding: "4px 8px",
-                  fontSize: 11,
-                }}
-              />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((row, i) => (
-              <tr
-                key={`${row.Type}-${row.Name}-${row.Contour}-${i}`}
-                style={{ borderBottom: "1px solid var(--color-border)" }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.03)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
-              >
-                <td style={tdStyle}>{row.Contour}</td>
-                <td style={tdStyle}>
-                  <span style={{ fontWeight: 500 }}>{row.Type}</span>
-                  <span style={{ color: "var(--color-text-muted)", marginLeft: 4 }}>({row.Name})</span>
-                </td>
-                <td style={tdStyle}>{row.AdapterVersion}</td>
-                <td style={tdStyle}>{row.SalVersion}</td>
-                <td style={tdStyle}>{formatTime(row.StartTime)}</td>
-                <td style={tdStyle}>{formatTime(row.DownTime)}</td>
-                <td style={tdStyle}>{formatTime(row.LastStateUpdateTime)}</td>
-                <td style={tdStyle}>
-                  <span className="flex items-center gap-1">
-                    <StatusDot tone={STATE_TONES[row.State] ?? "muted"} size={8} />
-                    {row.State}
-                  </span>
-                </td>
-                <td style={{ ...tdStyle, textAlign: "center" }}>
-                  <IconButton size="xs" label="Delete" icon={<Trash2 size={13} />} onClick={() => handleDelete(row)} />
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={9}>
-                  <EmptyState dense title={loading ? "Loading..." : "No adapters found"} />
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <DataTable
+          data={filtered}
+          columns={columns}
+          getRowId={(r, i) => `${r.Type}-${r.Name}-${r.Contour}-${i}`}
+          sort={sort}
+          onSortChange={setSort}
+          dense
+          aria-label="Adapters health"
+          empty={<EmptyState dense title={loading ? "Loading..." : "No adapters found"} />}
+        />
       </div>
     </div>
   );
 }
-
-const tdStyle: React.CSSProperties = {
-  padding: "3px 8px",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  maxWidth: 200,
-  height: 28,
-};

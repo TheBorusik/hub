@@ -53,8 +53,14 @@ export interface DataTableProps<T, K extends string = string> {
   onRowActivate?: (row: T, index: number) => void;
   /** Показать колонку checkbox слева. */
   selectable?: boolean;
-  /** Высота строки. default: 28. */
+  /** Высота строки. default: 28 (или 24 для dense). */
   rowHeight?: number;
+  /** Компактный режим (уменьшенный шрифт/паддинги, rowHeight по умолчанию 24). */
+  dense?: boolean;
+  /** Зебра-подложка строк. */
+  striped?: boolean;
+  /** Подложка для строки. По умолчанию — transparent + hover/selected через CSS. */
+  rowClassName?: string;
   /** Пустой state (рендерится, если data.length === 0). */
   empty?: ReactNode;
   className?: string;
@@ -81,12 +87,18 @@ export function DataTable<T, K extends string = string>({
   onRowClick,
   onRowActivate,
   selectable = false,
-  rowHeight = 28,
+  rowHeight,
+  dense = false,
+  striped = false,
+  rowClassName,
   empty,
   className,
   style,
   "aria-label": ariaLabel,
 }: DataTableProps<T, K>) {
+  const effectiveRowHeight = rowHeight ?? (dense ? 24 : 28);
+  const cellPad = dense ? `${t.space[1]} ${t.space[2]}` : `${t.space[2]} ${t.space[3]}`;
+  const fontSize = dense ? 11 : t.font.size.xs;
   const toggleAll = () => {
     if (!onSelectionChange) return;
     const next = new Set<string>();
@@ -143,11 +155,14 @@ export function DataTable<T, K extends string = string>({
       <table
         role="grid"
         aria-label={ariaLabel}
+        className="ui-data-table"
+        data-dense={dense ? "true" : undefined}
+        data-striped={striped ? "true" : undefined}
         style={{
           width: "100%",
           borderCollapse: "separate",
           borderSpacing: 0,
-          fontSize: t.font.size.xs,
+          fontSize,
           tableLayout: "fixed",
         }}
       >
@@ -160,7 +175,7 @@ export function DataTable<T, K extends string = string>({
                   width: 28,
                   padding: `0 ${t.space[2]}`,
                   textAlign: "center",
-                  background: t.color.bg.panel,
+                  background: t.color.bg.sidebar,
                   borderBottom: `1px solid ${t.color.border.default}`,
                   position: "sticky",
                   top: 0,
@@ -189,8 +204,8 @@ export function DataTable<T, K extends string = string>({
                     width: c.width,
                     minWidth: c.minWidth,
                     textAlign: c.align === "end" ? "right" : c.align === "center" ? "center" : "left",
-                    padding: `${t.space[2]} ${t.space[3]}`,
-                    background: t.color.bg.panel,
+                    padding: cellPad,
+                    background: t.color.bg.sidebar,
                     borderBottom: `1px solid ${t.color.border.default}`,
                     fontWeight: 600,
                     color: t.color.text.muted,
@@ -232,15 +247,17 @@ export function DataTable<T, K extends string = string>({
           {data.map((row, i) => {
             const id = getRowId(row, i);
             const isSelected = !!selection?.has(id);
+            const classes = ["ui-data-table-row", rowClassName].filter(Boolean).join(" ");
             return (
               <tr
                 key={id}
                 aria-selected={isSelected}
+                data-selected={isSelected ? "true" : undefined}
+                className={classes}
                 onClick={(e) => onRowClick?.(row, i, e)}
                 onDoubleClick={() => onRowActivate?.(row, i)}
                 style={{
-                  height: rowHeight,
-                  background: isSelected ? t.color.bg.selected : "transparent",
+                  height: effectiveRowHeight,
                   cursor: onRowClick || onRowActivate ? "pointer" : "default",
                 }}
               >
@@ -266,7 +283,7 @@ export function DataTable<T, K extends string = string>({
                   <td
                     key={c.id}
                     style={{
-                      padding: `${t.space[2]} ${t.space[3]}`,
+                      padding: cellPad,
                       borderBottom: `1px solid ${t.color.border.subtle}`,
                       textAlign: c.align === "end" ? "right" : c.align === "center" ? "center" : "left",
                       overflow: "hidden",

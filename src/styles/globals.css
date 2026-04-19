@@ -309,6 +309,33 @@ a {
   background-color: rgba(255, 255, 255, 0.07);
 }
 
+/* Строки <DataTable>: hover/selected/striped через CSS (без DOM writes). */
+.ui-data-table-row {
+  background-color: transparent;
+}
+.ui-data-table[data-striped="true"] .ui-data-table-row:nth-of-type(even) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+.ui-data-table-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+.ui-data-table-row[data-selected="true"] {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+.ui-data-table-row[data-selected="true"]:hover {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+/* Утилита: действия, видимые только при hover строки (паттерн Table Data). */
+.ui-row-actions {
+  visibility: hidden;
+  display: inline-flex;
+  gap: 2px;
+}
+.ui-data-table-row:hover .ui-row-actions,
+.ui-data-table-row:focus-within .ui-row-actions {
+  visibility: visible;
+}
+
 .resize-handle-h {
   width: 4px !important;
   min-width: 4px !important;

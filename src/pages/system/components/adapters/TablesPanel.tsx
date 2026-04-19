@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { RefreshCw, Trash2, Plus, Pencil, X, Search } from "lucide-react";
 import { useContourApi } from "@/lib/ws-api";
 import { JsonEditor } from "@/pages/command-tester/components/JsonEditor";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { t as tok } from "@/lib/design-tokens";
 
 type Overlay =
@@ -125,6 +126,59 @@ export function TablesPanel() {
     ? data.filter((row) => cols.some((c) => String(row[c] ?? "").toLowerCase().includes(lowerFilter)))
     : data;
 
+  // Колонки для <DataTable>: данные + колонка actions справа (Edit/Delete
+  // появляются при hover строки, как было до миграции).
+  const columns = useMemo<DataTableColumn<Record<string, unknown>>[]>(() => {
+    const dataCols: DataTableColumn<Record<string, unknown>>[] = cols.map((c) => {
+      const fieldMeta = meta.find((f) => colName(f) === c);
+      return {
+        id: c,
+        header: (
+          <>
+            {c}
+            {fieldMeta?.IsPrimaryKey && (
+              <span style={{ color: "#FFD700", marginLeft: 4, fontSize: 9 }}>PK</span>
+            )}
+          </>
+        ),
+        cell: (row) => {
+          const v = row[c];
+          return typeof v === "object" ? JSON.stringify(v) : String(v ?? "");
+        },
+      };
+    });
+    const actionsCol: DataTableColumn<Record<string, unknown>> = {
+      id: "__actions",
+      header: "",
+      width: 64,
+      align: "center",
+      cell: (row) => (
+        <span className="ui-row-actions">
+          <IconButton
+            size="xs"
+            label="Edit"
+            icon={<Pencil size={12} />}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOverlay({ type: "upsertRow", existingRow: row });
+            }}
+          />
+          <IconButton
+            size="xs"
+            label="Delete"
+            icon={<Trash2 size={12} style={{ color: "#F44336" }} />}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(row);
+            }}
+          />
+        </span>
+      ),
+    };
+    return [...dataCols, actionsCol];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cols, meta]);
+
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ position: "relative" }}>
       <PanelToolbar
@@ -210,52 +264,22 @@ export function TablesPanel() {
       />
 
       {/* Table */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {!selected ? (
           <EmptyState title="Select a table" />
         ) : loading ? (
           <EmptyState title="Loading..." />
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr>
-                {cols.map((c) => {
-                  const fieldMeta = meta.find((f) => colName(f) === c);
-                  return (
-                    <th key={c} style={thStyle}>
-                      {c}
-                      {fieldMeta?.IsPrimaryKey && <span style={{ color: "#FFD700", marginLeft: 4, fontSize: 9 }}>PK</span>}
-                    </th>
-                  );
-                })}
-                <th style={{ ...thStyle, width: 60, textAlign: "center" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map((row, i) => (
-                <tr key={i} style={trStyle} className="group">
-                  {cols.map((c) => (
-                    <td key={c} style={tdStyle}>
-                      {typeof row[c] === "object" ? JSON.stringify(row[c]) : String(row[c] ?? "")}
-                    </td>
-                  ))}
-                  <td style={{ ...tdStyle, textAlign: "center" }}>
-                    <span className="hidden group-hover:inline-flex" style={{ gap: 2 }}>
-                      <IconButton size="xs" label="Edit" icon={<Pencil size={12} />} onClick={() => setOverlay({ type: "upsertRow", existingRow: row })} />
-                      <IconButton size="xs" label="Delete" icon={<Trash2 size={12} style={{ color: "#F44336" }} />} onClick={() => handleDelete(row)} />
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {filteredData.length === 0 && (
-                <tr>
-                  <td colSpan={cols.length + 1}>
-                    <EmptyState dense title={filter ? "No matching rows" : "No data"} />
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <DataTable
+            data={filteredData}
+            columns={columns}
+            getRowId={(_row, i) => String(i)}
+            onRowActivate={(row) => setOverlay({ type: "upsertRow", existingRow: row })}
+            dense
+            striped
+            aria-label={`Table data: ${selected}`}
+            empty={<EmptyState dense title={filter ? "No matching rows" : "No data"} />}
+          />
         )}
       </div>
 
@@ -332,6 +356,3 @@ function UpsertRowModal({ open, initialJson, isEdit, tableName, onSave, onClose 
   );
 }
 
-const thStyle: React.CSSProperties = { padding: "4px 8px", textAlign: "left", fontWeight: 600, color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)", fontSize: 11, whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--color-sidebar)" };
-const tdStyle: React.CSSProperties = { padding: "3px 8px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", height: 28, maxWidth: 300 };
-const trStyle: React.CSSProperties = { borderBottom: "1px solid var(--color-border)" };
