@@ -52,14 +52,17 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   const isDisabled = disabled || busy;
   const box = SIZE_BOX[size];
 
-  const bg =
+  // Базовый background задаём inline только для состояний, где он важен
+  // (primary/danger/active). Для ghost+inactive фон управляется CSS-классом
+  // `ui-icon-btn`, чтобы работал :hover (inline style имеет приоритет и ломал hover).
+  const inlineBg =
     variant === "primary"
       ? t.color.accent
       : variant === "danger"
         ? t.color.danger
         : active
           ? t.color.bg.hoverStrong
-          : "transparent";
+          : undefined;
   const fg =
     variant === "ghost"
       ? active
@@ -74,8 +77,8 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       title={label}
       disabled={isDisabled}
       data-variant={variant}
-      data-active={active || undefined}
-      className={className}
+      data-active={active ? "true" : undefined}
+      className={["ui-icon-btn", className].filter(Boolean).join(" ")}
       style={{
         position: "relative",
         width: box,
@@ -83,7 +86,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        background: bg,
+        ...(inlineBg !== undefined ? { background: inlineBg } : null),
         color: fg,
         border: "none",
         borderRadius: t.radius.md,

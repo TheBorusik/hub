@@ -263,6 +263,37 @@ a {
   color: var(--color-text-muted);
 }
 
+/* =====================================================================
+ * UI-kit hover states (IconButton, Tabs).
+ * Inline-стили компонентов не задают background для неактивных состояний,
+ * чтобы эти правила могли его выставлять на :hover без !important.
+ * ===================================================================== */
+
+.ui-icon-btn[data-variant="ghost"]:not([data-active="true"]):not(:disabled):hover {
+  background: var(--color-bg-hover-strong);
+  color: var(--color-text-primary);
+}
+.ui-icon-btn[data-variant="primary"]:not(:disabled):hover,
+.ui-icon-btn[data-variant="danger"]:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+.ui-tab[data-variant="chrome"]:not([data-active="true"]):not([data-disabled="true"]):hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+.ui-tab[data-variant="inline"]:not([data-active="true"]):not([data-disabled="true"]):hover {
+  color: var(--color-text-primary);
+}
+.ui-tab[data-variant="segmented"]:not([data-active="true"]):not([data-disabled="true"]):hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+.ui-tab-close:hover {
+  background: var(--color-bg-hover-strong);
+  color: var(--color-text-primary);
+}
+
 .resize-handle-h {
   width: 4px !important;
   min-width: 4px !important;

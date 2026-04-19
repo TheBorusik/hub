@@ -64,12 +64,15 @@ function tabStyle(
     justifyContent: stretch ? "center" : undefined,
   };
 
+  // Фон для неактивных табов управляется CSS-классом `.ui-tab`
+  // (см. globals.css), inline мы задаём только для активного состояния —
+  // так корректно работает :hover (иначе inline style перебивает hover).
   if (variant === "chrome") {
     return {
       ...base,
       height: t.component.tab.height,
       padding: `0 ${t.space[5]}`,
-      background: isActive ? t.color.bg.tabActive : t.color.bg.tabInactive,
+      ...(isActive ? { background: t.color.bg.tabActive } : null),
       color: isActive ? t.color.text.active : t.color.text.muted,
       borderRight: `1px solid ${t.color.border.default}`,
       borderBottom: isActive ? "none" : `1px solid ${t.color.border.default}`,
@@ -93,7 +96,7 @@ function tabStyle(
     height: 24,
     padding: `0 ${t.space[4]}`,
     borderRadius: t.radius.md,
-    background: isActive ? t.color.bg.accentSoft : "transparent",
+    ...(isActive ? { background: t.color.bg.accentSoft } : null),
     color: isActive ? t.color.text.primary : t.color.text.muted,
     fontWeight: 500,
   };
@@ -155,6 +158,10 @@ export function Tabs<T extends string = string>({
               aria-disabled={it.disabled}
               tabIndex={isActive ? 0 : -1}
               title={it.title}
+              className="ui-tab"
+              data-variant={variant}
+              data-active={isActive ? "true" : undefined}
+              data-disabled={it.disabled ? "true" : undefined}
               onClick={() => {
                 if (it.disabled) return;
                 if (!isActive) onChange(it.id);
@@ -192,6 +199,7 @@ export function Tabs<T extends string = string>({
                 <span
                   role="button"
                   aria-label="Close tab"
+                  className="ui-tab-close"
                   onClick={(e) => {
                     e.stopPropagation();
                     onClose(it.id);

@@ -381,14 +381,17 @@ export function ConfigurationPanel() {
                 {openTabs.map((tab) => {
                   const isActive = tab.config.ConfigurationId === activeTabId;
                   const isDirty = dirtyTabs.has(tab.config.ConfigurationId);
+                  const tabTitle = `${tab.config.AdapterType}: ${tab.config.Name}`;
                   return (
                     <div key={tab.config.ConfigurationId} className="flex items-center gap-1 shrink-0"
-                      style={{ height: "100%", padding: "0 4px 0 12px", cursor: "pointer", userSelect: "none", borderRight: "1px solid var(--color-border)", fontSize: 12, color: isActive ? "var(--color-text)" : "var(--color-text-muted)", fontWeight: isActive ? 500 : 400, background: isActive ? "#1e1e1e" : "var(--color-sidebar)", maxWidth: 200 }}
+                      title={tabTitle}
+                      style={{ height: "100%", padding: "0 4px 0 12px", cursor: "pointer", userSelect: "none", borderRight: "1px solid var(--color-border)", fontSize: 12, color: isActive ? "var(--color-text)" : "var(--color-text-muted)", fontWeight: isActive ? 500 : 400, background: isActive ? "#1e1e1e" : "var(--color-sidebar)", maxWidth: 260 }}
                       onClick={() => setActiveTabId(tab.config.ConfigurationId)}
                     >
                       <Settings size={12} style={{ opacity: 0.6, flexShrink: 0, color: tab.config.Enabled ? "#4CAF50" : "#9E9E9E" }} />
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                        {tab.config.Name}{isDirty ? " •" : ""}
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                        <span style={{ color: "var(--color-text-muted)", marginRight: 4 }}>{tab.config.AdapterType}:</span>
+                        <span>{tab.config.Name}{isDirty ? " •" : ""}</span>
                       </span>
                       <button onClick={(e) => { e.stopPropagation(); closeTab(tab.config.ConfigurationId); }} className="toolbar-btn" style={{ padding: 2, opacity: isActive ? 1 : 0.5 }} title="Close">
                         <X size={12} />
