@@ -11,6 +11,8 @@ import {
   type ViewerProcessesResponse,
   type StageContextResponse,
   type MoveProcessesResponse,
+  type DeleteProcessesResponse,
+  type ViewerDataFilter,
   type GetProcessAssemblyResponse,
   type CreateProcessAssemblyResponse,
   type UpsertProcessAssemblyResponse,
@@ -166,14 +168,23 @@ export class HubWsApi {
 
   // --- Viewer ---
 
-  async getProcesses(tab: "completed" | "manual" | "idle", count: number, startProcessId?: number) {
+  async getProcesses(
+    tab: "completed" | "manual" | "idle",
+    count: number,
+    startProcessId?: number,
+    filters?: ViewerDataFilter[],
+  ) {
     const commands = {
       completed: WfmCommand.GetCompletedProcesses,
       manual: WfmCommand.GetManualProcesses,
       idle: WfmCommand.GetIdleProcesses,
     } as const;
     return this.requestPayload<Record<string, unknown>, ViewerProcessesResponse>(
-      { Count: count, ...(startProcessId != null ? { StartProcessId: startProcessId } : {}) },
+      {
+        Count: count,
+        ...(startProcessId != null ? { StartProcessId: startProcessId } : {}),
+        ...(filters && filters.length > 0 ? { Filters: filters } : {}),
+      },
       commands[tab],
     );
   }
@@ -238,6 +249,14 @@ export class HubWsApi {
     return this.requestPayload<{ ProcessIds: number[] }, MoveProcessesResponse>(
       { ProcessIds: processIds },
       WfmCommand.MoveFromCompleted,
+    );
+  }
+
+  async deleteProcesses(processIds: number[]) {
+    return this.requestPayload<{ ProcessIds: number[] }, DeleteProcessesResponse>(
+      { ProcessIds: processIds },
+      WfmCommand.DeleteProcesses,
+      "00:00:30",
     );
   }
 

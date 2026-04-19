@@ -46,8 +46,9 @@ export enum WfmCommand {
   GetIdleChildsProcessDetail = "WFM.GetIdleChildsProcessDetail2",
   GetCompletedChildsProcessDetail = "WFM.GetCompletedChildsProcessDetail",
   GetStageContext = "WFM.GetStageContext",
-  MoveToCompleted = "WFM.Process.MoveToCompleted",
+  MoveToCompleted = "WFM.Process.MoveToCompleted2",
   MoveFromCompleted = "WFM.Process.MoveFromCompleted",
+  DeleteProcesses = "WFM.Process.Delete",
   RestartProcess = "WFM.RestartProcess2",
   RestartProcessWithNewData = "WFM.RestartProcessWithNewData",
 
@@ -298,6 +299,28 @@ export interface StageContextResponse {
 
 export interface MoveProcessesResponse {
   MoveStatus: { ProcessId: number; CurrentTable: string; ErrorCode: string }[];
+}
+
+export interface DeleteProcessStatus {
+  ProcessId: number;
+  Deleted: boolean;
+  ErrorCode?: string | null;
+}
+
+export interface DeleteProcessesResponse {
+  Results: DeleteProcessStatus[];
+}
+
+// --- Viewer filters ---
+
+export type ViewerFilterType = "Long" | "DateTime" | "String";
+
+export interface ViewerDataFilter {
+  FilterName: string;
+  FieldType: ViewerFilterType;
+  /** Серверный `CompareOperator` имена (Equal, Between, In, ...). */
+  ComparisonOperator: string;
+  Values: unknown[];
 }
 
 // --- Configurator ---

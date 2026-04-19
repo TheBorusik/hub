@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { RefreshCw, ChevronDown, ArrowRight } from "lucide-react";
+import { RefreshCw, ChevronDown, ArrowRight, Trash2, Filter as FilterIcon } from "lucide-react";
 import { useContourApi } from "@/lib/ws-api";
+import { useToast } from "@/providers/ToastProvider";
+import { ConfirmDialog } from "@/components/layout/ConfirmDialog";
+import { ProcessFiltersPanel, buildServerFilters, EMPTY_FILTERS, type ViewerFiltersState } from "./ProcessFiltersPanel";
 import type { ViewerTab } from "../types";
 import type { ViewerProcessRow } from "@/lib/ws-api-models";
 
@@ -24,19 +27,34 @@ interface ProcessListPanelProps {
   onActiveTabChange?: (tab: ViewerTab) => void;
 }
 
-export function ProcessListPanel({ onSelectProcess, selectedProcessId, activeTab: controlledTab, onActiveTabChange }: ProcessListPanelProps) {
+export function ProcessListPanel({
+  onSelectProcess,
+  selectedProcessId,
+  activeTab: controlledTab,
+  onActiveTabChange,
+}: ProcessListPanelProps) {
   const api = useContourApi();
+  const toast = useToast();
   const [internalTab, setInternalTab] = useState<ViewerTab>("completed");
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = useCallback((next: ViewerTab) => {
     if (controlledTab === undefined) setInternalTab(next);
     onActiveTabChange?.(next);
   }, [controlledTab, onActiveTabChange]);
+
   const [processes, setProcesses] = useState<ViewerProcessRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [filters, setFilters] = useState<ViewerFiltersState>(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<ViewerFiltersState>(EMPTY_FILTERS);
+  const [showFilters, setShowFilters] = useState(false);
+
+  type ConfirmState =
+    | { kind: "none" }
+    | { kind: "delete"; ids: number[]; busy: boolean; error: string | null };
+  const [confirm, setConfirm] = useState<ConfirmState>({ kind: "none" });
 
   const loadProcesses = useCallback(
     async (tab: ViewerTab, append = false) => {
@@ -46,17 +64,21 @@ export function ProcessListPanel({ onSelectProcess, selectedProcessId, activeTab
         const startId = append && processes.length > 0
           ? processes[processes.length - 1].ProcessId
           : undefined;
-        const result = await api.getProcesses(tab, PAGE_SIZE, startId);
+        const serverFilters = buildServerFilters(appliedFilters, tab);
+        const result = await api.getProcesses(tab, PAGE_SIZE, startId, serverFilters);
         const list = (result.Processes ?? []) as ViewerProcessRow[];
         setProcesses((prev) => (append ? [...prev, ...list] : list));
         setTotalCount(result.TotalCount ?? list.length);
       } catch (err) {
         console.error("Failed to load processes:", err);
+        toast.push("error", "Failed to load processes", {
+          detail: err instanceof Error ? err.message : String(err),
+        });
       } finally {
         setLoading(false);
       }
     },
-    [api, processes],
+    [api, processes, appliedFilters, toast],
   );
 
   useEffect(() => {
@@ -65,7 +87,7 @@ export function ProcessListPanel({ onSelectProcess, selectedProcessId, activeTab
     setSelected(new Set());
     loadProcesses(activeTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, api]);
+  }, [activeTab, api, appliedFilters]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return processes;
@@ -97,17 +119,73 @@ export function ProcessListPanel({ onSelectProcess, selectedProcessId, activeTab
 
   const handleMoveAction = async () => {
     if (!api || selected.size === 0) return;
+    const ids = Array.from(selected);
+    const direction = activeTab === "completed" ? "from-completed" : "to-completed";
     try {
-      const ids = Array.from(selected);
-      if (activeTab === "completed") {
-        await api.moveFromCompleted(ids);
-      } else {
-        await api.moveToCompleted(ids);
+      const response = direction === "from-completed"
+        ? await api.moveFromCompleted(ids)
+        : await api.moveToCompleted(ids);
+
+      const statuses = response?.MoveStatus ?? [];
+      const failed = statuses.filter((s) => s.ErrorCode);
+      const okCount = statuses.length - failed.length;
+
+      if (okCount > 0) {
+        toast.push(
+          "success",
+          direction === "from-completed"
+            ? `Moved ${okCount} back to last state`
+            : `Moved ${okCount} to Completed`,
+        );
       }
+      if (failed.length > 0) {
+        toast.push("error", `Failed to move ${failed.length} process(es)`, {
+          detail: failed.map((f) => `#${f.ProcessId}: ${f.ErrorCode}`).join("\n"),
+        });
+      }
+
       setSelected(new Set());
       loadProcesses(activeTab);
     } catch (err) {
       console.error("Move failed:", err);
+      toast.push("error", "Move failed", {
+        detail: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const handleDeleteAction = () => {
+    if (!api || selected.size === 0) return;
+    setConfirm({ kind: "delete", ids: Array.from(selected), busy: false, error: null });
+  };
+
+  const performDelete = async () => {
+    if (confirm.kind !== "delete" || !api) return;
+    setConfirm({ ...confirm, busy: true, error: null });
+    try {
+      const response = await api.deleteProcesses(confirm.ids);
+      const results = response?.Results ?? [];
+      const okIds = results.filter((r) => r.Deleted).map((r) => r.ProcessId);
+      const failed = results.filter((r) => !r.Deleted);
+
+      if (okIds.length > 0) {
+        toast.push("success", `Deleted ${okIds.length} process(es)`);
+      }
+      if (failed.length > 0) {
+        toast.push("error", `Failed to delete ${failed.length} process(es)`, {
+          detail: failed.map((f) => `#${f.ProcessId}: ${f.ErrorCode ?? "unknown"}`).join("\n"),
+        });
+      }
+
+      setConfirm({ kind: "none" });
+      setSelected(new Set());
+      loadProcesses(activeTab);
+    } catch (err) {
+      setConfirm({
+        ...confirm,
+        busy: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
@@ -140,6 +218,16 @@ export function ProcessListPanel({ onSelectProcess, selectedProcessId, activeTab
     }
   };
 
+  const activeFilterCount =
+    appliedFilters.custom.length +
+    (appliedFilters.dateFrom ? 1 : 0) +
+    (appliedFilters.dateTo ? 1 : 0) +
+    (appliedFilters.standard.processId.trim() ? 1 : 0) +
+    (appliedFilters.standard.name.trim() ? 1 : 0) +
+    (appliedFilters.standard.operationId.trim() ? 1 : 0) +
+    (appliedFilters.standard.authId.trim() ? 1 : 0) +
+    (activeTab === "completed" && appliedFilters.standard.resultCode.trim() ? 1 : 0);
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tab buttons */}
@@ -163,7 +251,7 @@ export function ProcessListPanel({ onSelectProcess, selectedProcessId, activeTab
         ))}
       </div>
 
-      {/* Toolbar: search + refresh + mass action */}
+      {/* Toolbar: search + refresh + filter toggle */}
       <div className="flex items-center shrink-0" style={{ padding: "4px 6px", gap: 4, borderBottom: "1px solid var(--color-border)" }}>
         <input
           type="text"
@@ -172,6 +260,29 @@ export function ProcessListPanel({ onSelectProcess, selectedProcessId, activeTab
           onChange={(e) => setSearch(e.target.value)}
           style={{ flex: 1, fontSize: 12 }}
         />
+        <button
+          onClick={() => setShowFilters((v) => !v)}
+          className="toolbar-btn"
+          title="Filters"
+          style={{
+            position: "relative",
+            color: activeFilterCount > 0 ? "var(--color-accent)" : undefined,
+          }}
+        >
+          <FilterIcon size={14} />
+          {activeFilterCount > 0 && (
+            <span
+              style={{
+                position: "absolute", top: -4, right: -4,
+                minWidth: 14, height: 14, borderRadius: 7, padding: "0 3px",
+                background: "var(--color-accent)", color: "#fff",
+                fontSize: 9, lineHeight: "14px", textAlign: "center",
+              }}
+            >
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
         <button
           onClick={() => loadProcesses(activeTab)}
           disabled={loading}
@@ -182,6 +293,16 @@ export function ProcessListPanel({ onSelectProcess, selectedProcessId, activeTab
         </button>
       </div>
 
+      {/* Filters panel */}
+      {showFilters && (
+        <ProcessFiltersPanel
+          tab={activeTab}
+          value={filters}
+          onChange={setFilters}
+          onApply={() => setAppliedFilters(filters)}
+        />
+      )}
+
       {/* Mass action bar */}
       {selected.size > 0 && (
         <div
@@ -190,9 +311,18 @@ export function ProcessListPanel({ onSelectProcess, selectedProcessId, activeTab
         >
           <span style={{ color: "var(--color-text-muted)" }}>{selected.size} selected</span>
           <button
+            onClick={handleDeleteAction}
+            className="flex items-center cursor-pointer"
+            style={{ marginLeft: "auto", fontSize: 11, padding: "2px 8px", background: "#c62828", color: "#fff", border: "none", gap: 4 }}
+            title="Delete selected processes (cascade)"
+          >
+            <Trash2 size={12} />
+            Delete
+          </button>
+          <button
             onClick={handleMoveAction}
             className="flex items-center cursor-pointer"
-            style={{ marginLeft: "auto", fontSize: 11, padding: "2px 8px", background: "var(--color-accent)", color: "#fff", border: "none", gap: 4 }}
+            style={{ fontSize: 11, padding: "2px 8px", background: "var(--color-accent)", color: "#fff", border: "none", gap: 4 }}
           >
             <ArrowRight size={12} />
             {activeTab === "completed" ? "Move to Last State" : "Move to Completed"}
@@ -301,6 +431,24 @@ export function ProcessListPanel({ onSelectProcess, selectedProcessId, activeTab
         </label>
         <span style={{ marginLeft: "auto" }}>{totalCount} total</span>
       </div>
+
+      {/* Confirm: delete */}
+      {confirm.kind === "delete" && (
+        <ConfirmDialog
+          title="Delete processes"
+          message={
+            `Are you sure you want to permanently delete ${confirm.ids.length} process(es)?\n\n` +
+            `This removes the process, its sub-processes and related command results from both worked (processes) and completed (completed_processes) tables. The action cannot be undone.`
+          }
+          confirmLabel={`Delete ${confirm.ids.length}`}
+          cancelLabel="Cancel"
+          danger
+          busy={confirm.busy}
+          error={confirm.error}
+          onConfirm={performDelete}
+          onCancel={() => setConfirm({ kind: "none" })}
+        />
+      )}
     </div>
   );
 }
