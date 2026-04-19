@@ -7,6 +7,11 @@ import {
 import { useContourApi } from "@/lib/ws-api";
 import { PermissionDialog } from "./PermissionDialog";
 import type { PermissionTreeNode } from "../../types";
+import { PanelToolbar } from "@/components/ui/PanelToolbar";
+import { IconButton } from "@/components/ui/Button/IconButton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { t as tok } from "@/lib/design-tokens";
 
 function isCatalogNode(n: PermissionTreeNode): boolean {
   return n.Type?.toLowerCase() === "catalog";
@@ -15,11 +20,11 @@ function isCatalogNode(n: PermissionTreeNode): boolean {
 type Overlay =
   | { type: "none" }
   | { type: "addCatalog"; editing: PermissionTreeNode | null; parentCatalogId?: number }
-  | { type: "addPermission"; editing: PermissionTreeNode | null; catalogId?: number }
-  | { type: "confirm"; title: string; onConfirm: () => void };
+  | { type: "addPermission"; editing: PermissionTreeNode | null; catalogId?: number };
 
 export function PermissionsPanel() {
   const api = useContourApi();
+  const confirm = useConfirm();
   const [tree, setTree] = useState<PermissionTreeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("");
@@ -95,23 +100,23 @@ export function PermissionsPanel() {
 
   const isFiltering = filter !== deferredFilter;
 
-  const handleDelete = useCallback((node: PermissionTreeNode) => {
+  const handleDelete = useCallback(async (node: PermissionTreeNode) => {
     if (!api) return;
     const isCat = isCatalogNode(node);
-    setOverlay({
-      type: "confirm",
-      title: `Delete ${isCat ? "catalog" : "permission"} "${node.Name}"?`,
-      onConfirm: async () => {
-        if (isCat && node.CatalogId != null) {
-          await api.removePermissionCatalog(node.CatalogId);
-        } else if (node.PermissionId != null) {
-          await api.removePermission(node.PermissionId);
-        }
-        setOverlay({ type: "none" });
-        load();
-      },
+    const ok = await confirm({
+      title: `Delete ${isCat ? "catalog" : "permission"}`,
+      message: `Delete ${isCat ? "catalog" : "permission"} "${node.Name}"?`,
+      confirmLabel: "Delete",
+      tone: "danger",
     });
-  }, [api, load]);
+    if (!ok) return;
+    if (isCat && node.CatalogId != null) {
+      await api.removePermissionCatalog(node.CatalogId);
+    } else if (node.PermissionId != null) {
+      await api.removePermission(node.PermissionId);
+    }
+    load();
+  }, [api, confirm, load]);
 
   const startDrag = useCallback((node: PermissionTreeNode) => {
     draggedNodeRef.current = node;
@@ -167,28 +172,41 @@ export function PermissionsPanel() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ position: "relative" }}>
-      <div className="flex items-center gap-2 shrink-0" style={{ height: 35, padding: "0 12px", borderBottom: "1px solid var(--color-border)" }}>
-        <button onClick={load} disabled={loading} className="toolbar-btn" title="Refresh">
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-        </button>
-        <button onClick={() => setOverlay({ type: "addCatalog", editing: null })} className="toolbar-btn" title="Add Catalog">
-          <FolderPlus size={14} />
-        </button>
-        <button onClick={() => setOverlay({ type: "addPermission", editing: null })} className="toolbar-btn" title="Add Permission">
-          <KeyRound size={14} />
-        </button>
-        <button onClick={expandAll} className="toolbar-btn" title="Expand All">
-          <ChevronsUpDown size={14} />
-        </button>
-        <button onClick={collapseAll} className="toolbar-btn" title="Collapse All">
-          <ChevronsDownUp size={14} />
-        </button>
-        <div className="flex items-center gap-1" style={{ marginLeft: "auto" }}>
-          <Search size={14} style={{ color: "var(--color-text-muted)" }} />
-          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter..." style={searchStyle} />
-          {isFiltering && <span style={{ fontSize: 9, color: "var(--color-text-muted)" }}>...</span>}
-        </div>
-      </div>
+      <PanelToolbar
+        dense
+        left={
+          <>
+            <IconButton
+              size="xs"
+              label="Refresh"
+              icon={<RefreshCw size={14} className={loading ? "animate-spin" : ""} />}
+              onClick={load}
+              disabled={loading}
+            />
+            <IconButton
+              size="xs"
+              label="Add Catalog"
+              icon={<FolderPlus size={14} />}
+              onClick={() => setOverlay({ type: "addCatalog", editing: null })}
+            />
+            <IconButton
+              size="xs"
+              label="Add Permission"
+              icon={<KeyRound size={14} />}
+              onClick={() => setOverlay({ type: "addPermission", editing: null })}
+            />
+            <IconButton size="xs" label="Expand All" icon={<ChevronsUpDown size={14} />} onClick={expandAll} />
+            <IconButton size="xs" label="Collapse All" icon={<ChevronsDownUp size={14} />} onClick={collapseAll} />
+          </>
+        }
+        right={
+          <div className="flex items-center gap-1">
+            <Search size={14} style={{ color: tok.color.text.muted }} />
+            <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter..." style={searchStyle} />
+            {isFiltering && <span style={{ fontSize: 9, color: tok.color.text.muted }}>...</span>}
+          </div>
+        }
+      />
 
       <div className="flex-1 overflow-auto" style={{ padding: "4px 0", opacity: isFiltering ? 0.6 : 1, transition: "opacity 100ms" }}>
         <DropRootZone
@@ -219,14 +237,10 @@ export function PermissionsPanel() {
           />
         ))}
         {visibleIds?.size === 0 && !loading && (
-          <div style={{ textAlign: "center", color: "var(--color-text-muted)", padding: 24, fontSize: 12 }}>
-            Ничего не найдено
-          </div>
+          <EmptyState dense title="Ничего не найдено" />
         )}
         {!deferredFilter && tree.length === 0 && !loading && (
-          <div style={{ textAlign: "center", color: "var(--color-text-muted)", padding: 24, fontSize: 12 }}>
-            Нет permissions
-          </div>
+          <EmptyState dense title="Нет permissions" />
         )}
       </div>
 
@@ -242,9 +256,6 @@ export function PermissionsPanel() {
         />
       )}
 
-      {overlay.type === "confirm" && (
-        <ConfirmOverlay title={overlay.title} onConfirm={overlay.onConfirm} onCancel={() => setOverlay({ type: "none" })} />
-      )}
     </div>
   );
 }
@@ -501,23 +512,4 @@ function DropRootZone({ isOver, onDragOver, onDragLeave, onDrop }: {
   );
 }
 
-function ConfirmOverlay({ title, onConfirm, onCancel }: { title: string; onConfirm: () => void; onCancel: () => void }) {
-  const [submitting, setSubmitting] = useState(false);
-  return (
-    <div style={overlayBg}>
-      <div style={dialogStyle}>
-        <p style={{ fontSize: 13, marginBottom: 16 }}>{title}</p>
-        <div className="flex gap-2" style={{ justifyContent: "flex-end" }}>
-          <button onClick={onCancel} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
-          <button onClick={async () => { setSubmitting(true); await onConfirm(); setSubmitting(false); }} disabled={submitting} style={dangerBtnStyle}>{submitting ? "Deleting..." : "Delete"}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const searchStyle: React.CSSProperties = { background: "var(--color-input-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)", fontSize: 12, padding: "2px 6px", height: 22, width: 160, borderRadius: 3, outline: "none" };
-const overlayBg: React.CSSProperties = { position: "absolute", inset: 0, zIndex: 20, backgroundColor: "rgba(0,0,0,0.3)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 60 };
-const dialogStyle: React.CSSProperties = { backgroundColor: "var(--color-sidebar)", border: "1px solid var(--color-border)", borderRadius: 6, padding: 20, minWidth: 340, maxWidth: "80%", boxShadow: "0 4px 24px rgba(0,0,0,0.4)" };
-const cancelBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "none", border: "1px solid var(--color-border)", color: "var(--color-text-muted)", borderRadius: 3, cursor: "pointer" };
-const dangerBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "#c53030", border: "none", color: "#fff", borderRadius: 3, cursor: "pointer" };
