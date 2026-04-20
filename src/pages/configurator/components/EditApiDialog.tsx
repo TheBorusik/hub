@@ -174,11 +174,9 @@ export function EditApiDialog({
     api.getApiRelatedData(processName)
       .then((data) => {
         if (cancelled) return;
-        const rolesList = Array.isArray(data.Roles) ? data.Roles : [];
-        setAvailableRoles(rolesList);
-        const pickedIds = Array.isArray(data.PermissionRoles)
-          ? data.PermissionRoles.map((r) => r.RoleId)
-          : [];
+        console.debug("[EditApiDialog] getApiRelatedData response:", data);
+        setAvailableRoles(data.Roles);
+        const pickedIds = data.PermissionRoles.map((r) => r.RoleId);
         setSelectedRoleIds(pickedIds);
         const commandText = stringifyForInitial(data.CommandDTO, DEFAULT_COMMAND_DTO);
         const resultText = stringifyForInitial(data.ResultDTO, DEFAULT_RESULT_DTO);
