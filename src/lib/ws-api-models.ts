@@ -138,7 +138,7 @@ export enum WfmCommand {
 
   // API
   ApiUpsert = "System.WFM.API.Upsert",
-  GetApiRelatedData = "System.WFM.GetApiRelatedData",
+  GetApiRelatedData = "System.WFM.API.GetRelatedData",
 }
 
 // --- API editor (WFM API permission per process) ---
