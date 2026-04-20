@@ -699,9 +699,14 @@ export class HubWsApi {
     );
   }
 
-  async validateGlobalModel(code: string) {
-    return this.requestPayload<{ Code: string }, ValidateCodeResponse>(
-      { Code: code },
+  async validateGlobalModel(model: WebGlobalModel) {
+    // Серверный контракт:
+    //   ValidateGlobalModelCommand { WebGlobalModel Model }
+    //   ValidateGlobalModelResult { DiagnosticModel[] Errors }
+    // Плоская форма `{ Code }` даёт NRE внутри хендлера
+    // (см. WFM.Configurator.Handlers.ProcessAssemblyValidateGlobalModelHandler).
+    return this.requestPayload<{ Model: WebGlobalModel }, ValidateCodeResponse>(
+      { Model: model },
       WfmCommand.ValidateGlobalModel,
       "00:00:30",
     );

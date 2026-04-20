@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { RefreshCw, ArrowRight, Trash2, Filter as FilterIcon } from "lucide-react";
 import { useContourApi } from "@/lib/ws-api";
 import { useToast } from "@/providers/ToastProvider";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Tabs } from "@/components/ui/Tabs";
 import { PanelToolbar } from "@/components/ui/PanelToolbar";
 import { IconButton, Button } from "@/components/ui/Button";
@@ -10,6 +10,7 @@ import { CountBadge } from "@/components/ui/CountBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadMoreRow } from "@/components/ui/LoadMoreRow";
 import { MassActionBar } from "@/components/ui/MassActionBar";
+import { VirtualList } from "@/components/ui/VirtualList";
 import { t as tok } from "@/lib/design-tokens";
 import { ProcessFiltersPanel, buildServerFilters, EMPTY_FILTERS, type ViewerFiltersState } from "./ProcessFiltersPanel";
 import type { ViewerTab } from "../types";
@@ -43,6 +44,7 @@ export function ProcessListPanel({
 }: ProcessListPanelProps) {
   const api = useContourApi();
   const toast = useToast();
+  const confirm = useConfirm();
   const [internalTab, setInternalTab] = useState<ViewerTab>("completed");
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = useCallback((next: ViewerTab) => {
@@ -58,11 +60,6 @@ export function ProcessListPanel({
   const [filters, setFilters] = useState<ViewerFiltersState>(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<ViewerFiltersState>(EMPTY_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
-
-  type ConfirmState =
-    | { kind: "none" }
-    | { kind: "delete"; ids: number[]; busy: boolean; error: string | null };
-  const [confirm, setConfirm] = useState<ConfirmState>({ kind: "none" });
 
   const loadProcesses = useCallback(
     async (tab: ViewerTab, append = false) => {
@@ -164,37 +161,35 @@ export function ProcessListPanel({
 
   const handleDeleteAction = () => {
     if (!api || selected.size === 0) return;
-    setConfirm({ kind: "delete", ids: Array.from(selected), busy: false, error: null });
-  };
+    const ids = Array.from(selected);
+    void confirm({
+      title: "Delete processes",
+      message:
+        `Are you sure you want to permanently delete ${ids.length} process(es)?\n\n` +
+        `This removes the process, its sub-processes and related command results from both worked (processes) and completed (completed_processes) tables. The action cannot be undone.`,
+      confirmLabel: `Delete ${ids.length}`,
+      cancelLabel: "Cancel",
+      tone: "danger",
+      async onConfirm() {
+        if (!api) return;
+        const response = await api.deleteProcesses(ids);
+        const results = response?.Results ?? [];
+        const okIds = results.filter((r) => r.Deleted).map((r) => r.ProcessId);
+        const failed = results.filter((r) => !r.Deleted);
 
-  const performDelete = async () => {
-    if (confirm.kind !== "delete" || !api) return;
-    setConfirm({ ...confirm, busy: true, error: null });
-    try {
-      const response = await api.deleteProcesses(confirm.ids);
-      const results = response?.Results ?? [];
-      const okIds = results.filter((r) => r.Deleted).map((r) => r.ProcessId);
-      const failed = results.filter((r) => !r.Deleted);
+        if (okIds.length > 0) {
+          toast.push("success", `Deleted ${okIds.length} process(es)`);
+        }
+        if (failed.length > 0) {
+          toast.push("error", `Failed to delete ${failed.length} process(es)`, {
+            detail: failed.map((f) => `#${f.ProcessId}: ${f.ErrorCode ?? "unknown"}`).join("\n"),
+          });
+        }
 
-      if (okIds.length > 0) {
-        toast.push("success", `Deleted ${okIds.length} process(es)`);
-      }
-      if (failed.length > 0) {
-        toast.push("error", `Failed to delete ${failed.length} process(es)`, {
-          detail: failed.map((f) => `#${f.ProcessId}: ${f.ErrorCode ?? "unknown"}`).join("\n"),
-        });
-      }
-
-      setConfirm({ kind: "none" });
-      setSelected(new Set());
-      loadProcesses(activeTab);
-    } catch (err) {
-      setConfirm({
-        ...confirm,
-        busy: false,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+        setSelected(new Set());
+        loadProcesses(activeTab);
+      },
+    });
   };
 
   const computeElapsed = (p: ViewerProcessRow): string => {
@@ -319,78 +314,89 @@ export function ProcessListPanel({
       />
 
       {/* Process list */}
-      <div className="flex-1 overflow-y-auto" style={{ paddingTop: 2 }}>
-        {filtered.length === 0 && !loading && (
+      {filtered.length === 0 && !loading ? (
+        <div className="flex-1 overflow-y-auto" style={{ paddingTop: 2 }}>
           <EmptyState
             dense
             title={processes.length === 0 ? "No processes" : "No matches"}
             hint={processes.length === 0 ? "Try changing filters or switch tab" : "Try a different search query"}
           />
-        )}
-        {filtered.map((p) => {
-          const isActive = p.ProcessId === selectedProcessId;
-          const isChecked = selected.has(p.ProcessId);
-          const resultCode = p.ResultCode && p.ResultCode !== "Null" ? p.ResultCode : null;
-          const isFailed = resultCode && resultCode !== "Ok" && resultCode !== "Success";
-          return (
-            <div
-              key={p.ProcessId}
-              className="flex items-center cursor-pointer ui-tree-row"
-              data-selected={isActive ? "true" : undefined}
-              onClick={() => onSelectProcess(p.ProcessId, p.Name, activeTab)}
-              style={{
-                minHeight: 28,
-                padding: "2px 6px",
-                gap: 6,
-                outline: isActive ? "1px solid var(--color-focus-border)" : "none",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={isChecked}
-                onChange={(e) => { e.stopPropagation(); toggleSelect(p.ProcessId); }}
-                onClick={(e) => e.stopPropagation()}
-                style={{ width: 14, height: 14, accentColor: "var(--color-accent)", flexShrink: 0 }}
-              />
-              <div className="flex flex-col flex-1 overflow-hidden" style={{ gap: 1 }}>
-                <div className="flex items-center" style={{ gap: 4 }}>
-                  <span style={{ fontSize: 12, color: "var(--color-text-muted)", flexShrink: 0 }}>#{p.ProcessId}</span>
-                  <span className="truncate" style={{ fontSize: 12, fontWeight: 500 }}>{p.Name}</span>
+        </div>
+      ) : (
+        <>
+          <VirtualList
+            items={filtered}
+            itemHeight={40}
+            overscan={8}
+            getKey={(p) => p.ProcessId}
+            className="flex-1"
+            style={{ paddingTop: 2 }}
+            aria-label="Process list"
+            footer={
+              processes.length > 0 && processes.length < totalCount ? (
+                <LoadMoreRow
+                  onClick={() => loadProcesses(activeTab, true)}
+                  loading={loading}
+                  loaded={processes.length}
+                  total={totalCount}
+                />
+              ) : null
+            }
+            renderItem={(p) => {
+              const isActive = p.ProcessId === selectedProcessId;
+              const isChecked = selected.has(p.ProcessId);
+              const resultCode = p.ResultCode && p.ResultCode !== "Null" ? p.ResultCode : null;
+              const isFailed = resultCode && resultCode !== "Ok" && resultCode !== "Success";
+              return (
+                <div
+                  className="flex items-center cursor-pointer ui-tree-row"
+                  data-selected={isActive ? "true" : undefined}
+                  onClick={() => onSelectProcess(p.ProcessId, p.Name, activeTab)}
+                  style={{
+                    height: "100%",
+                    padding: "2px 6px",
+                    gap: 6,
+                    outline: isActive ? "1px solid var(--color-focus-border)" : "none",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={(e) => { e.stopPropagation(); toggleSelect(p.ProcessId); }}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ width: 14, height: 14, accentColor: "var(--color-accent)", flexShrink: 0 }}
+                  />
+                  <div className="flex flex-col flex-1 overflow-hidden" style={{ gap: 1 }}>
+                    <div className="flex items-center" style={{ gap: 4 }}>
+                      <span style={{ fontSize: 12, color: "var(--color-text-muted)", flexShrink: 0 }}>#{p.ProcessId}</span>
+                      <span className="truncate" style={{ fontSize: 12, fontWeight: 500 }}>{p.Name}</span>
+                    </div>
+                    <div className="flex items-center" style={{ gap: 6, fontSize: 11, color: "var(--color-text-muted)" }}>
+                      {activeTab === "completed" ? (
+                        <>
+                          <span style={{ color: isFailed ? "#F6511D" : "#4CAF50" }}>
+                            {resultCode || p.Status || "—"}
+                          </span>
+                          <span>{computeElapsed(p)}</span>
+                          <span style={{ marginLeft: "auto" }}>{formatTime(p.EndTimestamp)}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: p.Status === "ManualControl" ? "#FCA6ED" : p.Status === "Waiting" ? "#5CADD5" : "var(--color-text-muted)" }}>
+                            {p.Status}
+                          </span>
+                          <span>v{p.Version}</span>
+                          <span style={{ marginLeft: "auto" }}>{formatTime(p.StatusTimeStamp)}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center" style={{ gap: 6, fontSize: 11, color: "var(--color-text-muted)" }}>
-                  {activeTab === "completed" ? (
-                    <>
-                      <span style={{ color: isFailed ? "#F6511D" : "#4CAF50" }}>
-                        {resultCode || p.Status || "—"}
-                      </span>
-                      <span>{computeElapsed(p)}</span>
-                      <span style={{ marginLeft: "auto" }}>{formatTime(p.EndTimestamp)}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ color: p.Status === "ManualControl" ? "#FCA6ED" : p.Status === "Waiting" ? "#5CADD5" : "var(--color-text-muted)" }}>
-                        {p.Status}
-                      </span>
-                      <span>v{p.Version}</span>
-                      <span style={{ marginLeft: "auto" }}>{formatTime(p.StatusTimeStamp)}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Load more */}
-        {processes.length > 0 && processes.length < totalCount && (
-          <LoadMoreRow
-            onClick={() => loadProcesses(activeTab, true)}
-            loading={loading}
-            loaded={processes.length}
-            total={totalCount}
+              );
+            }}
           />
-        )}
-      </div>
+        </>
+      )}
 
       {/* Select all / footer */}
       <div
@@ -414,25 +420,6 @@ export function ProcessListPanel({
         </label>
         <span style={{ marginLeft: "auto" }}>{totalCount} total</span>
       </div>
-
-      {/* Confirm: delete */}
-      <ConfirmDialog
-        open={confirm.kind === "delete"}
-        title="Delete processes"
-        message={
-          confirm.kind === "delete"
-            ? `Are you sure you want to permanently delete ${confirm.ids.length} process(es)?\n\n` +
-              `This removes the process, its sub-processes and related command results from both worked (processes) and completed (completed_processes) tables. The action cannot be undone.`
-            : ""
-        }
-        confirmLabel={confirm.kind === "delete" ? `Delete ${confirm.ids.length}` : "Delete"}
-        cancelLabel="Cancel"
-        tone="danger"
-        busy={confirm.kind === "delete" ? confirm.busy : false}
-        error={confirm.kind === "delete" ? confirm.error : null}
-        onConfirm={performDelete}
-        onCancel={() => setConfirm({ kind: "none" })}
-      />
 
     </div>
   );

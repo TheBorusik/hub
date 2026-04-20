@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
-import { SidePanel } from "@/components/layout/SidePanel";
+import { useAutoSaveLayout } from "@/hooks/useAutoSaveLayout";
 import { useContourApi } from "@/lib/ws-api";
 import { useNavigation, type DirtyGuard } from "@/providers/NavigationProvider";
 import type {
@@ -13,17 +13,23 @@ import { BranchSelector } from "./components/BranchSelector";
 import { ProcessTree } from "./components/ProcessTree";
 import { ProcessEditor } from "./components/ProcessEditor";
 import { CommitDialog } from "./components/CommitDialog";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { CreateProcessDialog } from "./components/CreateProcessDialog";
 import { recomputeReturnStages } from "./utils/recomputeReturnStages";
 import { stableJson } from "./utils/stableJson";
 import { useToast } from "@/providers/ToastProvider";
-import { X, ChevronRight, ChevronDown, GitBranch, GitCommitHorizontal } from "lucide-react";
+import { useProblems } from "@/providers/ProblemsProvider";
+import { compileProblemSourceFor } from "./lib/publish-compile-problems";
+import { Tabs } from "@/components/ui/Tabs";
+import { t as tok } from "@/lib/design-tokens";
+import { ChevronRight, ChevronDown, GitBranch, GitCommitHorizontal } from "lucide-react";
 
 export function ConfiguratorPage() {
   const api = useContourApi();
   const toast = useToast();
-  const { registerDirtyGuard, consumeIntent, currentSection } = useNavigation();
+  const { clearSource: clearProblems } = useProblems();
+  const { registerDirtyGuard, consumeIntent, currentSection, intentVersion } = useNavigation();
+  const confirm = useConfirm();
   const [catalogs, setCatalogs] = useState<Catalog[]>([]);
   const [allModels, setAllModels] = useState<ProcessModel[]>([]);
   const [actionColors, setActionColors] = useState<Record<string, string>>({});
@@ -32,6 +38,8 @@ export function ConfiguratorPage() {
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [showCommit, setShowCommit] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
+  // rrp v4 убрали `autoSaveId` у Group — тянем layout через localStorage сами.
+  const sideLayout = useAutoSaveLayout("cfg-side-v4");
   /**
    * Имя процесса, который нужно открыть как только загрузится `allModels`
    * (пришло из навигации Viewer → Configurator). Если на момент запроса
@@ -193,6 +201,9 @@ export function ConfiguratorPage() {
   // Подхватить pending-intent от NavigationProvider при каждой
   // активации секции (Shell держит страницу замаунченной, поэтому
   // эффект привязан к `currentSection`, а не только к маунту).
+  // `intentVersion` нужен, чтобы сработать, когда Ctrl+P вызвал
+  // `navigateTo("configurator", …)` из уже активной секции Configurator
+  // — там `currentSection` не меняется, но intent был добавлен.
   useEffect(() => {
     if (currentSection !== "configurator") return;
     const intent = consumeIntent("configurator");
@@ -200,7 +211,7 @@ export function ConfiguratorPage() {
     if (intent.kind === "openProcessInConfigurator") {
       openProcessByName(intent.processName);
     }
-  }, [currentSection, consumeIntent, openProcessByName]);
+  }, [currentSection, intentVersion, consumeIntent, openProcessByName]);
 
   // Регистрация DirtyGuard — через ref, чтобы не дёргать перерегистрации.
   useEffect(() => {
@@ -338,24 +349,29 @@ export function ConfiguratorPage() {
       const remaining = tabs.filter((t) => t.typeName !== typeName);
       return remaining.length > 0 ? remaining[remaining.length - 1].typeName : null;
     });
-  }, [tabs]);
-
-  const [removeDraftTarget, setRemoveDraftTarget] = useState<string | null>(null);
+    // Закрыли вкладку — диагностика этого процесса больше не актуальна
+    // для глобальной ProblemsPanel. История остаётся в NotificationsProvider.
+    clearProblems(compileProblemSourceFor(typeName));
+  }, [tabs, clearProblems]);
 
   const handleRemoveDraft = useCallback((typeName: string) => {
-    setRemoveDraftTarget(typeName);
-  }, []);
-
-  const doRemoveDraft = useCallback(async () => {
-    if (!api || !removeDraftTarget) return;
-    try {
-      await api.removeDraft(removeDraftTarget);
-      loadTree();
-    } catch (e) {
-      console.error("Remove draft failed", e);
-    }
-    setRemoveDraftTarget(null);
-  }, [api, removeDraftTarget, loadTree]);
+    void confirm({
+      title: "Remove Draft",
+      message: `Remove draft for ${typeName}?`,
+      confirmLabel: "Remove",
+      tone: "danger",
+      async onConfirm() {
+        if (!api) return;
+        try {
+          await api.removeDraft(typeName);
+          loadTree();
+        } catch (e) {
+          console.error("Remove draft failed", e);
+          throw e instanceof Error ? e : new Error(String(e));
+        }
+      },
+    });
+  }, [api, confirm, loadTree]);
 
   const updateProcess = useCallback((typeName: string, process: WebProcess) => {
     setTabs((prev) =>
@@ -378,37 +394,27 @@ export function ConfiguratorPage() {
 
   const activeTabData = tabs.find((t) => t.typeName === activeTab) ?? null;
 
-  const renderTabBar = () => tabs.length > 0 ? (
-    <div
-      className="flex shrink-0 overflow-x-auto"
-      style={{ borderBottom: "1px solid var(--color-border)", background: "var(--color-sidebar)", height: 35 }}
-    >
-      {tabs.map((tab) => (
-        <div
-          key={tab.typeName}
-          className="flex items-center shrink-0 select-none"
-          style={{
-            padding: "0 4px 0 12px", height: "100%", fontSize: 12, cursor: "pointer",
-            borderRight: "1px solid var(--color-border)",
-            background: tab.typeName === activeTab ? "var(--color-editor)" : "transparent",
-            color: tab.typeName === activeTab ? "var(--color-text-primary)" : "var(--color-text-muted)",
-          }}
-          onClick={() => setActiveTab(tab.typeName)}
-        >
-          <span style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {tab.dirty ? "● " : ""}{tab.typeName.split(".").pop()}
-          </span>
-          <button
-            className="toolbar-btn" style={{ marginLeft: 4 }}
-            onClick={(e) => { e.stopPropagation(); closeTab(tab.typeName); }}
-            title="Close tab"
-          >
-            <X size={12} />
-          </button>
-        </div>
-      ))}
-    </div>
-  ) : null;
+  const renderTabBar = () => {
+    if (tabs.length === 0) return null;
+    const activeId = activeTab ?? tabs[0].typeName;
+    return (
+      <Tabs
+        variant="chrome"
+        aria-label="Open processes"
+        items={tabs.map((tab) => ({
+          id: tab.typeName,
+          label: tab.typeName.split(".").pop() ?? tab.typeName,
+          dirty: tab.dirty,
+          closable: true,
+          title: tab.dirty ? `${tab.typeName} — unsaved` : tab.typeName,
+        }))}
+        activeId={activeId}
+        onChange={setActiveTab}
+        onClose={closeTab}
+        style={{ background: tok.color.bg.sidebar }}
+      />
+    );
+  };
 
   const renderEditor = () => activeTabData ? (
     <ProcessEditor
@@ -457,7 +463,7 @@ export function ConfiguratorPage() {
             {/* Дерево + Branch (toggle + resize) */}
             <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
               {branchOpen ? (
-                <Group orientation="vertical" autoSaveId="cfg-side-v4">
+                <Group orientation="vertical" id="cfg-side-v4" {...sideLayout}>
                   <Panel minSize="100px">
                     <div style={{ height: "100%", overflow: "auto" }}>
                       <ProcessTree
@@ -557,16 +563,6 @@ export function ConfiguratorPage() {
           onCommitted={() => { setShowCommit(false); loadTree(); }}
         />
       )}
-
-      <ConfirmDialog
-        open={removeDraftTarget !== null}
-        title="Remove Draft"
-        message={removeDraftTarget ? `Remove draft for ${removeDraftTarget}?` : ""}
-        confirmLabel="Remove"
-        tone="danger"
-        onConfirm={doRemoveDraft}
-        onCancel={() => setRemoveDraftTarget(null)}
-      />
 
       {createProcessPrefill !== null && (
         <CreateProcessDialog

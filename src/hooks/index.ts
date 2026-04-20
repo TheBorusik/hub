@@ -8,3 +8,4 @@ export { useFocusTrap } from "./useFocusTrap";
 export { useReturnFocus } from "./useReturnFocus";
 export { useAsync } from "./useAsync";
 export type { UseAsyncState, UseAsyncOptions } from "./useAsync";
+export { useAutoSaveLayout } from "./useAutoSaveLayout";

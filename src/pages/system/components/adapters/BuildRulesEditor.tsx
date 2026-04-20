@@ -43,7 +43,7 @@ export function BuildRulesEditor({
   }
 
   return (
-    <Group direction="horizontal" id={`${pathPrefix}-editors-${sectionId}`}>
+    <Group orientation="horizontal" id={`${pathPrefix}-editors-${sectionId}`}>
       <Panel minSize="30%">
         <div className="flex flex-col h-full">
           <div className="shrink-0" style={{ padding: "4px 10px", fontSize: 10, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>

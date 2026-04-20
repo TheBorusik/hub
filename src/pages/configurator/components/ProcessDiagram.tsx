@@ -19,25 +19,11 @@ import type { WebProcess, ProcessStage } from "@/lib/ws-api-models";
 import type { HubWsApi } from "@/lib/ws-api";
 import StageNode, { type StageNodeData } from "./StageNode";
 import { AddStageDialog } from "./AddStageDialog";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { LineSettingsDialog } from "./LineSettingsDialog";
 import { recomputeReturnStages } from "../utils/recomputeReturnStages";
 
-const STAGE_TYPE_COLORS: Record<string, string> = {
-  Start: "#5CADD5",
-  Final: "#F6511D",
-  CRUD: "seagreen",
-  CRUDDefinition: "seagreen",
-  Command: "#0FD334",
-  CommandDefinition: "#0FD334",
-  Transform: "#0F8B8D",
-  TransformDefinition: "#0F8B8D",
-  Event: "#FCA6ED",
-  EventDefinition: "#FCA6ED",
-  SubStart: "#0089ED",
-  SubDefinition: "#0089ED",
-  EndDefinition: "#F6511D",
-};
+import { STAGE_TYPE_COLORS } from "../lib/stage-colors";
 
 
 
@@ -181,9 +167,9 @@ function buildEdges(process: WebProcess): Edge[] {
 
 function DiagramInner({ process, onProcessUpdate, onSelectStage, onValidate, validating, onOpenSubProcess }: ProcessDiagramProps) {
   const { fitView } = useReactFlow();
+  const confirm = useConfirm();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [cloneSource, setCloneSource] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [lineSettingsTarget, setLineSettingsTarget] = useState<string | null>(null);
 
   const handleSetStartup = useCallback((name: string) => {
@@ -200,8 +186,17 @@ function DiagramInner({ process, onProcessUpdate, onSelectStage, onValidate, val
       Stages: newStages,
       WebData: process.WebData ? { ...process.WebData, Stages: newWebStages } : process.WebData,
     }));
-    setDeleteTarget(null);
   }, [process, onProcessUpdate]);
+
+  const askDeleteStage = useCallback((name: string) => {
+    void confirm({
+      title: "Delete Stage",
+      message: `Are you sure you want to delete "${name}"?`,
+      confirmLabel: "Delete",
+      tone: "danger",
+      onConfirm: () => { doDeleteStage(name); },
+    });
+  }, [confirm, doDeleteStage]);
 
   const handleReconnect = useCallback((oldEdge: Edge, newConnection: Connection) => {
     if (newConnection.source !== oldEdge.source || newConnection.target !== oldEdge.target) return;
@@ -287,10 +282,10 @@ function DiagramInner({ process, onProcessUpdate, onSelectStage, onValidate, val
     onConfigure: onSelectStage,
     onSetStartup: handleSetStartup,
     onClone: (name: string) => { setCloneSource(name); setShowAddDialog(true); },
-    onDelete: (name: string) => setDeleteTarget(name),
+    onDelete: askDeleteStage,
     onLineSettings: (name: string) => setLineSettingsTarget(name),
     onOpenSubProcess,
-  }), [onSelectStage, handleSetStartup, onOpenSubProcess]);
+  }), [onSelectStage, handleSetStartup, onOpenSubProcess, askDeleteStage]);
 
   const edges = useMemo(() => buildEdges(process), [process]);
   const [nodes, setNodes] = useState<Node<StageNodeData>[]>(() => buildNodes(process, nodeCallbacks));
@@ -393,16 +388,6 @@ function DiagramInner({ process, onProcessUpdate, onSelectStage, onValidate, val
           onCancel={() => { setShowAddDialog(false); setCloneSource(null); }}
         />
       )}
-
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        title="Delete Stage"
-        message={deleteTarget ? `Are you sure you want to delete "${deleteTarget}"?` : ""}
-        confirmLabel="Delete"
-        tone="danger"
-        onConfirm={() => deleteTarget && doDeleteStage(deleteTarget)}
-        onCancel={() => setDeleteTarget(null)}
-      />
 
       {lineSettingsTarget && (
         <LineSettingsDialog

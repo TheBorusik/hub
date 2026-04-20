@@ -23,7 +23,7 @@ type Overlay =
 
 export function ViewerPage() {
   const api = useContourApi();
-  const { navigateTo, consumeIntent, currentSection } = useNavigation();
+  const { navigateTo, consumeIntent, currentSection, intentVersion } = useNavigation();
   const [tabs, setTabs] = useState<ProcessTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<Overlay>({ type: "none" });
@@ -162,7 +162,9 @@ export function ViewerPage() {
     const tab = intent.tab ?? "completed";
     setListTab(tab);
     handleSelectProcess(intent.processId, intent.name, tab);
-  }, [currentSection, consumeIntent, handleSelectProcess]);
+    // `intentVersion` — чтобы эффект сработал и при повторной навигации
+    // в уже активный Viewer (например, Ctrl+P из Viewer → другой процесс).
+  }, [currentSection, intentVersion, consumeIntent, handleSelectProcess]);
 
   const handleRestart = useCallback(
     async (data?: unknown) => {

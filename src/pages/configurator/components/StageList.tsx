@@ -1,22 +1,5 @@
 import type { ProcessStage } from "@/lib/ws-api-models";
-
-const STAGE_TYPE_COLORS: Record<string, string> = {
-  Start: "#5CADD5",
-  CRUDDefinition: "seagreen",
-  CommandDefinition: "#0FD334",
-  TransformDefinition: "#0F8B8D",
-  EventDefinition: "#FCA6ED",
-  SubDefinition: "#0089ED",
-  EndDefinition: "#F6511D",
-};
-
-function stageColor(type: string): string {
-  return STAGE_TYPE_COLORS[type] ?? "#888";
-}
-
-function shortType(type: string): string {
-  return type.replace("Definition", "");
-}
+import { stageColor, stageTypeLabel as shortType } from "../lib/stage-colors";
 
 interface StageListProps {
   stages: Record<string, ProcessStage>;

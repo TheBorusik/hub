@@ -150,9 +150,8 @@ export function Tabs<T extends string = string>({
         {items.map((it) => {
           const isActive = it.id === activeId;
           return (
-            <button
+            <div
               key={it.id}
-              type="button"
               role="tab"
               aria-selected={isActive}
               aria-disabled={it.disabled}
@@ -162,11 +161,17 @@ export function Tabs<T extends string = string>({
               data-variant={variant}
               data-active={isActive ? "true" : undefined}
               data-disabled={it.disabled ? "true" : undefined}
-              onClick={() => {
+              onClick={(e) => {
                 if (it.disabled) return;
+                if ((e.target as HTMLElement).closest(".ui-tab-close")) return;
                 if (!isActive) onChange(it.id);
               }}
               onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  if (!it.disabled && !isActive) onChange(it.id);
+                  return;
+                }
                 if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
                 e.preventDefault();
                 const idx = items.findIndex((x) => x.id === activeId);
@@ -196,10 +201,10 @@ export function Tabs<T extends string = string>({
               <span style={{ whiteSpace: "nowrap" }}>{it.label}</span>
               {it.badge && <span style={{ display: "inline-flex" }}>{it.badge}</span>}
               {it.closable && onClose && (
-                <span
-                  role="button"
+                <button
+                  type="button"
                   aria-label="Close tab"
-                  className="ui-tab-close"
+                  className="ui-tab-close toolbar-btn"
                   onClick={(e) => {
                     e.stopPropagation();
                     onClose(it.id);
@@ -211,14 +216,18 @@ export function Tabs<T extends string = string>({
                     width: 16,
                     height: 16,
                     marginLeft: t.space[2],
+                    padding: 0,
+                    border: "none",
+                    background: "transparent",
                     color: t.color.text.muted,
                     borderRadius: t.radius.sm,
+                    cursor: "pointer",
                   }}
                 >
                   <X size={10} />
-                </span>
+                </button>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

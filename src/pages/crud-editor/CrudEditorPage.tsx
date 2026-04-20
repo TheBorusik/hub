@@ -5,15 +5,17 @@ import {
   Plus,
   Copy,
   Search,
-  X,
+  Loader2,
 } from "lucide-react";
 import { ModelListPanel } from "./components/ModelListPanel";
-import { DataTable } from "./components/DataTable";
+import { CrudDataTable } from "./components/CrudDataTable";
 import { RecordDialog } from "./components/RecordDialog";
 import { JsonViewerDialog } from "./components/JsonViewerDialog";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { SidePanel } from "@/components/layout/SidePanel";
+import { Tabs } from "@/components/ui/Tabs";
+import { t } from "@/lib/design-tokens";
 import { useContourApi } from "@/lib/ws-api";
 import type { CrudModel, CrudRecord, ModelTab } from "./types";
 
@@ -165,48 +167,37 @@ export function CrudEditorPage() {
       <Panel id="crud-editor" minSize="30%">
         <div className="flex flex-col h-full overflow-hidden">
           {/* Model Tabs */}
-          <div
-            className="flex items-center shrink-0 select-none overflow-x-auto bg-tab-inactive"
-            style={{ height: 35, borderBottom: "1px solid var(--color-border)" }}
-          >
-            {tabs.map((tab) => {
-              const isActive = tab.id === activeTabId;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTabId(tab.id)}
-                  className="flex items-center shrink-0 cursor-pointer border-none"
-                  style={{
-                    height: 35,
-                    padding: "0 10px",
-                    gap: 6,
-                    fontSize: 13,
-                    background: isActive ? "var(--color-tab-active)" : "transparent",
-                    color: isActive ? "var(--color-text-active)" : "var(--color-text-muted)",
-                    borderRight: "1px solid var(--color-border)",
-                    ...(isActive ? { borderBottom: "1px solid var(--color-tab-active)" } : {}),
-                  }}
-                >
-                  {tab.loading && (
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-warning)" }} className="animate-pulse shrink-0" />
-                  )}
-                  <span className="truncate" style={{ maxWidth: 180 }}>{tab.model.Name}</span>
-                  <span
-                    onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                    className="flex items-center justify-center shrink-0 toolbar-btn"
-                    style={{ width: 20, height: 20 }}
-                  >
-                    <X size={16} />
-                  </span>
-                </button>
-              );
-            })}
-            {tabs.length === 0 && (
-              <span style={{ padding: "0 12px", fontSize: 13, color: "var(--color-text-muted)" }}>
-                Select a model from the list
-              </span>
-            )}
-          </div>
+          {tabs.length === 0 ? (
+            <div
+              className="flex items-center shrink-0 select-none"
+              style={{
+                height: 35,
+                borderBottom: `1px solid ${t.color.border.default}`,
+                background: t.color.bg.sidebar,
+                padding: `0 ${t.space[3]}`,
+                fontSize: 13,
+                color: t.color.text.muted,
+              }}
+            >
+              Select a model from the list
+            </div>
+          ) : (
+            <Tabs
+              variant="chrome"
+              aria-label="CRUD model tabs"
+              items={tabs.map((tab) => ({
+                id: tab.id,
+                label: <span className="truncate" style={{ maxWidth: 180 }}>{tab.model.Name}</span>,
+                icon: tab.loading ? <Loader2 size={12} className="animate-spin" /> : undefined,
+                closable: true,
+                title: tab.model.Name,
+              }))}
+              activeId={activeTabId ?? tabs[0].id}
+              onChange={(id) => setActiveTabId(id)}
+              onClose={closeTab}
+              style={{ background: t.color.bg.sidebar }}
+            />
+          )}
 
           {/* Content */}
           {activeTab ? (
@@ -261,7 +252,7 @@ export function CrudEditorPage() {
 
               {/* Data Table */}
               <div className="flex-1 overflow-hidden relative">
-                <DataTable
+                <CrudDataTable
                   model={activeTab.model}
                   records={activeTab.records}
                   search={activeTab.search}

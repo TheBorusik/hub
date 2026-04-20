@@ -2,15 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { t as tok } from "@/lib/design-tokens";
-
-const STAGE_TYPE_COLORS: Record<string, string> = {
-  Transform: "#0F8B8D",
-  CRUD: "seagreen",
-  Command: "#0FD334",
-  SubStart: "#0089ED",
-  Event: "#FCA6ED",
-  Final: "#F6511D",
-};
+import { STAGE_TYPE_COLORS } from "../lib/stage-colors";
 
 const STAGE_TYPES = ["Transform", "CRUD", "Command", "SubStart", "Event", "Final"] as const;
 

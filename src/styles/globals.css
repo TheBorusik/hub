@@ -397,6 +397,16 @@ a {
   color: var(--color-text-muted);
 }
 
+/* <Breadcrumbs> — кликабельный сегмент подсвечивается на hover. */
+.breadcrumb-item-interactive:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-primary);
+}
+.breadcrumb-item-interactive:focus-visible {
+  outline: 1px solid var(--color-focus-ring);
+  outline-offset: -1px;
+}
+
 .resize-handle-h {
   width: 4px !important;
   min-width: 4px !important;

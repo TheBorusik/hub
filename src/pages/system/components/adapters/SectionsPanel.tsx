@@ -159,7 +159,7 @@ export function SectionsPanel() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ position: "relative" }}>
-      <Group direction="horizontal" id="base-sections-layout">
+      <Group orientation="horizontal" id="base-sections-layout">
         {/* Left: section list */}
         <Panel defaultSize="260px" minSize="160px" maxSize="40%" groupResizeBehavior="preserve-pixel-size">
           <div className="flex flex-col h-full" style={{ background: tok.color.bg.sidebar }}>

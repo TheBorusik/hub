@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Braces, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import type { CrudModel, CrudRecord } from "../types";
 
-interface DataTableProps {
+interface CrudDataTableProps {
   model: CrudModel;
   records: CrudRecord[];
   search: string;
@@ -21,7 +21,7 @@ interface DataTableProps {
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
-export function DataTable({
+export function CrudDataTable({
   model,
   records,
   search,
@@ -36,7 +36,7 @@ export function DataTable({
   onClickRow,
   onDeleteRow,
   onViewJson,
-}: DataTableProps) {
+}: CrudDataTableProps) {
   const columns = model.Properties ?? [];
   const keyName = model.KeyName;
 

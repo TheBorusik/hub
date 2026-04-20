@@ -1,126 +1,143 @@
 import {
-  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
   type ReactNode,
-  type UIEvent,
 } from "react";
 
 export interface VirtualListProps<T> {
+  /** Полный список элементов. */
   items: T[];
-  /** Высота одного элемента в пикселях (фиксированная). */
+  /** Высота одного ряда в px. Фиксированная. */
   itemHeight: number;
-  /** Полная высота контейнера (required — нам нужен ограниченный бокс). */
-  height: number | string;
-  /** Рендер одного элемента. */
-  children: (item: T, index: number) => ReactNode;
-  /** Ключ для key=. default: index. */
+  /** Рендер одной строки. absolutely-positioned, занимает всю ширину и `itemHeight`. */
+  renderItem: (item: T, index: number) => ReactNode;
+  /** Ключ строки — для React reconciliation. */
   getKey?: (item: T, index: number) => string | number;
-  /** Сколько элементов рендерить за пределами viewport сверху/снизу. default: 6. */
+  /** Сколько лишних элементов рендерить сверху/снизу viewport. default 6. */
   overscan?: number;
-  /** Внешний класс / стили контейнера. */
+  /** Порог включения виртуализации. Если `items.length < threshold` — рендерится
+   *  обычный плоский список (без расчётов). default 60. */
+  threshold?: number;
+  /** Дополнительный класс контейнера. */
   className?: string;
+  /** Инлайн-стиль контейнера. */
   style?: CSSProperties;
-  /** Onscroll для внешних индикаторов (sticky header, загрузка). */
-  onScroll?: (scrollTop: number) => void;
-  /** Для ARIA. */
-  role?: string;
+  /** aria-label для контейнера. */
   "aria-label"?: string;
+  /** Контент, рендерящийся в конце списка (`load more`, пустой хвост). Скроллится
+   *  вместе с элементами, не виртуализируется. */
+  footer?: ReactNode;
 }
 
 /**
- * Минимальный виртуализатор для фиксированной высоты строк. Достаточен для
- * ProcessListPanel / GlobalModelsPanel / PermissionsPanel при N > 500. Для
- * динамических высот — отдельный хук/компонент, он не часть Block A.
+ * Fixed-row-height virtual list. Минимальная реализация без сторонних зависимостей.
+ *
+ * Rationale: три наших списка-кандидата (`ProcessListPanel`, `GlobalModelsPanel`,
+ * `PermissionsPanel`) используют однородные строки одинаковой высоты — variable-size
+ * виртуализация не нужна. Внешние пакеты (`react-window`, `@tanstack/react-virtual`)
+ * добавили бы ~30–60 KB gzipped ради этого простого кейса.
+ *
+ * Контейнер получает `overflow-y: auto` и полную высоту от родителя (`flex: 1` или
+ * `height: 100%`). Контент рендерится абсолютно внутри «spacer»-а высотой
+ * `items.length * itemHeight`.
  */
 export function VirtualList<T>({
   items,
   itemHeight,
-  height,
-  children,
+  renderItem,
   getKey,
   overscan = 6,
+  threshold = 60,
   className,
   style,
-  onScroll,
-  role,
   "aria-label": ariaLabel,
+  footer,
 }: VirtualListProps<T>) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [viewportHeight, setViewportHeight] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState<number>(() =>
-    typeof height === "number" ? height : 0,
-  );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const update = () => setViewportHeight(el.clientHeight);
-    update();
-    const ro = new ResizeObserver(update);
+    setViewportHeight(el.clientHeight);
+    const ro = new ResizeObserver(() => {
+      setViewportHeight(el.clientHeight);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  const onScrollInternal = useCallback(
-    (e: UIEvent<HTMLDivElement>) => {
-      const st = e.currentTarget.scrollTop;
-      setScrollTop(st);
-      onScroll?.(st);
-    },
-    [onScroll],
-  );
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => setScrollTop(el.scrollTop);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
 
-  const { startIndex, endIndex, offsetY, totalHeight } = useMemo(() => {
-    const total = items.length * itemHeight;
-    if (viewportHeight === 0) {
-      return { startIndex: 0, endIndex: Math.min(items.length, overscan * 2), offsetY: 0, totalHeight: total };
+  const shouldVirtualize = items.length >= threshold && viewportHeight > 0;
+
+  const { startIndex, endIndex } = useMemo(() => {
+    if (!shouldVirtualize) {
+      return { startIndex: 0, endIndex: items.length };
     }
-    const first = Math.floor(scrollTop / itemHeight);
-    const visible = Math.ceil(viewportHeight / itemHeight);
-    const start = Math.max(0, first - overscan);
-    const end = Math.min(items.length, first + visible + overscan);
-    return { startIndex: start, endIndex: end, offsetY: start * itemHeight, totalHeight: total };
-  }, [items.length, itemHeight, scrollTop, viewportHeight, overscan]);
+    const start = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
+    const visibleCount = Math.ceil(viewportHeight / itemHeight);
+    const end = Math.min(items.length, start + visibleCount + overscan * 2);
+    return { startIndex: start, endIndex: end };
+  }, [shouldVirtualize, scrollTop, itemHeight, viewportHeight, overscan, items.length]);
+
+  const totalHeight = items.length * itemHeight;
 
   return (
     <div
       ref={scrollRef}
-      onScroll={onScrollInternal}
-      role={role}
-      aria-label={ariaLabel}
       className={className}
-      style={{
-        height,
-        overflowY: "auto",
-        overflowX: "hidden",
-        position: "relative",
-        ...style,
-      }}
+      style={{ overflowY: "auto", position: "relative", ...style }}
+      aria-label={ariaLabel}
     >
-      <div style={{ height: totalHeight, position: "relative" }}>
-        <div
-          style={{
-            position: "absolute",
-            top: offsetY,
-            left: 0,
-            right: 0,
-          }}
-        >
-          {items.slice(startIndex, endIndex).map((item, i) => {
-            const index = startIndex + i;
-            const key = getKey ? getKey(item, index) : index;
+      {shouldVirtualize ? (
+        <>
+          <div style={{ height: totalHeight, position: "relative" }}>
+            {items.slice(startIndex, endIndex).map((it, i) => {
+              const realIndex = startIndex + i;
+              const key = getKey ? getKey(it, realIndex) : realIndex;
+              return (
+                <div
+                  key={key}
+                  style={{
+                    position: "absolute",
+                    top: realIndex * itemHeight,
+                    left: 0,
+                    right: 0,
+                    height: itemHeight,
+                  }}
+                >
+                  {renderItem(it, realIndex)}
+                </div>
+              );
+            })}
+          </div>
+          {footer}
+        </>
+      ) : (
+        <div>
+          {items.map((it, i) => {
+            const key = getKey ? getKey(it, i) : i;
             return (
               <div key={key} style={{ height: itemHeight }}>
-                {children(item, index)}
+                {renderItem(it, i)}
               </div>
             );
           })}
+          {footer}
         </div>
-      </div>
+      )}
     </div>
   );
 }

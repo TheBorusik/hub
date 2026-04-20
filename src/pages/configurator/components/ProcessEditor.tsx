@@ -1,18 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-
-function escapeRegex(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-import {
-  Play, Save, Braces, LayoutGrid,
-  FileCode, GitCompareArrows,
-  Copy, Trash2,
-  Package, Upload, Clock,
-} from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 import { Tabs, type TabItem } from "@/components/ui/Tabs";
-import { IconButton } from "@/components/ui/Button/IconButton";
-import { CountBadge } from "@/components/ui/CountBadge";
-import { t as tok } from "@/lib/design-tokens";
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/ui/Breadcrumbs";
 import type { HubWsApi } from "@/lib/ws-api";
 import type {
   ProcessModel, WebProcess, ProcessStage,
@@ -21,12 +10,13 @@ import type {
 } from "@/lib/ws-api-models";
 import type { OpenTab } from "../types";
 import { StageEditor } from "./StageEditor";
+import { StagesOutline } from "./StagesOutline";
 import { ProcessDiagram } from "./ProcessDiagram";
 import { CodePreview } from "./CodePreview";
 import { DiffView } from "./DiffView";
 import { RunProcessPanel } from "./RunProcessPanel";
 import { ModelClassDialog } from "./ModelClassDialog";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { AddStageDialog } from "./AddStageDialog";
 import { QuickPickDialog, type QuickPickItem } from "./QuickPickDialog";
 import { UsingsDialog } from "./UsingsDialog";
@@ -35,6 +25,15 @@ import { recomputeReturnStages } from "../utils/recomputeReturnStages";
 import { stableJson } from "../utils/stableJson";
 import { useToast } from "@/providers/ToastProvider";
 import { useNotifications } from "@/providers/NotificationsProvider";
+import { useProblems } from "@/providers/ProblemsProvider";
+import { useNavigation } from "@/providers/NavigationProvider";
+import {
+  publishCompileProblems,
+  compileProblemSourceFor,
+} from "../lib/publish-compile-problems";
+import { STAGE_TYPE_COLORS } from "../lib/stage-colors";
+import { renameStageInProcess } from "../lib/stage-rename";
+import { ProcessEditorActionRail } from "./ProcessEditorActionRail";
 
 interface ProcessEditorProps {
   tab: OpenTab;
@@ -52,29 +51,15 @@ interface ProcessEditorProps {
   onOpenSubProcess?: (processName: string) => void;
 }
 
-function RailDivider() {
-  return <div style={{ width: 20, height: 1, background: tok.color.border.default, margin: "4px 0" }} />;
-}
-
-const STAGE_TYPE_COLORS: Record<string, string> = {
-  Start: "#5CADD5",
-  CRUDDefinition: "seagreen",
-  CommandDefinition: "#0FD334",
-  TransformDefinition: "#0F8B8D",
-  EventDefinition: "#FCA6ED",
-  SubDefinition: "#0089ED",
-  EndDefinition: "#F6511D",
-};
-
 type SpecialView = "code" | "diff" | "run" | "global-models";
 
 export function ProcessEditor({ tab, api, allModels, crudModels, commands, events, onProcessUpdate, onSaved, onOpenSubProcess }: ProcessEditorProps) {
+  const confirm = useConfirm();
   const [openStageTabs, setOpenStageTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<string>("__diagram__");
   const [specialView, setSpecialView] = useState<SpecialView | null>(null);
   const [modelDialog, setModelDialog] = useState<"InitObject" | "Context" | "ProcessResult" | null>(null);
   const [saving, setSaving] = useState(false);
-  const [deleteStageTarget, setDeleteStageTarget] = useState<string | null>(null);
   const [createStagePrefill, setCreateStagePrefill] = useState<string | null>(null);
   const [quickPick, setQuickPick] = useState<"stages" | "palette" | null>(null);
   const [usingsDialogOpen, setUsingsDialogOpen] = useState(false);
@@ -88,9 +73,27 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
   const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem("wfm_autosave") === "1"; } catch { return false; }
   });
+  /**
+   * Outline — правая collapsible панель со списком стейджей текущего
+   * процесса. Состояние запоминается в localStorage, чтобы не сбрасывалось
+   * между сессиями. По умолчанию выключена, чтобы не «раздувать» UI для
+   * пользователей, которые об этой фиче не знают.
+   */
+  const [outlineOpen, setOutlineOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem("wfm_outline") === "1"; } catch { return false; }
+  });
+  const toggleOutline = useCallback(() => {
+    setOutlineOpen((prev) => {
+      const next = !prev;
+      try { localStorage.setItem("wfm_outline", next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const toast = useToast();
   const notifications = useNotifications();
+  const problems = useProblems();
+  const { navigateTo } = useNavigation();
 
   const process = tab.process;
 
@@ -215,6 +218,9 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
     // успешного запроса PROCESS — иначе оставляем предыдущее значение.
     if (processOk) {
       setCompileDiagnostics(respDiagnostics);
+      publishCompileProblems(
+        process.TypeName, process.Name, respDiagnostics, respStringErrors, problems, navigateTo,
+      );
     }
 
     // Сначала — инфраструктурный исход (упало ли сохранение PROCESS/WEBDATA).
@@ -258,7 +264,7 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
     }
 
     setSaving(false);
-  }, [api, process, toast, notifications]);
+  }, [api, process, toast, notifications, problems, navigateTo]);
 
   // ---------- Auto Save ----------
   const toggleAutoSave = useCallback(() => {
@@ -358,6 +364,10 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
         else if (e && typeof e === "object" && "Message" in e) diagnostics.push(e as DiagnosticModel);
       }
       const total = diagnostics.length + stringErrors.length;
+      // Пушим в Problems (перезаписывает прошлые диагностики того же процесса).
+      publishCompileProblems(
+        process.TypeName, process.Name, diagnostics, stringErrors, problems, navigateTo,
+      );
       if (total === 0) {
         toast.push("success", `Validation passed: ${process.TypeName}`);
       } else {
@@ -379,7 +389,7 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
     } finally {
       setValidating(false);
     }
-  }, [api, process, toast, notifications]);
+  }, [api, process, toast, notifications, problems, navigateTo]);
 
   const handleStageUpdate = useCallback((stageName: string, stage: ProcessStage) => {
     if (!process) return;
@@ -392,56 +402,12 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
 
   const handleStageRename = useCallback((oldName: string, newName: string) => {
     if (!process) return;
-    const stages = { ...process.Stages };
-    if (stages[newName] || !stages[oldName]) return;
-
-    const newStages: Record<string, ProcessStage> = {};
-    for (const [k, v] of Object.entries(stages)) {
-      if (k === oldName) {
-        newStages[newName] = { ...v, Name: newName };
-      } else {
-        const updated = { ...v };
-        if (updated.GetNextStage) {
-          updated.GetNextStage = updated.GetNextStage.replace(
-            new RegExp(`\\breturn\\s+${escapeRegex(oldName)}\\s*;`, "g"),
-            `return ${newName};`,
-          );
-        }
-        if (updated.GetErrorNextStage) {
-          updated.GetErrorNextStage = updated.GetErrorNextStage.replace(
-            new RegExp(`\\breturn\\s+${escapeRegex(oldName)}\\s*;`, "g"),
-            `return ${newName};`,
-          );
-        }
-        if (updated.ReturnStages) {
-          updated.ReturnStages = updated.ReturnStages.map((r) => r === oldName ? newName : r);
-        }
-        newStages[k] = updated;
-      }
-    }
-
-    const webStages = { ...(process.WebData?.Stages ?? {}) };
-    if (webStages[oldName]) {
-      webStages[newName] = webStages[oldName];
-      delete webStages[oldName];
-    }
-    for (const ws of Object.values(webStages)) {
-      if (ws.Lines?.[oldName]) {
-        ws.Lines[newName] = ws.Lines[oldName];
-        delete ws.Lines[oldName];
-      }
-    }
-
-    const updatedProcess: WebProcess = {
-      ...process,
-      Stages: newStages,
-      Startup: process.Startup === oldName ? newName : process.Startup,
-      WebData: process.WebData ? { ...process.WebData, Stages: webStages } : process.WebData,
-    };
+    const updated = renameStageInProcess(process, oldName, newName);
+    if (!updated) return;
 
     setOpenStageTabs((prev) => prev.map((t) => t === oldName ? newName : t));
     setActiveTab((prev) => prev === oldName ? newName : prev);
-    onProcessUpdate(recomputeReturnStages(updatedProcess));
+    onProcessUpdate(recomputeReturnStages(updated));
   }, [process, onProcessUpdate]);
 
   const handleModelUpdate = useCallback((field: "InitObject" | "Context" | "ProcessResult", body: string) => {
@@ -535,7 +501,14 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
     [process, onProcessUpdate],
   );
 
-  // Global hotkeys: Ctrl+S (save), Ctrl+P (quick open stages), Ctrl+Shift+P (command palette)
+  // Local hotkeys:
+  //   Ctrl+S            — save current process
+  //   Ctrl+Shift+O      — quick open a stage in the current process
+  //                       (VS Code "Go to Symbol"-style)
+  //
+  // Глобальные Ctrl+P (Quick Open process) и Ctrl+Shift+P (Command Palette)
+  // слушаются на уровне Shell — локально их дублировать нельзя, иначе
+  // открывается сразу две панели (локальная + глобальная).
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey;
@@ -545,12 +518,7 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
         handleSave();
         return;
       }
-      if (e.shiftKey && !e.altKey && (e.key === "P" || e.key === "p")) {
-        e.preventDefault();
-        setQuickPick("palette");
-        return;
-      }
-      if (!e.shiftKey && !e.altKey && (e.key === "p" || e.key === "P")) {
+      if (e.shiftKey && !e.altKey && (e.key === "o" || e.key === "O")) {
         e.preventDefault();
         setQuickPick("stages");
         return;
@@ -570,6 +538,28 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
       return next;
     });
   }, []);
+
+  const handleAskDeleteStage = useCallback((name: string) => {
+    void confirm({
+      title: "Delete Stage",
+      message: `Are you sure you want to delete "${name}"?`,
+      confirmLabel: "Delete",
+      tone: "danger",
+      onConfirm: () => {
+        if (!process) return;
+        const newStages = { ...(process.Stages ?? {}) };
+        delete newStages[name];
+        const newWebStages = { ...(process.WebData?.Stages ?? {}) };
+        delete newWebStages[name];
+        onProcessUpdate(recomputeReturnStages({
+          ...process,
+          Stages: newStages,
+          WebData: process.WebData ? { ...process.WebData, Stages: newWebStages } : process.WebData,
+        }));
+        closeStageTab(name);
+      },
+    });
+  }, [confirm, process, onProcessUpdate, closeStageTab]);
 
   if (tab.loading) {
     return (
@@ -592,8 +582,48 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
   const isDiagram = activeTab === "__diagram__" && !specialView;
   const isStageOpen = activeTab !== "__diagram__" && !specialView && stages[activeTab];
 
+  // Breadcrumbs: Catalog > SubCatalog > ... > ProcessName [> StageName / > Code / > Diff / ...]
+  // Строится из Name процесса (разделитель — точка). Пока клики по
+  // каталог-сегментам не навигируют — этим займётся D.3 (Outline) или
+  // отдельный вопрос «как показать в ProcessTree этот путь».
+  const nameParts = (process.Name ?? process.TypeName).split(".").filter(Boolean);
+  const processLeafName = nameParts[nameParts.length - 1] ?? process.TypeName;
+  const parentSegments = nameParts.slice(0, -1);
+  const crumbs: BreadcrumbItem[] = parentSegments.map((p, i) => ({
+    id: `cat-${i}-${p}`,
+    label: p,
+    muted: true,
+  }));
+  crumbs.push({
+    id: "process",
+    label: processLeafName,
+    title: process.TypeName,
+    onClick: specialView || !isDiagram
+      ? () => { setActiveTab("__diagram__"); setSpecialView(null); }
+      : undefined,
+    active: isDiagram,
+  });
+  if (specialView === "code") {
+    crumbs.push({ id: "view", label: "Code", active: true });
+  } else if (specialView === "diff") {
+    crumbs.push({ id: "view", label: "Diff", active: true });
+  } else if (specialView === "run") {
+    crumbs.push({ id: "view", label: "Run", active: true });
+  } else if (specialView === "global-models") {
+    crumbs.push({ id: "view", label: "Global Models", active: true });
+  } else if (isStageOpen) {
+    const st = stages[activeTab];
+    crumbs.push({
+      id: `stage-${activeTab}`,
+      label: st.DisplayName || activeTab,
+      title: activeTab,
+      active: true,
+    });
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      <Breadcrumbs items={crumbs} aria-label="Process path" />
       {/* Tab bar: Diagram + open stage tabs */}
       <Tabs
         variant="chrome"
@@ -656,6 +686,7 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
                 // Apply вызывается только если `createProcessAssembly` не вернул
                 // ошибок — значит компиляция валидна, индикатор можно очистить.
                 setCompileDiagnostics([]);
+                problems.clearSource(compileProblemSourceFor(next.TypeName));
                 toast.push("success", `Code applied to ${next.TypeName}`);
               }}
             />
@@ -700,223 +731,42 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
           )}
         </div>
 
-        {/* Right action panel — always visible */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 2,
-            padding: "6px 4px",
-            borderLeft: `1px solid ${tok.color.border.default}`,
-            background: tok.color.bg.sidebar,
-            width: 36,
-            flexShrink: 0,
-            overflow: "auto",
-          }}
-        >
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label="Save Process (Ctrl+S)"
-            icon={<Save size={15} />}
-            onClick={handleSave}
-            disabled={saving}
+        {/* Stage outline — right sidebar before action rail */}
+        {outlineOpen && (
+          <StagesOutline
+            stages={stages}
+            activeStage={activeTab}
+            startupStage={process.Startup}
+            dirtyStages={dirtyStages}
+            onOpenStage={openStageEditor}
+            onCollapse={toggleOutline}
           />
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label={autoSaveEnabled ? "Auto Save: ON (5s debounce). Click to disable." : "Auto Save: OFF. Click to enable."}
-            icon={<Clock size={15} style={{ color: autoSaveEnabled ? "#4caf50" : undefined }} />}
-            onClick={toggleAutoSave}
-          />
-          <IconButton
-            variant={specialView === "run" ? "primary" : "ghost"}
-            size="sm"
-            label="Run Process"
-            icon={<Play size={15} />}
-            onClick={() => setSpecialView(specialView === "run" ? null : "run")}
-          />
+        )}
 
-          <RailDivider />
-
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label="Pack (download JSON dump of process)"
-            icon={<Package size={15} />}
-            onClick={handlePack}
-          />
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label="Unpack (load JSON dump from file)"
-            icon={<Upload size={15} />}
-            onClick={handleUnpackClick}
-          />
-          {/* Скрытый input — используется для Unpack. */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            onChange={handleUnpackFile}
-            style={{ display: "none" }}
-          />
-
-          <RailDivider />
-
-          <IconButton
-            variant={specialView === "code" ? "primary" : "ghost"}
-            size="sm"
-            label="Code Preview"
-            icon={<FileCode size={15} />}
-            onClick={() => setSpecialView(specialView === "code" ? null : "code")}
-          />
-          <IconButton
-            variant={specialView === "diff" ? "primary" : "ghost"}
-            size="sm"
-            label="Diff"
-            icon={<GitCompareArrows size={15} />}
-            onClick={() => setSpecialView(specialView === "diff" ? null : "diff")}
-          />
-
-          <RailDivider />
-
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label="Usings"
-            icon={<span style={{ fontSize: 11, fontWeight: 600 }}>U</span>}
-            onClick={() => setUsingsDialogOpen(true)}
-          />
-          <IconButton
-            variant={specialView === "global-models" ? "primary" : "ghost"}
-            size="sm"
-            label="Global Models"
-            icon={<span style={{ fontSize: 11, fontWeight: 600 }}>GM</span>}
-            onClick={() => setSpecialView(specialView === "global-models" ? null : "global-models")}
-          />
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label={
-              compileDiagnostics.length > 0
-                ? `Show Syntax Errors in Code Preview (${compileDiagnostics.length})`
-                : "No syntax errors in current process"
-            }
-            icon={
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: compileDiagnostics.length > 0 ? "#f48771" : undefined,
-                }}
-              >
-                !
-              </span>
-            }
-            badge={
-              compileDiagnostics.length > 0 ? (
-                <CountBadge value={compileDiagnostics.length} tone="danger" />
-              ) : undefined
-            }
-            onClick={() => setSpecialView("code")}
-          />
-
-          <RailDivider />
-
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label="InitObject"
-            icon={
-              <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}>
-                <Braces size={14} />
-                <span style={{ fontSize: 8 }}>IO</span>
-              </span>
-            }
-            onClick={() => setModelDialog("InitObject")}
-          />
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label="Context"
-            icon={
-              <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}>
-                <Braces size={14} />
-                <span style={{ fontSize: 8 }}>Ctx</span>
-              </span>
-            }
-            onClick={() => setModelDialog("Context")}
-          />
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label="ProcessResult"
-            icon={
-              <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}>
-                <Braces size={14} />
-                <span style={{ fontSize: 8 }}>Res</span>
-              </span>
-            }
-            onClick={() => setModelDialog("ProcessResult")}
-          />
-
-          {isStageOpen && (
-            <>
-              <RailDivider />
-              <IconButton
-                variant="ghost"
-                size="sm"
-                label="Set Startup Stage"
-                disabled={process.Startup === activeTab}
-                icon={
-                  <span
-                    style={{
-                      fontSize: 14,
-                      transform: "rotate(45deg)",
-                      display: "inline-block",
-                      color:
-                        process.Startup === activeTab
-                          ? stages[activeTab]?.Type
-                            ? STAGE_TYPE_COLORS[stages[activeTab].Type]
-                            : tok.color.text.muted
-                          : tok.color.accent,
-                    }}
-                  >
-                    ⇒
-                  </span>
-                }
-                onClick={() => onProcessUpdate({ ...process, Startup: activeTab })}
-              />
-              <IconButton
-                variant="ghost"
-                size="sm"
-                label="Go to Diagram (clone from there)"
-                icon={<Copy size={15} />}
-                onClick={() => setActiveTab("__diagram__")}
-              />
-            </>
-          )}
-
-          <div style={{ flex: 1 }} />
-
-          {isStageOpen && (
-            <IconButton
-              variant="ghost"
-              size="sm"
-              label="Delete Stage"
-              disabled={process.Startup === activeTab}
-              icon={
-                <Trash2
-                  size={15}
-                  style={{ color: process.Startup === activeTab ? tok.color.text.muted : "#f44336" }}
-                />
-              }
-              onClick={() => setDeleteStageTarget(activeTab)}
-            />
-          )}
-        </div>
+        <ProcessEditorActionRail
+          process={process}
+          stages={stages}
+          activeTab={activeTab}
+          specialView={specialView}
+          setSpecialView={setSpecialView}
+          isStageOpen={!!isStageOpen}
+          saving={saving}
+          autoSaveEnabled={autoSaveEnabled}
+          outlineOpen={outlineOpen}
+          compileDiagnostics={compileDiagnostics}
+          onSave={handleSave}
+          onToggleAutoSave={toggleAutoSave}
+          onToggleOutline={toggleOutline}
+          onPack={handlePack}
+          onUnpackClick={handleUnpackClick}
+          onUnpackFile={handleUnpackFile}
+          fileInputRef={fileInputRef}
+          onOpenUsings={() => setUsingsDialogOpen(true)}
+          onOpenModelDialog={(kind) => setModelDialog(kind)}
+          onGotoDiagram={() => setActiveTab("__diagram__")}
+          onDeleteStage={handleAskDeleteStage}
+          onProcessUpdate={onProcessUpdate}
+        />
       </div>
 
       {/* Model class dialogs */}
@@ -928,30 +778,6 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
           onClose={() => setModelDialog(null)}
         />
       )}
-
-      <ConfirmDialog
-        open={deleteStageTarget !== null}
-        title="Delete Stage"
-        message={deleteStageTarget ? `Are you sure you want to delete "${deleteStageTarget}"?` : ""}
-        confirmLabel="Delete"
-        tone="danger"
-        onConfirm={() => {
-          if (!deleteStageTarget) return;
-          const name = deleteStageTarget;
-          const newStages = { ...stages };
-          delete newStages[name];
-          const newWebStages = { ...(process.WebData?.Stages ?? {}) };
-          delete newWebStages[name];
-          onProcessUpdate(recomputeReturnStages({
-            ...process,
-            Stages: newStages,
-            WebData: process.WebData ? { ...process.WebData, Stages: newWebStages } : process.WebData,
-          }));
-          closeStageTab(name);
-          setDeleteStageTarget(null);
-        }}
-        onCancel={() => setDeleteStageTarget(null)}
-      />
 
       {createStagePrefill != null && (
         <AddStageDialog
@@ -1004,7 +830,7 @@ export function ProcessEditor({ tab, api, allModels, crudModels, commands, event
                     ? [{ id: "set-startup", label: `Set Startup: ${activeTab}`, action: () => onProcessUpdate({ ...process, Startup: activeTab }) } as QuickPickItem]
                     : []),
                   ...(process.Startup !== activeTab
-                    ? [{ id: "delete-stage", label: `Delete Stage: ${activeTab}`, action: () => setDeleteStageTarget(activeTab) } as QuickPickItem]
+                    ? [{ id: "delete-stage", label: `Delete Stage: ${activeTab}`, action: () => handleAskDeleteStage(activeTab) } as QuickPickItem]
                     : []),
                 ]
               : []),

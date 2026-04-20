@@ -19,7 +19,7 @@ export function SystemPage() {
   const errorType = viewToErrorType(activeView);
 
   return (
-    <Group direction="horizontal" id="system-main">
+    <Group orientation="horizontal" id="system-main">
       <Panel
         defaultSize="280px"
         minSize="170px"

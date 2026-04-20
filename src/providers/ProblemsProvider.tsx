@@ -36,6 +36,10 @@ interface ProblemsContextValue {
   remove: (id: string) => void;
   clearSource: (source: string) => void;
   setSource: (source: string, problems: Problem[]) => void;
+  /** Видимость глобальной `<ProblemsPanel>` внизу приложения. */
+  panelOpen: boolean;
+  setPanelOpen: (open: boolean) => void;
+  togglePanel: () => void;
 }
 
 const Ctx = createContext<ProblemsContextValue | null>(null);
@@ -50,6 +54,8 @@ const Ctx = createContext<ProblemsContextValue | null>(null);
  */
 export function ProblemsProvider({ children }: { children: ReactNode }) {
   const [problems, setProblems] = useState<Problem[]>([]);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const togglePanel = useCallback(() => setPanelOpen((v) => !v), []);
   const indexRef = useRef<Map<string, Problem>>(new Map());
 
   const resyncFromIndex = () => {
@@ -92,8 +98,11 @@ export function ProblemsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<ProblemsContextValue>(
-    () => ({ problems, add, update, remove, clearSource, setSource }),
-    [problems, add, update, remove, clearSource, setSource],
+    () => ({
+      problems, add, update, remove, clearSource, setSource,
+      panelOpen, setPanelOpen, togglePanel,
+    }),
+    [problems, add, update, remove, clearSource, setSource, panelOpen, togglePanel],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -111,6 +120,9 @@ export function useProblems(): ProblemsContextValue {
       remove: () => {},
       clearSource: () => {},
       setSource: () => {},
+      panelOpen: false,
+      setPanelOpen: () => {},
+      togglePanel: () => {},
     };
   }
   return ctx;

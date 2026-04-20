@@ -1,20 +1,5 @@
 import type { WebProcess, WebStage } from "@/lib/ws-api-models";
-
-const STAGE_TYPE_COLORS: Record<string, string> = {
-  Start: "#5CADD5",
-  Final: "#F6511D",
-  CRUD: "seagreen",
-  CRUDDefinition: "seagreen",
-  Command: "#0FD334",
-  CommandDefinition: "#0FD334",
-  Transform: "#0F8B8D",
-  TransformDefinition: "#0F8B8D",
-  Event: "#FCA6ED",
-  EventDefinition: "#FCA6ED",
-  SubStart: "#0089ED",
-  SubDefinition: "#0089ED",
-  EndDefinition: "#F6511D",
-};
+import { STAGE_TYPE_COLORS } from "../lib/stage-colors";
 
 interface ReturnStageEntry {
   Name: string;

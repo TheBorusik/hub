@@ -1,4 +1,6 @@
 import { useWebSocket } from "@theborusik/ws-react";
+import { AlertCircle, AlertTriangle } from "lucide-react";
+import { useProblems } from "@/providers/ProblemsProvider";
 
 export function StatusBar() {
   return (
@@ -14,6 +16,8 @@ export function StatusBar() {
       }}
     >
       <WsStatus />
+      <div style={{ flex: 1 }} />
+      <ProblemsStatusItem />
     </div>
   );
 }
@@ -48,5 +52,49 @@ function WsStatus() {
       />
       {status}
     </span>
+  );
+}
+
+/**
+ * Кликабельный индикатор ProblemsPanel в StatusBar: показывает суммарное
+ * число error / warning и открывает/закрывает панель по клику.
+ * Стилизация — как в VS Code (иконка + цифра, минимум декораций).
+ */
+function ProblemsStatusItem() {
+  const { problems, panelOpen, togglePanel } = useProblems();
+  const errorCount = problems.filter((p) => p.severity === "error").length;
+  const warningCount = problems.filter((p) => p.severity === "warning").length;
+
+  return (
+    <button
+      type="button"
+      onClick={togglePanel}
+      title={
+        errorCount + warningCount === 0
+          ? "No problems (Ctrl+Shift+M to toggle panel)"
+          : `${errorCount} error${errorCount === 1 ? "" : "s"}, ${warningCount} warning${warningCount === 1 ? "" : "s"} (Ctrl+Shift+M)`
+      }
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        height: "100%",
+        padding: "0 8px",
+        border: "none",
+        background: panelOpen ? "rgba(255,255,255,0.15)" : "transparent",
+        color: "#ffffff",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+        <AlertCircle size={12} />
+        <span>{errorCount}</span>
+      </span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+        <AlertTriangle size={12} />
+        <span>{warningCount}</span>
+      </span>
+    </button>
   );
 }

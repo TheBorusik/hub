@@ -1,6 +1,23 @@
 # Hub UI redesign — контекст на завтра
 
-Снимок состояния после Block C. Всё закоммичено в `main`.
+Снимок состояния после Block D. Всё закоммичено в `main` (кроме текущего snapshot, если ещё не закоммичено).
+
+## Что сделано в Block D (UX-поведение)
+
+- **D.1 `Ctrl+P` Quick Open**: `src/components/layout/QuickOpen.tsx` — отдельный компонент (не переиспользует `CommandPalette`). Подписан глобально в `Shell` через `useHotkey(["mod+p"])`, `ignoreWhenTyping: false`, `preventDefault: true` (работает даже при фокусе в Monaco). Модуль-скоупный кэш списка процессов, retry-кнопка, empty/error states. На выбор — `navigateTo("configurator", { kind: "openProcessInConfigurator", processName })`.
+- **D.2 `<Breadcrumbs>`**: новый UI-kit примитив `src/components/ui/Breadcrumbs/`. Интегрирован в `ProcessEditor` — строит путь из `process.Name` (по `.`) + активный таб/специальный view. Сегменты с `onClick` подсвечиваются через `.breadcrumb-item-interactive`.
+- **D.3 Stages Outline**: правая collapsible-панель `src/pages/configurator/components/StagesOutline.tsx`. Показывает все стейджи процесса с типом-бейджем, dirty-точкой, флагом startup, открывает стейдж по клику. Тогглится `IconButton` в правой панели действий; состояние persist в `localStorage` (`wfm_outline`). Hotkey `Ctrl+Shift+O` открывает stages QuickPick (переназначен с `Ctrl+P`, чтобы не конфликтовать с глобальным Quick Open).
+- **D.4 Dirty-индикатор**: в custom `renderTabBar` `ConfiguratorPage` — вместо текстового префикса `● ` теперь круглая точка перед именем процесса. Цвет зависит от активности (primary/muted).
+- **D.5 Diagnostics → ProblemsPanel**:
+  - `ProblemsProvider` расширен: `panelOpen`, `setPanelOpen`, `togglePanel`.
+  - `Shell` рендерит `<ProblemsPanel>` как 4-й grid-ряд (240px) между main контентом и StatusBar; высоту регулирует `gridTemplateRows`. Глобальный хоткей `Ctrl+Shift+M` для toggle.
+  - `StatusBar` получил `ProblemsStatusItem` — clickable-кнопка с счётчиками ошибок/варнингов.
+  - `ProcessEditor.handleSave` / `handleValidateProcess` пушат `DiagnosticModel[]` + `string[]`-ошибки в `ProblemsProvider` через helper `publishCompileProblems` (source = `configurator.compile:${typeName}`, per-process). Каждая проблема имеет `onReveal`, открывающий процесс в configurator через `useNavigation`.
+  - `CodePreview.onApplyToProcess` очищает проблемы процесса (`problems.clearSource(...)`).
+  - `ConfiguratorPage.closeTab` также чистит `configurator.compile:${typeName}` в глобальном списке.
+  - DiagnosticModel не имеет `Severity` — все компиляционные проблемы публикуются как `severity: "error"`, а строковые — тоже `error`.
+
+## Снимок состояния после Block C (предыдущий)
 
 ## Что сделано сегодня (Block C, коммиты последние 4)
 
@@ -58,34 +75,89 @@ tsc + vite build — зелёные.
 
 Приоритет — по желанию. Разумный порядок:
 
-### Block D (UX-поведение)
-- `Ctrl+P` — **Quick Open process by name**. Переиспользовать `CommandPalette` или отдельный `QuickOpen`-компонент. Источник списка: catalog процессов.
-- `<Breadcrumbs>` над редактором процесса (`Catalog > SubCatalog > ProcessName > StageName`).
-- **Outline of stages** в Configurator (панель-список стейджей со скроллом / индикатором текущего).
-- **Dirty-индикатор** в `TabBar` и на вкладках стейджей (точка как в VS Code).
-- **Process diagnostics → `ProblemsProvider` → глобальная `<ProblemsPanel>`**. Нужно связать диагностику C# из Monaco с общим `ProblemsProvider` (уже подключен в App из Block B).
+### Block D — **DONE** (см. выше).
 
-### Block E (производительность)
-- `<VirtualList>` для больших панелей:
-  - `ProcessListPanel` (viewer) — может быть 500+ процессов.
-  - `GlobalModelsPanel` (configurator).
-  - `PermissionsPanel` (если много пермишенов).
-- Сплит god-компонентов:
-  - `GlobalModelsPanel`.
-  - `ConfigurationPanel`.
-  - `ProcessEditor`.
-  - `StageEditor`.
+### Block E (производительность) — **DONE**
 
-### Block F (гигиена кода)
-- ESLint-правила проекта:
-  - `no-raw-hex` — запретить hex-цвета вне токенов.
-  - `no-magic-spacing` — запретить магические px-отступы, только токены.
-  - `no-duplicate-confirm-dialog` — запретить импорт старых Confirm-диалогов.
-  - `no-monaco-theme-define` — запретить прямой `monaco.editor.defineTheme`, только через `ensureHubDarkTheme`.
-- Консолидировать 5 копий `STAGE_TYPE_COLORS` → единый импорт из `lib/stage-colors.ts`.
-- Мелочи:
-  - Переименовать `hub/src/pages/crud-editor/components/DataTable.tsx` → `CrudDataTable.tsx` (или подобное), чтобы не коллидировало с `@/components/ui/DataTable`.
-  - `DiffView.tsx` — оставлен на прямом `DiffEditor` (не на `<CodeEditor>`); если встретится, это **не бага, а решение** (см. Primary Request).
+- **E.1 `<VirtualList>`** — **done**. Примитив `src/components/ui/VirtualList`
+  на windowing по `itemHeight`. Применён в `ProcessListPanel` (viewer),
+  `PermissionsPanel`, `GlobalModelsPanel` (плоский `header + models` список
+  по категориям).
+
+- **E.2a `publishCompileProblems`** — **done**. Логика «diagnostics →
+  ProblemsProvider» вынесена в `src/pages/configurator/lib/publish-compile-problems.ts`.
+  `ProcessEditor.handleSave` / `handleValidateProcess` /
+  `CodePreview.onApplyToProcess` используют общий helper +
+  `compileProblemSourceFor(typeName)` для консистентных source-ключей.
+
+- **E.2b `GlobalModelsPanel` split** — **done**. 1022 строки → **5 файлов**:
+  - `components/GlobalModelsPanel.tsx` (266) — оркестратор (state, api,
+    хоткеи, dirty-трекинг по `originalCode.current`).
+  - `components/GlobalModelsSidebar.tsx` (270) — сайдбар с filter +
+    виртуализированным accordion.
+  - `components/GlobalModelEditor.tsx` (244) — toolbar + Monaco + Problems.
+  - `components/AddGlobalModelDialog.tsx` (207) — диалог создания.
+  - `components/CommitMessageDialog.tsx` (143) — диалог commit message.
+  - `lib/global-models.ts` (46) — `modelKey`, `categoryBadgeColor`,
+    `toDiagnostic`, `GLOBAL_MODEL_CATEGORIES`.
+
+- **E.2c `ProcessEditor` + `StageEditor` split** — **done (partial)**:
+  - **ProcessEditor**: 1115 → **856 строк**. Extractions:
+    - `components/ProcessEditorActionRail.tsx` (312) — весь правый
+      action-rail с `IconButton`-ами (Save / AutoSave / Run / Outline /
+      Pack / Unpack / Code / Diff / Usings / GM / compile-errors !
+      indicator / InitObject / Context / ProcessResult / Set Startup /
+      Go to Diagram / Delete Stage).
+    - `lib/stage-rename.ts` — `renameStageInProcess()`: чистая функция,
+      патчит `Stages`, `GetNextStage` / `GetErrorNextStage` (regex по
+      `\breturn\s+<oldName>\s*;`), `ReturnStages`, `Startup`,
+      `WebData.Stages` и `Lines[...]`.
+    - Остальное (Save / Validate / Pack / Unpack / Auto-Save / хоткеи /
+      QuickPick items) оставлено в оркестраторе — связанo со state.
+  - **StageEditor**: 756 → **515 строк**. Extractions:
+    - `components/CSharpEditor.tsx` (120) — обёртка `CodeEditor` с
+      `setupWfmCSharp` / `attachWfmContext` / `registerStageEditorActions`.
+    - `components/NextStageWithError.tsx` (119) — collapsible Panel
+      с двумя `CSharpEditor` (Get Next / Get Error Next) через
+      `react-resizable-panels`.
+    - `lib/stage-type-helpers.ts` — `normStageType`, `getDataLabel`,
+      `stageHasGetData`, `stageHasGetNextStage`, `stageHasGetErrorNextStage`,
+      `extractProcessResult`.
+
+- **`ConfigurationPanel` split** — **отложено**. Не в E.2; если дойдут
+  руки — отдельная задача. Сейчас приоритета нет.
+
+### Block F (гигиена кода) — **DONE (rules level)**
+
+- **F.1 ESLint-правила** — **done**. Локальный plugin `eslint-rules/index.js`,
+  подключён из `eslint.config.js` как `hub-ui`. Все 4 правила работают, пока
+  на уровне `warn` (есть легаси):
+  - `hub-ui/no-raw-hex` — 229 предупреждений на момент внедрения.
+  - `hub-ui/no-magic-spacing` — 352 предупреждения.
+  - `hub-ui/no-duplicate-confirm-dialog` — 4 нарушения (ProcessDiagram,
+    ProcessEditor, ConfiguratorPage, ProcessListPanel — прямой импорт
+    `<ConfirmDialog>` вместо `useConfirm`). Разрешено в `src/App.tsx`
+    (провайдер) и внутри `components/ui/ConfirmDialog/**`.
+  - `hub-ui/no-monaco-theme-define` — 1 нарушение (`wfm-csharp.ts` регистрирует
+    свою тему `"wfm-dark"`). Разрешено в `components/ui/CodeEditor/**`.
+  - Когда мигрируем легаси — ratchet `warn` → `error` в `eslint.config.js`.
+  - Правила учитывают allowlist'ы: `design-tokens`, `globals.css`,
+    `stage-colors`, `eslint-rules` — разрешено держать hex/spacing.
+
+- **F.2 Консолидация `STAGE_TYPE_COLORS`** — **done**.
+  Единая карта в `src/pages/configurator/lib/stage-colors.ts`,
+  помощники `stageColor()` и `stageTypeLabel()`. Все 7 файлов
+  (`ProcessEditor`, `StagesOutline`, `StageEditor`, `StageList`,
+  `ProcessDiagram`, `AddStageDialog`, `recomputeReturnStages`) импортируют
+  оттуда.
+
+- **F.3 Переименовать `crud-editor/components/DataTable.tsx`** — **done**.
+  Файл → `CrudDataTable.tsx`, компонент → `CrudDataTable`, props →
+  `CrudDataTableProps`. Импорт в `CrudEditorPage` обновлён. Больше не
+  коллидирует с `@/components/ui/DataTable` (UI-kit).
+
+- `DiffView.tsx` — оставлен на прямом `DiffEditor` (не на `<CodeEditor>`);
+  если встретится, это **не бага, а решение** (см. Primary Request).
 
 ## Полезные места в коде
 
@@ -94,6 +166,27 @@ tsc + vite build — зелёные.
 - Дизайн-токены: `hub/src/lib/design-tokens.ts`.
 - Monaco-тема: `hub/src/components/ui/CodeEditor/CodeEditor.tsx` (`ensureHubDarkTheme`) + WFM C# setup `hub/src/pages/configurator/monaco/setupWfmCSharp.ts` (если там).
 - App root с провайдерами: `hub/src/App.tsx` — `ToastProvider → NotificationsProvider → ProblemsProvider → ConfirmProvider → MonacoProvider → ContourProvider → Shell`.
+
+## Block G — `react-resizable-panels` v4 миграция — **DONE**
+
+Ранее был долг: ~15 TS-ошибок из‑за устаревшего API (`direction`, `autoSaveId`, `defaultSizePercentage`, `minSizePercentage`). Сейчас:
+
+- `Group direction="horizontal"` → `Group orientation="horizontal"` (в `SystemPage`, `SectionsPanel`, `ConfigurationPanel` ×2, `BuildRulesEditor`).
+- `Group autoSaveId="key"` → `Group id="key" {...useAutoSaveLayout("key")}`. Хук **`src/hooks/useAutoSaveLayout.ts`** читает `defaultLayout` из `localStorage["rrp:layout:<id>"]` один раз (через `useMemo`) и возвращает стабильный `onLayoutChanged`-writer. Применён в `ConfiguratorPage` (`cfg-side-v4`), `StageEditor` (`stage-h-<stageName>`), `NextStageWithError` (`stage-v2-<stageName>`). Persistence layout не потерялся — ключ `localStorage` другой, но формат сопоставим: `{ [panelId]: percentage }`.
+- `Panel defaultSizePercentage={50}` / `minSizePercentage={20}` → `Panel defaultSize={50}` / `minSize={20}` (в `StageEditor`). В v4 число без единиц = проценты.
+- `Panel id="..."` проставлен явно там, где `Group` живёт с `useAutoSaveLayout` — чтобы ключи layout были стабильными между релизами.
+- `Separator` (наш `ResizeHandle`) — API сохранён, `direction` осталась пропом обёртки (переключает CSS-класс), `react-resizable-panels` `Separator` сам получает orientation от родительского `Group`.
+
+Также подчищен накопленный легаси TS6133:
+
+- `BranchSelector.tsx` — удалены неиспользуемые `Upload`, `Trash2` из `lucide-react`.
+- `ConfiguratorPage.tsx` — удалён неиспользуемый импорт `SidePanel`.
+- `PermissionDialog.tsx` — `[strId, setStrId]` → `[strId]`, setter был мёртвый (нет input'а для StrId).
+- `ProcessTree.tsx` — небезопасный cast `ProcessModel → Record<string, unknown>` обёрнут в `unknown`-шлюз с пояснением, почему он нужен.
+
+**`npx tsc -b` сейчас даёт 0 ошибок. `vite build` — зелёный (дaёт только warning о размере bundle, не ошибка).**
+
+Мои файлы Block D (`QuickOpen`, `Breadcrumbs`, `StagesOutline`, `ProblemsPanel` wiring, `ProcessEditor` publishCompileProblems) — чисты. `HealthTable` поправлен (типобезопасная сортировка, исключая `__actions`).
 
 ## Правила репозитория
 

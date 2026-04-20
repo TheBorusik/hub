@@ -6,7 +6,7 @@ import {
   Save,
   Plus,
   List,
-  X,
+  Loader2,
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
@@ -16,6 +16,8 @@ import { TestCasesPanel, AddTestCasePanel } from "./components/TestCasesPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { SidePanel } from "@/components/layout/SidePanel";
+import { Tabs } from "@/components/ui/Tabs";
+import { t } from "@/lib/design-tokens";
 import { useContourApi } from "@/lib/ws-api";
 import type {
   SelectedCommand,
@@ -328,69 +330,60 @@ export function CommandTesterPage() {
         <Panel id="editor" minSize="30%">
           <div className="flex flex-col h-full overflow-hidden">
             {/* Editor Tabs */}
-            <div
-              className="flex items-center shrink-0 select-none overflow-x-auto bg-tab-inactive"
-              style={{ height: 35, borderBottom: "1px solid var(--color-border)" }}
-            >
-              {tabs.map((tab) => {
-                const isActive = tab.id === activeTabId;
-                const label = tab.command.data.CommandName || tab.command.label;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTabId(tab.id)}
-                    className="flex items-center shrink-0 cursor-pointer border-none"
-                    style={{
-                      height: 35,
-                      padding: "0 10px",
-                      gap: 6,
-                      fontSize: 13,
-                      background: isActive ? "var(--color-tab-active)" : "transparent",
-                      color: isActive ? "var(--color-text-active)" : "var(--color-text-muted)",
-                      borderRight: "1px solid var(--color-border)",
-                      ...(isActive ? { borderBottom: "1px solid var(--color-tab-active)" } : {}),
-                    }}
-                    title={tab.command.data.CommandName}
-                  >
-                    {tab.sending && (
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-warning)" }} className="animate-pulse shrink-0" />
-                    )}
-                    <span className="truncate" style={{ maxWidth: 200 }}>{label}</span>
-                    <span
-                      onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                      className="flex items-center justify-center shrink-0 toolbar-btn"
-                      style={{ width: 20, height: 20, padding: 2 }}
-                    >
-                      <X size={16} />
-                    </span>
-                  </button>
-                );
-              })}
-              {tabs.length === 0 && (
-                <span style={{ padding: "0 12px", fontSize: 13, color: "var(--color-text-muted)" }}>
-                  Select a command from the tree
-                </span>
-              )}
-
-              {activeTab && (
-                <div className="flex items-center ml-auto shrink-0" style={{ paddingRight: 8, gap: 4 }}>
-                  {activeTab.duration && (
-                    <span style={{ fontSize: 11, color: "var(--color-text-muted)", marginRight: 4 }}>
-                      {activeTab.duration}
-                    </span>
-                  )}
-                  {activeTab.sending ? (
-                    <button onClick={handleCancel} className="toolbar-btn" title="Cancel" style={{ color: "#f48771" }}>
-                      <Square size={16} />
-                    </button>
-                  ) : (
-                    <button onClick={handleSend} className="toolbar-btn" title="Send (Ctrl+Enter)" style={{ color: "#89d185" }}>
-                      <Play size={16} />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            {tabs.length === 0 ? (
+              <div
+                className="flex items-center shrink-0 select-none"
+                style={{
+                  height: 35,
+                  borderBottom: `1px solid ${t.color.border.default}`,
+                  background: t.color.bg.sidebar,
+                  padding: `0 ${t.space[3]}`,
+                  fontSize: 13,
+                  color: t.color.text.muted,
+                }}
+              >
+                Select a command from the tree
+              </div>
+            ) : (
+              <Tabs
+                variant="chrome"
+                aria-label="Command tester tabs"
+                items={tabs.map((tab) => {
+                  const label = tab.command.data.CommandName || tab.command.label;
+                  return {
+                    id: tab.id,
+                    label: <span className="truncate" style={{ maxWidth: 200 }}>{label}</span>,
+                    icon: tab.sending ? <Loader2 size={12} className="animate-spin" /> : undefined,
+                    closable: true,
+                    title: tab.command.data.CommandName,
+                  };
+                })}
+                activeId={activeTabId ?? tabs[0].id}
+                onChange={(id) => setActiveTabId(id)}
+                onClose={closeTab}
+                style={{ background: t.color.bg.sidebar }}
+                addon={
+                  activeTab ? (
+                    <div className="flex items-center shrink-0" style={{ paddingRight: t.space[2], gap: t.space[1] }}>
+                      {activeTab.duration && (
+                        <span style={{ fontSize: 11, color: t.color.text.muted, marginRight: t.space[1] }}>
+                          {activeTab.duration}
+                        </span>
+                      )}
+                      {activeTab.sending ? (
+                        <button type="button" onClick={handleCancel} className="toolbar-btn" title="Cancel" style={{ color: t.color.danger }}>
+                          <Square size={16} />
+                        </button>
+                      ) : (
+                        <button type="button" onClick={handleSend} className="toolbar-btn" title="Send (Ctrl+Enter)" style={{ color: t.color.success }}>
+                          <Play size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ) : undefined
+                }
+              />
+            )}
 
             {/* Editor Content */}
             {activeTab ? (

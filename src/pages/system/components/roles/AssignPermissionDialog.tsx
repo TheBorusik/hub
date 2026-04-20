@@ -1,5 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
-import { X, Search } from "lucide-react";
+import { useState, useEffect, useMemo, type CSSProperties } from "react";
+import { Search } from "lucide-react";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { t } from "@/lib/design-tokens";
 import type { HubWsApi } from "@/lib/ws-api";
 import type { Permission } from "../../types";
 
@@ -10,6 +13,18 @@ interface AssignPermissionDialogProps {
   onClose: () => void;
   onDone: () => void;
 }
+
+const searchStyle: CSSProperties = {
+  background: "var(--color-input-bg)",
+  border: "1px solid var(--color-border)",
+  color: "var(--color-text)",
+  fontSize: 12,
+  padding: "2px 6px",
+  height: 22,
+  flex: 1,
+  borderRadius: 3,
+  outline: "none",
+};
 
 export function AssignPermissionDialog({ roleId, existingIds, api, onClose, onDone }: AssignPermissionDialogProps) {
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -53,19 +68,25 @@ export function AssignPermissionDialog({ roleId, existingIds, api, onClose, onDo
   };
 
   return (
-    <div style={overlayBg}>
-      <div style={{ ...dialogStyle, width: 460, maxHeight: "70vh", display: "flex", flexDirection: "column" }}>
-        <div className="flex items-center justify-between" style={{ marginBottom: 12, flexShrink: 0 }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Assign Permissions</span>
-          <button onClick={onClose} disabled={submitting} className="toolbar-btn"><X size={14} /></button>
-        </div>
-
-        <div className="flex items-center gap-1" style={{ marginBottom: 8, flexShrink: 0 }}>
+    <Modal
+      open
+      onClose={onClose}
+      size="md"
+      style={{ width: 460, maxWidth: "min(460px, 92vw)", maxHeight: "min(70vh, 720px)" }}
+    >
+      <Modal.Header title="Assign Permissions" />
+      <Modal.Body>
+        <div className="flex items-center gap-1" style={{ marginBottom: t.space[2] }}>
           <Search size={14} style={{ color: "var(--color-text-muted)" }} />
-          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter permissions..." style={searchStyle} />
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter permissions..."
+            style={searchStyle}
+          />
         </div>
 
-        <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+        <div style={{ maxHeight: "min(45vh, 400px)", overflow: "auto" }}>
           {loading && <div style={{ color: "var(--color-text-muted)", fontSize: 12, padding: 12 }}>Loading...</div>}
           {available.map((p) => (
             <label
@@ -79,23 +100,27 @@ export function AssignPermissionDialog({ roleId, existingIds, api, onClose, onDo
             </label>
           ))}
           {!loading && available.length === 0 && (
-            <div style={{ color: "var(--color-text-muted)", fontSize: 12, padding: 12, textAlign: "center" }}>No available permissions</div>
+            <div style={{ color: "var(--color-text-muted)", fontSize: 12, padding: 12, textAlign: "center" }}>
+              No available permissions
+            </div>
           )}
         </div>
-
-        <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 12, flexShrink: 0 }}>
-          <button onClick={onClose} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
-          <button onClick={handleAssign} disabled={submitting || selectedIds.size === 0} style={primaryBtnStyle}>
-            {submitting ? "Assigning..." : `Assign (${selectedIds.size})`}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" size="sm" type="button" onClick={onClose} disabled={submitting}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          type="button"
+          onClick={() => { void handleAssign(); }}
+          disabled={submitting || selectedIds.size === 0}
+          busy={submitting}
+        >
+          {submitting ? "Assigning..." : `Assign (${selectedIds.size})`}
+        </Button>
+      </Modal.Footer>
+    </Modal>
   );
 }
-
-const searchStyle: React.CSSProperties = { background: "var(--color-input-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)", fontSize: 12, padding: "2px 6px", height: 22, flex: 1, borderRadius: 3, outline: "none" };
-const overlayBg: React.CSSProperties = { position: "absolute", inset: 0, zIndex: 20, backgroundColor: "rgba(0,0,0,0.3)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 60 };
-const dialogStyle: React.CSSProperties = { backgroundColor: "var(--color-sidebar)", border: "1px solid var(--color-border)", borderRadius: 6, padding: 20, minWidth: 340, boxShadow: "0 4px 24px rgba(0,0,0,0.4)" };
-const cancelBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "none", border: "1px solid var(--color-border)", color: "var(--color-text-muted)", borderRadius: 3, cursor: "pointer" };
-const primaryBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "#0e639c", border: "none", color: "#fff", borderRadius: 3, cursor: "pointer" };

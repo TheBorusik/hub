@@ -1,82 +1,32 @@
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  useMemo,
-  type CSSProperties,
-} from "react";
-import { createPortal } from "react-dom";
-import type { Monaco } from "@monaco-editor/react";
-import type { editor as MonacoEditor } from "monaco-editor";
-import { CodeEditor, type CodeEditorMarker } from "@/components/ui/CodeEditor";
-import {
-  RefreshCw,
-  Plus,
-  X,
-  ChevronDown,
-  ChevronRight,
-  Folder,
-  FolderOpen,
-  Save,
-  FileCheck,
-  Wand2,
-  GitCommitHorizontal,
-  AlertCircle,
-  Search,
-  FileCode2,
-  Loader2,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus, FileCode2 } from "lucide-react";
 import type { HubWsApi } from "@/lib/ws-api";
 import type { WebGlobalModel, DiagnosticModel } from "@/lib/ws-api-models";
-import { setupWfmCSharp } from "../monaco/wfm-csharp";
-import { useToast } from "@/providers/ToastProvider";
-import { PanelHeader } from "@/components/ui/PanelHeader";
-import { PanelToolbar } from "@/components/ui/PanelToolbar";
-import { Button, IconButton } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { EmptyState as UIEmptyState } from "@/components/ui/EmptyState";
-import { CountBadge } from "@/components/ui/CountBadge";
-import { StatusDot } from "@/components/ui/StatusDot";
-import { t as tok } from "@/lib/design-tokens";
+import { useToast } from "@/providers/ToastProvider";
+import { modelKey, toDiagnostic } from "../lib/global-models";
+import { GlobalModelsSidebar } from "./GlobalModelsSidebar";
+import { GlobalModelEditor, type GlobalModelBusyState } from "./GlobalModelEditor";
+import { AddGlobalModelDialog } from "./AddGlobalModelDialog";
+import { CommitMessageDialog } from "./CommitMessageDialog";
 
 interface GlobalModelsPanelProps {
   api: HubWsApi;
 }
 
-const CATEGORIES = ["MODEL", "HELPER", "CRUD"] as const;
-
-/** Нормализация `DiagnosticModel` либо строки в diagnostic. */
-function toDiagnostic(e: DiagnosticModel | string): DiagnosticModel {
-  if (typeof e === "string") {
-    return {
-      Text: e,
-      Message: e,
-      StartLine: 1,
-      EndLine: 1,
-      StartColumn: 1,
-      EndColumn: 1,
-    };
-  }
-  return e;
-}
-
-/** Ключ модели — Category+TypeName, чтобы различать записи с одинаковыми именами в разных категориях. */
-const modelKey = (m: Pick<WebGlobalModel, "Category" | "TypeName">) =>
-  `${m.Category}::${m.TypeName}`;
-
-function categoryBadgeColor(cat: string): string {
-  switch (cat) {
-    case "HELPER":
-      return "#dcdcaa";
-    case "MODEL":
-      return "#9cdcfe";
-    case "CRUD":
-      return "#ce9178";
-    default:
-      return "#999";
-  }
-}
-
+/**
+ * Оркестратор Global Models: хранит список моделей, выбранную модель, filter,
+ * collapsed состояние категорий, busy-флаги, диагностики и снимки оригинального
+ * кода (для dirty-трекинга).
+ *
+ * Рендерит:
+ *  - `<GlobalModelsSidebar>` — левая панель со списком (виртуализирована).
+ *  - `<GlobalModelEditor>` — правая часть с CodeEditor (или EmptyState).
+ *  - `<AddGlobalModelDialog>` / `<CommitMessageDialog>` — модалки.
+ *
+ * Глобальные хоткеи: `Ctrl+S` сохранить, `Shift+Alt+F` форматировать.
+ */
 export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
   const toast = useToast();
   const [models, setModels] = useState<WebGlobalModel[]>([]);
@@ -86,13 +36,13 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
   const [showAdd, setShowAdd] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [diagnostics, setDiagnostics] = useState<DiagnosticModel[]>([]);
-  const [busy, setBusy] = useState<"idle" | "saving" | "validating" | "formatting" | "committing">("idle");
+  const [busy, setBusy] = useState<GlobalModelBusyState>("idle");
   const [commitOpen, setCommitOpen] = useState(false);
 
   // Снимки «оригинального» кода для dirty-трекинга (по ключу Category::TypeName).
-  const originalCode = useRef<Record<string, string>>({});
-  const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
-  const monacoRef = useRef<Monaco | null>(null);
+  // Держим в state, а не в ref: ререндер нужен, чтобы сбросить `Save` и точку в sidebar
+  // после успешного сохранения (иначе мутация ref не триггерит пересчёт `isDirty`).
+  const [originalCode, setOriginalCode] = useState<Record<string, string>>({});
 
   const load = useCallback(
     async (preserveSelection = false, selectAfterLoad?: { Category: string; TypeName: string }) => {
@@ -101,10 +51,9 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
         const res = await api.getGlobalModels();
         const list = res.GlobalModels ?? [];
         setModels(list);
-        // Обновляем снимки оригинального кода.
         const snaps: Record<string, string> = {};
         for (const m of list) snaps[modelKey(m)] = m.Code ?? "";
-        originalCode.current = snaps;
+        setOriginalCode(snaps);
 
         const explicitKey = selectAfterLoad ? modelKey(selectAfterLoad) : null;
         if (explicitKey && list.some((m) => modelKey(m) === explicitKey)) {
@@ -130,28 +79,6 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Группировка моделей по Category (в фиксированном порядке: MODEL, HELPER, CRUD, остальные по алфавиту).
-  const grouped = useMemo(() => {
-    const f = filter.trim().toLowerCase();
-    const byCat = new Map<string, WebGlobalModel[]>();
-    for (const m of models) {
-      if (f && !m.TypeName.toLowerCase().includes(f)) continue;
-      const arr = byCat.get(m.Category) ?? [];
-      arr.push(m);
-      byCat.set(m.Category, arr);
-    }
-    const knownOrder = CATEGORIES as readonly string[];
-    const allCats = Array.from(byCat.keys());
-    const ordered = [
-      ...knownOrder.filter((c) => byCat.has(c)),
-      ...allCats.filter((c) => !knownOrder.includes(c)).sort(),
-    ];
-    return ordered.map((cat) => ({
-      Category: cat,
-      Models: (byCat.get(cat) ?? []).slice().sort((a, b) => a.TypeName.localeCompare(b.TypeName)),
-    }));
-  }, [models, filter]);
-
   const selected = useMemo(
     () => models.find((m) => modelKey(m) === selectedKey) ?? null,
     [models, selectedKey],
@@ -159,10 +86,9 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
 
   const isDirty = useMemo(() => {
     if (!selected) return false;
-    return (originalCode.current[modelKey(selected)] ?? "") !== (selected.Code ?? "");
-  }, [selected]);
+    return (originalCode[modelKey(selected)] ?? "") !== (selected.Code ?? "");
+  }, [selected, originalCode]);
 
-  // Обновляем код выбранной модели в стейте (редактирование).
   const updateSelectedCode = useCallback((next: string) => {
     setSelectedKey((curKey) => {
       if (!curKey) return curKey;
@@ -173,22 +99,7 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
     setDiagnostics([]);
   }, []);
 
-  // Диагностики → формат CodeEditor (единый рендер через markers prop).
-  const codeMarkers = useMemo<CodeEditorMarker[]>(
-    () =>
-      diagnostics.map((d) => ({
-        severity: "error",
-        message: d.Message || d.Text,
-        startLineNumber: Math.max(1, d.StartLine),
-        startColumn: Math.max(1, d.StartColumn),
-        endLineNumber: Math.max(1, d.EndLine || d.StartLine),
-        endColumn: Math.max(1, d.EndColumn || d.StartColumn + 1),
-        source: "wfm",
-      })),
-    [diagnostics],
-  );
-
-  // Сброс маркеров при смене выбранной модели (подсветка ошибок — только для текущей).
+  // Сброс маркеров при смене выбранной модели.
   useEffect(() => {
     setDiagnostics([]);
   }, [selectedKey]);
@@ -197,7 +108,13 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
     if (!selected) return;
     setBusy("validating");
     try {
-      const res = await api.validateGlobalModel(selected.Code ?? "");
+      // Серверу нужен весь `WebGlobalModel` (Category+TypeName+Code), а не только код,
+      // иначе `ValidateGlobalModelCommand.Model` == null → NRE в хендлере.
+      const res = await api.validateGlobalModel({
+        Category: selected.Category,
+        TypeName: selected.TypeName,
+        Code: selected.Code ?? "",
+      });
       setDiagnostics((res.Errors ?? []).map(toDiagnostic));
       if (!res.Errors || res.Errors.length === 0) {
         toast.push("success", "Syntax valid", { duration: 1800 });
@@ -235,8 +152,9 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
       const errs = (res?.Errors ?? []).map(toDiagnostic);
       setDiagnostics(errs);
       if (errs.length === 0) {
-        // Успех — фиксируем снимок как новый оригинал.
-        originalCode.current[modelKey(selected)] = selected.Code ?? "";
+        const savedCode = selected.Code ?? "";
+        const savedKey = modelKey(selected);
+        setOriginalCode((prev) => ({ ...prev, [savedKey]: savedCode }));
         toast.push("success", `Saved: ${selected.TypeName}`, { duration: 1800 });
       } else {
         toast.push("warning", `Saved with ${errs.length} error(s)`, { duration: 2500 });
@@ -284,379 +202,39 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [selected, handleSave, handleFormat]);
 
-  // Переход на строку ошибки из Problems panel.
-  const jumpToDiagnostic = useCallback((d: DiagnosticModel) => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    const line = Math.max(1, d.StartLine);
-    const col = Math.max(1, d.StartColumn);
-    editor.revealPositionInCenter({ lineNumber: line, column: col });
-    editor.setPosition({ lineNumber: line, column: col });
-    editor.focus();
+  const toggleCollapsed = useCallback((category: string) => {
+    setCollapsed((prev) => ({ ...prev, [category]: !prev[category] }));
   }, []);
 
   return (
     <div className="flex h-full" style={{ minHeight: 0 }}>
-      {/* Left: sidebar with accordion list */}
-      <div
-        className="flex flex-col shrink-0"
-        style={{
-          width: 260,
-          borderRight: "1px solid var(--color-border)",
-          background: "var(--color-sidebar)",
-          minHeight: 0,
-        }}
-      >
-        {/* Header */}
-        <PanelHeader
-          title="Global Models"
-          actions={
-            <>
-              <IconButton
-                icon={loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                label="Refresh"
-                size="xs"
-                onClick={() => void load(true)}
-                disabled={loading}
-              />
-              <IconButton
-                icon={<Plus size={12} />}
-                label="Add global model"
-                size="xs"
-                onClick={() => setShowAdd(true)}
-              />
-            </>
-          }
-        />
+      <GlobalModelsSidebar
+        models={models}
+        loading={loading}
+        filter={filter}
+        onFilterChange={setFilter}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
+        selectedKey={selectedKey}
+        onSelect={setSelectedKey}
+        originalCodeSnap={originalCode}
+        onRefresh={() => void load(true)}
+        onAdd={() => setShowAdd(true)}
+      />
 
-        {/* Filter */}
-        <div
-          className="shrink-0"
-          style={{ padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}
-        >
-          <div style={{ position: "relative" }}>
-            <Search
-              size={12}
-              style={{
-                position: "absolute",
-                left: 6,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "var(--color-text-muted)",
-                pointerEvents: "none",
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Filter..."
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              style={{
-                width: "100%",
-                background: "var(--color-surface-400)",
-                border: "1px solid var(--color-border)",
-                borderRadius: 3,
-                padding: "3px 6px 3px 22px",
-                fontSize: 12,
-                color: "var(--color-text-primary)",
-                outline: "none",
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Accordion list */}
-        <div className="flex-1 overflow-auto" style={{ fontSize: 12 }}>
-          {grouped.length === 0 && (
-            <UIEmptyState
-              dense
-              title={loading ? "Loading…" : "No models"}
-              hint={loading ? undefined : "Add a new class or change the filter"}
-            />
-          )}
-          {grouped.map((g) => {
-            const isCollapsed = collapsed[g.Category] === true;
-            return (
-              <div key={g.Category}>
-                <button
-                  className="flex items-center w-full"
-                  onClick={() =>
-                    setCollapsed((prev) => ({ ...prev, [g.Category]: !isCollapsed }))
-                  }
-                  style={{
-                    padding: "3px 6px",
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--color-text-primary)",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                    fontSize: 11,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.3,
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "var(--color-list-hover)")
-                  }
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  {isCollapsed ? (
-                    <ChevronRight
-                      size={14}
-                      style={{ flexShrink: 0, opacity: 0.6, marginRight: 2 }}
-                    />
-                  ) : (
-                    <ChevronDown
-                      size={14}
-                      style={{ flexShrink: 0, opacity: 0.6, marginRight: 2 }}
-                    />
-                  )}
-                  {isCollapsed ? (
-                    <Folder
-                      size={13}
-                      style={{ flexShrink: 0, color: "#dcb67a", marginRight: 6 }}
-                    />
-                  ) : (
-                    <FolderOpen
-                      size={13}
-                      style={{ flexShrink: 0, color: "#dcb67a", marginRight: 6 }}
-                    />
-                  )}
-                  <span style={{ flex: 1, textAlign: "left" }}>{g.Category}</span>
-                  <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>
-                    {g.Models.length}
-                  </span>
-                </button>
-                {!isCollapsed &&
-                  g.Models.map((m) => {
-                    const k = modelKey(m);
-                    const isSelected = k === selectedKey;
-                    const dirty = (originalCode.current[k] ?? "") !== (m.Code ?? "");
-                    return (
-                      <div
-                        key={k}
-                        className="flex items-center"
-                        style={{
-                          padding: "2px 6px 2px 30px",
-                          cursor: "pointer",
-                          background: isSelected
-                            ? "rgba(14,99,156,0.35)"
-                            : "transparent",
-                          color: isSelected
-                            ? "#fff"
-                            : "var(--color-text-primary)",
-                          fontFamily: "'Consolas','Courier New',monospace",
-                        }}
-                        onClick={() => setSelectedKey(k)}
-                        onMouseEnter={(e) => {
-                          if (!isSelected)
-                            e.currentTarget.style.background = "var(--color-list-hover)";
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isSelected)
-                            e.currentTarget.style.background = "transparent";
-                        }}
-                      >
-                        <FileCode2
-                          size={12}
-                          style={{
-                            flexShrink: 0,
-                            color: isSelected ? "#fff" : "var(--color-text-muted)",
-                            marginRight: 5,
-                          }}
-                        />
-                        <span
-                          style={{
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            flex: 1,
-                          }}
-                        >
-                          {m.TypeName}
-                        </span>
-                        {dirty && (
-                          <span
-                            title="Unsaved changes"
-                            style={{
-                              marginLeft: 6,
-                              color: isSelected ? "#fff" : "var(--color-accent)",
-                              fontSize: 14,
-                              lineHeight: 1,
-                            }}
-                          >
-                            ●
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Right: main content */}
       <div className="flex-1 flex flex-col min-w-0" style={{ minHeight: 0 }}>
         {selected ? (
-          <>
-            {/* Top bar */}
-            <PanelToolbar
-              dense
-              left={
-                <span style={{ display: "inline-flex", alignItems: "center", gap: tok.space[3], minWidth: 0 }}>
-                  <FileCode2 size={14} style={{ color: tok.color.accent, flexShrink: 0 }} />
-                  <span
-                    style={{
-                      fontSize: tok.font.size.md,
-                      fontWeight: 600,
-                      color: tok.color.text.primary,
-                      fontFamily: "'Consolas','Courier New',monospace",
-                    }}
-                  >
-                    {selected.TypeName}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 9,
-                      padding: "1px 5px",
-                      borderRadius: tok.radius.sm,
-                      background: categoryBadgeColor(selected.Category),
-                      color: "#1e1e1e",
-                      fontWeight: 700,
-                      lineHeight: "14px",
-                      letterSpacing: 0.4,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {selected.Category}
-                  </span>
-                  {isDirty && <StatusDot tone="accent" size={10} title="Unsaved changes" />}
-                </span>
-              }
-              right={
-                <>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon={busy === "validating" ? <Loader2 size={13} className="animate-spin" /> : <FileCheck size={13} />}
-                    onClick={handleValidate}
-                    disabled={busy !== "idle"}
-                    title="Validate (Ctrl+Shift+V)"
-                  >
-                    Validate
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon={busy === "formatting" ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
-                    onClick={handleFormat}
-                    disabled={busy !== "idle"}
-                    title="Format (Shift+Alt+F)"
-                  >
-                    Format
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={isDirty ? "primary" : "secondary"}
-                    icon={busy === "saving" ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                    onClick={handleSave}
-                    disabled={busy !== "idle" || !isDirty}
-                    title="Save (Ctrl+S)"
-                  >
-                    Save
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon={<GitCommitHorizontal size={13} />}
-                    onClick={() => setCommitOpen(true)}
-                    disabled={busy !== "idle"}
-                    title="Commit"
-                  >
-                    Commit
-                  </Button>
-                </>
-              }
-            />
-
-            {/* Editor */}
-            <div className="flex-1 min-h-0" style={{ background: "var(--color-editor)" }}>
-              <CodeEditor
-                path={`inmemory://global/${selected.Category}/${selected.TypeName}.cs`}
-                language="csharp"
-                value={selected.Code ?? ""}
-                onChange={updateSelectedCode}
-                theme="wfm-dark"
-                markers={codeMarkers}
-                markerOwner="wfm-global"
-                beforeMount={setupWfmCSharp}
-                onMount={(ed, m) => {
-                  editorRef.current = ed;
-                  monacoRef.current = m;
-                }}
-                options={{
-                  fontSize: 13,
-                  padding: { top: 6 },
-                  acceptSuggestionOnEnter: "smart",
-                  tabCompletion: "on",
-                }}
-              />
-            </div>
-
-            {/* Problems panel */}
-            {diagnostics.length > 0 && (
-              <div
-                className="shrink-0"
-                style={{
-                  maxHeight: 140,
-                  overflowY: "auto",
-                  borderTop: `1px solid ${tok.color.border.default}`,
-                  background: tok.color.bg.sidebar,
-                  fontSize: tok.font.size.xs,
-                }}
-              >
-                <PanelHeader
-                  title="Problems"
-                  icon={<AlertCircle size={12} style={{ color: tok.color.danger }} />}
-                  badge={<CountBadge value={diagnostics.length} tone="danger" />}
-                />
-                {diagnostics.map((d, i) => (
-                  <button
-                    key={i}
-                    onClick={() => jumpToDiagnostic(d)}
-                    className="flex items-start w-full"
-                    style={{
-                      padding: "3px 10px",
-                      background: "transparent",
-                      border: "none",
-                      color: "var(--color-text-primary)",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      gap: 6,
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "var(--color-list-hover)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
-                  >
-                    <AlertCircle
-                      size={12}
-                      style={{ color: "#f48771", flexShrink: 0, marginTop: 2 }}
-                    />
-                    <span style={{ flex: 1, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                      {d.Message || d.Text}
-                    </span>
-                    <span style={{ color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
-                      [{d.StartLine}:{d.StartColumn}]
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
+          <GlobalModelEditor
+            model={selected}
+            onCodeChange={updateSelectedCode}
+            diagnostics={diagnostics}
+            isDirty={isDirty}
+            busy={busy}
+            onValidate={handleValidate}
+            onFormat={handleFormat}
+            onSave={handleSave}
+            onOpenCommit={() => setCommitOpen(true)}
+          />
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <UIEmptyState
@@ -694,327 +272,5 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
         />
       )}
     </div>
-  );
-}
-
-function AddGlobalModelDialog({
-  api,
-  existingNames,
-  onClose,
-  onAdded,
-}: {
-  api: HubWsApi;
-  existingNames: Set<string>;
-  onClose: () => void;
-  onAdded: (m: { Category: string; TypeName: string }) => void;
-}) {
-  const toast = useToast();
-  const [category, setCategory] = useState<string>("MODEL");
-  const [typeName, setTypeName] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const trimmed = typeName.trim();
-  const isValidId = /^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed);
-  const duplicate = isValidId && existingNames.has(`${category}::${trimmed}`);
-  const canSave = isValidId && !duplicate && !saving;
-
-  const handleSave = useCallback(async () => {
-    if (!canSave) return;
-    setSaving(true);
-    try {
-      await api.addGlobalModel({ Category: category, TypeName: trimmed, Code: "" }, true);
-      onAdded({ Category: category, TypeName: trimmed });
-    } catch (e) {
-      toast.push("error", "Add failed", { detail: String(e) });
-      setSaving(false);
-    }
-  }, [api, canSave, category, onAdded, toast, trimmed]);
-
-  const inputStyle: CSSProperties = {
-    width: "100%",
-    background: "var(--color-surface-400)",
-    border: "1px solid var(--color-border)",
-    borderRadius: 3,
-    padding: "4px 8px",
-    fontSize: 12,
-    color: "var(--color-text-primary)",
-    outline: "none",
-  };
-
-  return createPortal(
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-      }}
-      onMouseDown={onClose}
-    >
-      <div
-        style={{
-          background: "var(--color-sidebar)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 6,
-          width: 420,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div
-          className="flex items-center justify-between shrink-0"
-          style={{ padding: "8px 14px", borderBottom: "1px solid var(--color-border)" }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)" }}>
-            Add Global Model
-          </span>
-          <button className="toolbar-btn" onClick={onClose}>
-            <X size={14} />
-          </button>
-        </div>
-
-        <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div>
-            <label
-              style={{
-                fontSize: 11,
-                color: "var(--color-text-muted)",
-                fontWeight: 600,
-                display: "block",
-                marginBottom: 4,
-                textTransform: "uppercase",
-                letterSpacing: 0.4,
-              }}
-            >
-              Category
-            </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              style={inputStyle}
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label
-              style={{
-                fontSize: 11,
-                color: "var(--color-text-muted)",
-                fontWeight: 600,
-                display: "block",
-                marginBottom: 4,
-                textTransform: "uppercase",
-                letterSpacing: 0.4,
-              }}
-            >
-              Type Name
-            </label>
-            <input
-              autoFocus
-              style={inputStyle}
-              value={typeName}
-              onChange={(e) => setTypeName(e.target.value)}
-              placeholder="e.g. DateHelper"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && canSave) {
-                  e.preventDefault();
-                  void handleSave();
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
-                  onClose();
-                }
-              }}
-            />
-            {trimmed && !isValidId && (
-              <div style={{ fontSize: 11, color: "#f48771", marginTop: 4 }}>
-                Must be a valid C# identifier (letters/digits/underscore, cannot start with a digit)
-              </div>
-            )}
-            {duplicate && (
-              <div style={{ fontSize: 11, color: "#f48771", marginTop: 4 }}>
-                "{trimmed}" already exists in {category}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div
-          className="flex items-center justify-end gap-2 shrink-0"
-          style={{ padding: "8px 14px", borderTop: "1px solid var(--color-border)" }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              padding: "4px 14px",
-              fontSize: 12,
-              borderRadius: 3,
-              border: "1px solid var(--color-border)",
-              background: "transparent",
-              color: "var(--color-text-primary)",
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!canSave}
-            style={{
-              padding: "4px 14px",
-              fontSize: 12,
-              borderRadius: 3,
-              border: "none",
-              background: canSave ? "var(--color-accent)" : "var(--color-surface-400)",
-              color: "#fff",
-              cursor: canSave ? "pointer" : "not-allowed",
-              opacity: canSave ? 1 : 0.6,
-            }}
-          >
-            {saving ? "Adding..." : "Add"}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-function CommitMessageDialog({
-  typeName,
-  busy,
-  onCancel,
-  onCommit,
-}: {
-  typeName: string;
-  busy: boolean;
-  onCancel: () => void;
-  onCommit: (message: string) => void;
-}) {
-  const [message, setMessage] = useState(`Update ${typeName}`);
-  const canCommit = message.trim().length > 0 && !busy;
-
-  return createPortal(
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-      }}
-      onMouseDown={onCancel}
-    >
-      <div
-        style={{
-          background: "var(--color-sidebar)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 6,
-          width: 420,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div
-          className="flex items-center justify-between shrink-0"
-          style={{ padding: "8px 14px", borderBottom: "1px solid var(--color-border)" }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)" }}>
-            Commit {typeName}
-          </span>
-          <button className="toolbar-btn" onClick={onCancel}>
-            <X size={14} />
-          </button>
-        </div>
-        <div style={{ padding: "12px 14px" }}>
-          <label
-            style={{
-              fontSize: 11,
-              color: "var(--color-text-muted)",
-              fontWeight: 600,
-              display: "block",
-              marginBottom: 4,
-              textTransform: "uppercase",
-              letterSpacing: 0.4,
-            }}
-          >
-            Commit message
-          </label>
-          <input
-            autoFocus
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && canCommit) {
-                e.preventDefault();
-                onCommit(message.trim());
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                onCancel();
-              }
-            }}
-            style={{
-              width: "100%",
-              background: "var(--color-surface-400)",
-              border: "1px solid var(--color-border)",
-              borderRadius: 3,
-              padding: "5px 8px",
-              fontSize: 12,
-              color: "var(--color-text-primary)",
-              outline: "none",
-            }}
-          />
-        </div>
-        <div
-          className="flex items-center justify-end gap-2 shrink-0"
-          style={{ padding: "8px 14px", borderTop: "1px solid var(--color-border)" }}
-        >
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "4px 14px",
-              fontSize: 12,
-              borderRadius: 3,
-              border: "1px solid var(--color-border)",
-              background: "transparent",
-              color: "var(--color-text-primary)",
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onCommit(message.trim())}
-            disabled={!canCommit}
-            style={{
-              padding: "4px 14px",
-              fontSize: 12,
-              borderRadius: 3,
-              border: "none",
-              background: canCommit ? "#1bb61b" : "var(--color-surface-400)",
-              color: "#fff",
-              cursor: canCommit ? "pointer" : "not-allowed",
-              opacity: canCommit ? 1 : 0.6,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-            }}
-          >
-            <GitCommitHorizontal size={13} />
-            {busy ? "Committing..." : "Commit"}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
   );
 }

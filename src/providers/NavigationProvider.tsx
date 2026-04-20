@@ -49,6 +49,12 @@ interface NavigationContextValue {
    * вызывается принимающей секцией в `useEffect`, когда она активируется.
    */
   consumeIntent: (section: SectionId) => NavigationIntent | null;
+  /**
+   * Монотонный счётчик «был ли добавлен новый intent». Позволяет consumer-
+   * useEffect'у пересработать, даже если `currentSection` не меняется
+   * (например, Ctrl+P → открыть другой процесс, находясь уже в Configurator).
+   */
+  intentVersion: number;
   /** Регистрация dirty-гарда от секции. Возвращает unregister-колбэк. */
   registerDirtyGuard: (section: SectionId, guard: DirtyGuard) => () => void;
 }
@@ -65,6 +71,10 @@ interface NavigationProviderProps {
 export function NavigationProvider({ initialSection, onSectionChange, children }: NavigationProviderProps) {
   const [currentSection, setCurrentSection] = useState<SectionId>(initialSection);
   const [visitedSections, setVisitedSections] = useState<Set<SectionId>>(() => new Set([initialSection]));
+  // Монотонный счётчик intent-ов. Инкрементируется при **каждом** добавлении
+  // intent в очередь — даже если секция не меняется. См. комментарий в
+  // `NavigationContextValue.intentVersion`.
+  const [intentVersion, setIntentVersion] = useState(0);
 
   // Очереди intent'ов — через ref, чтобы не прыгать рендером при push/pop.
   const pendingIntentsRef = useRef<Map<SectionId, NavigationIntent>>(new Map());
@@ -86,6 +96,7 @@ export function NavigationProvider({ initialSection, onSectionChange, children }
       // Если уже есть отложенный intent для той же секции — перезаписываем
       // (последний клик выигрывает).
       pendingIntentsRef.current.set(section, intent);
+      setIntentVersion((v) => v + 1);
     }
     setVisitedSections((prev) => {
       if (prev.has(section)) return prev;
@@ -104,8 +115,11 @@ export function NavigationProvider({ initialSection, onSectionChange, children }
     if (section === currentSection && !intent) return;
     if (section === currentSection && intent) {
       pendingIntentsRef.current.set(section, intent);
-      // Нужно «пнуть» consumer — проще всего через no-op setState.
-      setCurrentSection((s) => s);
+      // `setCurrentSection((s) => s)` не сработает: React делает bail-out
+      // при том же значении и ререндер не триггерится. Поэтому используем
+      // отдельный монотонный счётчик, который consumer включит в deps своего
+      // useEffect.
+      setIntentVersion((v) => v + 1);
       return;
     }
 
@@ -189,8 +203,9 @@ export function NavigationProvider({ initialSection, onSectionChange, children }
     visitedSections,
     navigateTo,
     consumeIntent,
+    intentVersion,
     registerDirtyGuard,
-  }), [currentSection, visitedSections, navigateTo, consumeIntent, registerDirtyGuard]);
+  }), [currentSection, visitedSections, navigateTo, consumeIntent, intentVersion, registerDirtyGuard]);
 
   return (
     <NavigationContext.Provider value={value}>

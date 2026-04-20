@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/DataTable";
 import { t as tok } from "@/lib/design-tokens";
 
-type SortKey = keyof AdapterHealth;
+type SortKey = keyof AdapterHealth | "__actions";
 
 const STATE_TONES: Record<string, "ok" | "err" | "muted" | "warn"> = {
   Up: "ok",
@@ -79,9 +79,11 @@ export function HealthTable() {
     }
     if (!sort) return list;
     const { columnId, dir } = sort;
+    if (columnId === "__actions") return list;
+    const key = columnId as keyof AdapterHealth;
     return [...list].sort((a, b) => {
-      const av = String(a[columnId] ?? "");
-      const bv = String(b[columnId] ?? "");
+      const av = String(a[key] ?? "");
+      const bv = String(b[key] ?? "");
       return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
     });
   }, [rows, filter, sort]);

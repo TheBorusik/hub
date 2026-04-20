@@ -117,7 +117,7 @@ export function ContextMenu<ID extends string = string>({
               zIndex: 10000,
               minWidth: 180,
               padding: 4,
-              background: t.color.bg.elevated,
+              background: t.color.bg.panel,
               border: `1px solid ${t.color.border.default}`,
               borderRadius: t.radius.md,
               boxShadow: "0 6px 20px rgba(0,0,0,0.5)",

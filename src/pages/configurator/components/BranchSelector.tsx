@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { GitBranch, RefreshCw, Upload, Trash2 } from "lucide-react";
+import { GitBranch, RefreshCw } from "lucide-react";
 import type { HubWsApi } from "@/lib/ws-api";
 import type { BranchInfo } from "@/lib/ws-api-models";
 

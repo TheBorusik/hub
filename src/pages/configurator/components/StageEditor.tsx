@@ -1,23 +1,27 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import type { Monaco } from "@monaco-editor/react";
-import type * as MonacoNs from "monaco-editor";
-import { Group, Panel, usePanelRef } from "react-resizable-panels";
-import { ChevronRight, ChevronDown, ExternalLink } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Group, Panel } from "react-resizable-panels";
+import { ExternalLink } from "lucide-react";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
-import { CodeEditor } from "@/components/ui/CodeEditor";
+import { useAutoSaveLayout } from "@/hooks/useAutoSaveLayout";
 import type { HubWsApi } from "@/lib/ws-api";
 import type {
   ProcessModel, ProcessStage,
   CRUDModelInfo, AdapterCommandInfo, AdapterEventInfo,
 } from "@/lib/ws-api-models";
 import { AutocompleteInput } from "./AutocompleteInput";
-import {
-  setupWfmCSharp,
-  attachWfmContext,
-  registerStageEditorActions,
-  type StageEditorActionCallbacks,
-} from "../monaco/wfm-csharp";
+import { CSharpEditor } from "./CSharpEditor";
+import { NextStageWithError } from "./NextStageWithError";
+import type { StageEditorActionCallbacks } from "../monaco/wfm-csharp";
 import { useToast } from "@/providers/ToastProvider";
+import { STAGE_TYPE_COLORS } from "../lib/stage-colors";
+import {
+  normStageType,
+  getDataLabel,
+  stageHasGetData,
+  stageHasGetNextStage,
+  stageHasGetErrorNextStage,
+  extractProcessResult,
+} from "../lib/stage-type-helpers";
 
 interface StageEditorProps {
   stageName: string;
@@ -43,259 +47,6 @@ interface StageEditorProps {
   onOpenSubProcess?: (processName: string) => void;
 }
 
-const STAGE_TYPE_COLORS: Record<string, string> = {
-  Start: "#5CADD5",
-  CRUD: "seagreen", CRUDDefinition: "seagreen",
-  Command: "#0FD334", CommandDefinition: "#0FD334",
-  Transform: "#0F8B8D", TransformDefinition: "#0F8B8D",
-  Event: "#FCA6ED", EventDefinition: "#FCA6ED",
-  Sub: "#0089ED", SubStart: "#0089ED", SubDefinition: "#0089ED",
-  Final: "#F6511D", End: "#F6511D", EndDefinition: "#F6511D",
-};
-
-interface CSharpEditorProps {
-  value: string;
-  onChange: (v: string) => void;
-  label: string;
-  stageNames: string[];
-  currentStageName: string;
-  processResultName: string;
-  actions?: StageEditorActionCallbacks;
-}
-
-function CSharpEditor({
-  value,
-  onChange,
-  label,
-  stageNames,
-  currentStageName,
-  processResultName,
-  actions,
-}: CSharpEditorProps) {
-  const uid = useId();
-  const path = `inmemory://stage/${uid}/${label}`;
-
-  // Держим актуальный контекст в ref, чтобы global completion provider
-  // всегда видел свежие значения без перерегистрации.
-  const ctxRef = useRef({ stageNames, currentStageName, processResultName });
-  useEffect(() => {
-    ctxRef.current = { stageNames, currentStageName, processResultName };
-  }, [stageNames, currentStageName, processResultName]);
-
-  // Коллбеки для хоткеев — через ref, чтобы не перерегистрировать actions.
-  const actionsRef = useRef<StageEditorActionCallbacks>(actions ?? {});
-  useEffect(() => {
-    actionsRef.current = actions ?? {};
-  }, [actions]);
-
-  const detachRef = useRef<(() => void) | null>(null);
-  const actionDisposablesRef = useRef<MonacoNs.IDisposable[]>([]);
-  const editorRef = useRef<MonacoNs.editor.IStandaloneCodeEditor | null>(null);
-
-  const handleBeforeMount = useCallback((monaco: Monaco) => {
-    setupWfmCSharp(monaco);
-  }, []);
-
-  const handleMount = useCallback(
-    (editor: MonacoNs.editor.IStandaloneCodeEditor, monaco: Monaco) => {
-      editorRef.current = editor;
-      const uri = editor.getModel()?.uri.toString();
-      if (uri) {
-        detachRef.current = attachWfmContext(uri, () => ctxRef.current);
-      }
-      actionDisposablesRef.current = registerStageEditorActions(
-        editor,
-        monaco,
-        () => actionsRef.current,
-      );
-    },
-    [],
-  );
-
-  useEffect(() => {
-    return () => {
-      detachRef.current?.();
-      detachRef.current = null;
-      for (const d of actionDisposablesRef.current) d.dispose();
-      actionDisposablesRef.current = [];
-      editorRef.current = null;
-    };
-  }, []);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      {label && (
-        <span style={{ fontSize: 11, color: "var(--color-text-muted)", fontWeight: 600, padding: "4px 6px", flexShrink: 0 }}>
-          {label}
-        </span>
-      )}
-      <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-        <CodeEditor
-          path={path}
-          language="csharp"
-          value={value}
-          onChange={(next) => { if (next !== value) onChange(next); }}
-          theme="wfm-dark"
-          beforeMount={handleBeforeMount}
-          onMount={handleMount}
-          wordWrap="on"
-          options={{
-            fontSize: 13,
-            scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
-            padding: { top: 4 },
-            // "smart" — как в VS Code: Enter принимает подсказку только когда
-            // она явно выбрана (стрелками) или явно подсвечена; в остальных
-            // случаях Enter работает как перенос строки.
-            acceptSuggestionOnEnter: "smart",
-            quickSuggestions: { other: true, comments: false, strings: false },
-            suggestOnTriggerCharacters: true,
-            tabCompletion: "on",
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function norm(type: string): string {
-  return type.replace("Definition", "");
-}
-
-function getDataLabel(type: string): string {
-  const t = norm(type);
-  switch (t) {
-    case "CRUD": return "Make Command Payload Script:";
-    case "Command": return "Make Command Payload Script:";
-    case "Sub":
-    case "SubStart": return "Make Init Params Script:";
-    case "Event": return "Make Event Payload Script:";
-    case "End":
-    case "Final": return "Make Result Payload Script:";
-    default: return "GetData:";
-  }
-}
-
-function hasGetData(type: string): boolean {
-  const t = norm(type);
-  return !["Start", "Transform"].includes(t);
-}
-
-function hasGetNextStage(type: string): boolean {
-  const t = norm(type);
-  return !["End", "Final"].includes(t);
-}
-
-function hasGetErrorNextStage(type: string): boolean {
-  const t = norm(type);
-  return !["End", "Final", "Transform", "Event", "Start"].includes(t);
-}
-
-const errorToggleStyle: React.CSSProperties = {
-  height: 26, padding: "0 12px", gap: 4, fontSize: 11, fontWeight: 600,
-  color: "var(--color-text-muted)", background: "var(--color-sidebar)",
-  border: "none",
-  width: "100%", textAlign: "left",
-  textTransform: "uppercase", letterSpacing: "0.04em",
-};
-
-interface NextStageWithErrorProps {
-  stageName: string;
-  nextValue: string;
-  errorValue: string;
-  initiallyOpen: boolean;
-  onChangeNext: (v: string) => void;
-  onChangeError: (v: string) => void;
-  stageNames: string[];
-  processResultName: string;
-  actions?: StageEditorActionCallbacks;
-}
-
-/**
- * Всегда держим одинаковое дерево: `<Group>` + верхний `<Panel>` (Get Next Stage)
- * + `<ResizeHandle>` + нижний `<Panel collapsible>` (Get Error Next Stage).
- *
- * Это важно, потому что при переключении видимости нижней секции раньше
- * менялось родительское дерево JSX (ранее был `errorOpen ? <Group/> : <div/>`),
- * из-за чего React-у приходилось переcоздавать `CSharpEditor` для «Get Next
- * Stage», Monaco строил новую модель — и это давало видимое мигание.
- * Стабильное дерево + `collapsible` Panel убирают ремоунт (как сделано
- * для «Request Data» в CommandTester).
- */
-function NextStageWithError({
-  stageName, nextValue, errorValue, initiallyOpen, onChangeNext, onChangeError,
-  stageNames, processResultName, actions,
-}: NextStageWithErrorProps) {
-  const errorPanelRef = usePanelRef();
-  const [collapsed, setCollapsed] = useState(!initiallyOpen);
-
-  const toggle = useCallback(() => {
-    const panel = errorPanelRef.current;
-    if (!panel) return;
-    if (panel.isCollapsed())
-      panel.expand();
-    else panel.collapse();
-  }, [errorPanelRef]);
-
-  return (
-    <Group orientation="vertical" autoSaveId={`stage-v2-${stageName}`}>
-      <Panel minSize="80px">
-        <CSharpEditor
-          label="Get Next Stage:"
-          value={nextValue}
-          onChange={onChangeNext}
-          stageNames={stageNames}
-          currentStageName={stageName}
-          processResultName={processResultName}
-          actions={actions}
-        />
-      </Panel>
-      <ResizeHandle direction="vertical" />
-      <Panel
-        id="get-error-next-stage"
-        panelRef={errorPanelRef}
-        collapsible
-        collapsedSize="26px"
-        defaultSize={initiallyOpen ? 25 : 8}
-        minSize="126px"
-        onResize={() => {
-          setCollapsed(errorPanelRef.current?.isCollapsed() ?? false);
-        }}
-      >
-        <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-          <button
-            className="flex items-center shrink-0 select-none cursor-pointer"
-            onClick={toggle}
-            style={errorToggleStyle}
-          >
-            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-            Get Error Next Stage
-          </button>
-          {!collapsed && (
-            <div style={{ flex: 1, minHeight: 0 }}>
-              <CSharpEditor
-                label=""
-                value={errorValue}
-                onChange={onChangeError}
-                stageNames={stageNames}
-                currentStageName={stageName}
-                processResultName={processResultName}
-                actions={actions}
-              />
-            </div>
-          )}
-        </div>
-      </Panel>
-    </Group>
-  );
-}
-
-function extractProcessResult(raw: unknown): Record<string, unknown> | null {
-  const wrapper = raw as Record<string, unknown> | null;
-  const cr = (wrapper?.CommandResult ?? wrapper) as Record<string, unknown> | null;
-  const pr = (cr?.ProcessResult ?? cr?.Result ?? cr) as Record<string, unknown> | null;
-  return pr ?? null;
-}
-
 export function StageEditor({
   stageName,
   stage,
@@ -313,15 +64,17 @@ export function StageEditor({
   onOpenSubProcess,
 }: StageEditorProps) {
   const toast = useToast();
-  const color = STAGE_TYPE_COLORS[stage.Type] ?? STAGE_TYPE_COLORS[norm(stage.Type)] ?? "#888";
-  const t = norm(stage.Type);
+  // rrp v4: autoSaveId нет — сохраняем layout по ключу "stage-h-{name}" сами.
+  const hLayout = useAutoSaveLayout(`stage-h-${stageName}`);
+  const color = STAGE_TYPE_COLORS[stage.Type] ?? STAGE_TYPE_COLORS[normStageType(stage.Type)] ?? "#888";
+  const t = normStageType(stage.Type);
   const isCrud = t === "CRUD";
   const isCommand = t === "Command";
   const isSub = t === "Sub" || t === "SubStart";
   const isEvent = t === "Event";
-  const showData = hasGetData(stage.Type);
-  const showNext = hasGetNextStage(stage.Type);
-  const showError = hasGetErrorNextStage(stage.Type);
+  const showData = stageHasGetData(stage.Type);
+  const showNext = stageHasGetNextStage(stage.Type);
+  const showError = stageHasGetErrorNextStage(stage.Type);
 
   // Начальное состояние свёрнутости секции «Get Error Next Stage»: открыта, если
   // в стейдже уже есть код; далее сам `NextStageWithError` управляет своим
@@ -681,8 +434,8 @@ export function StageEditor({
       {/* Code editors: left = GetData | right = GetNextStage + GetErrorNextStage (toggle + resize) */}
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         {showData && showNext ? (
-          <Group orientation="horizontal" autoSaveId={`stage-h-${stageName}`}>
-            <Panel defaultSizePercentage={50} minSizePercentage={20}>
+          <Group orientation="horizontal" id={`stage-h-${stageName}`} {...hLayout}>
+            <Panel id="data" defaultSize={50} minSize={20}>
               <CSharpEditor
                 label={getDataLabel(stage.Type)}
                 value={stage.GetData ?? ""}
@@ -694,7 +447,7 @@ export function StageEditor({
               />
             </Panel>
             <ResizeHandle />
-            <Panel defaultSizePercentage={50} minSizePercentage={20}>
+            <Panel id="next" defaultSize={50} minSize={20}>
               {showError ? (
                 <NextStageWithError
                   stageName={stageName}

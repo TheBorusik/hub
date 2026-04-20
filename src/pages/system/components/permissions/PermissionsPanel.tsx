@@ -11,6 +11,7 @@ import { PanelToolbar } from "@/components/ui/PanelToolbar";
 import { IconButton } from "@/components/ui/Button/IconButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { VirtualList } from "@/components/ui/VirtualList";
 import { t as tok } from "@/lib/design-tokens";
 
 function isCatalogNode(n: PermissionTreeNode): boolean {
@@ -170,6 +171,25 @@ export function PermissionsPanel() {
 
   const handleDropTargetChange = useCallback((id: string | null) => setDropTargetId(id), []);
 
+  /** Плоский список видимых узлов для VirtualList. Повторяет логику рекурсивного
+   *  рендера (`expanded` / `visibleIds` / `hasChildren`), но в одном проходе. */
+  const flatNodes = useMemo(() => {
+    const out: { node: PermissionTreeNode; depth: number; id: string }[] = [];
+    const walk = (nodes: PermissionTreeNode[], depth: number) => {
+      for (const n of nodes) {
+        const id = nodeId(n);
+        if (visibleIds !== null && !visibleIds.has(id)) continue;
+        out.push({ node: n, depth, id });
+        const hasChildren = n.PermissionTree && n.PermissionTree.length > 0;
+        // При фильтрации — раскрываем всё, как и раньше.
+        const isExpanded = visibleIds !== null ? true : expanded.has(id);
+        if (hasChildren && isExpanded) walk(n.PermissionTree!, depth + 1);
+      }
+    };
+    walk(tree, 0);
+    return out;
+  }, [tree, expanded, visibleIds]);
+
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ position: "relative" }}>
       <PanelToolbar
@@ -208,41 +228,51 @@ export function PermissionsPanel() {
         }
       />
 
-      <div className="flex-1 overflow-auto" style={{ padding: "4px 0", opacity: isFiltering ? 0.6 : 1, transition: "opacity 100ms" }}>
-        <DropRootZone
-          isOver={dropTargetId === "ROOT"}
-          onDragOver={() => setDropTargetId("ROOT")}
-          onDragLeave={() => setDropTargetId(null)}
-          onDrop={() => handleDrop(null)}
-        />
+      <DropRootZone
+        isOver={dropTargetId === "ROOT"}
+        onDragOver={() => setDropTargetId("ROOT")}
+        onDragLeave={() => setDropTargetId(null)}
+        onDrop={() => handleDrop(null)}
+      />
 
-        {tree.map((node) => (
-          <PermTreeNode
-            key={nodeId(node)}
-            node={node}
-            depth={0}
-            expanded={expanded}
-            visibleIds={visibleIds}
-            onToggle={toggleNode}
-            onEdit={onEdit}
-            onDelete={handleDelete}
-            onAddCatalog={onAddCatalog}
-            onAddPermission={onAddPermission}
-            draggedNode={draggedNode}
-            dropTargetId={dropTargetId}
-            onDragStart={startDrag}
-            onDragEnd={endDrag}
-            onDropTargetChange={handleDropTargetChange}
-            onDrop={handleDrop}
-          />
-        ))}
-        {visibleIds?.size === 0 && !loading && (
-          <EmptyState dense title="Ничего не найдено" />
-        )}
-        {!deferredFilter && tree.length === 0 && !loading && (
-          <EmptyState dense title="Нет permissions" />
-        )}
-      </div>
+      {flatNodes.length === 0 ? (
+        <div className="flex-1 overflow-auto" style={{ padding: "4px 0" }}>
+          {visibleIds?.size === 0 && !loading && (
+            <EmptyState dense title="Ничего не найдено" />
+          )}
+          {!deferredFilter && tree.length === 0 && !loading && (
+            <EmptyState dense title="Нет permissions" />
+          )}
+        </div>
+      ) : (
+        <VirtualList
+          items={flatNodes}
+          itemHeight={26}
+          overscan={8}
+          className="flex-1"
+          style={{ padding: "4px 0", opacity: isFiltering ? 0.6 : 1, transition: "opacity 100ms" }}
+          aria-label="Permissions"
+          getKey={(it) => it.id}
+          renderItem={(it) => (
+            <PermTreeRow
+              node={it.node}
+              depth={it.depth}
+              isExpanded={visibleIds !== null ? true : expanded.has(it.id)}
+              onToggle={toggleNode}
+              onEdit={onEdit}
+              onDelete={handleDelete}
+              onAddCatalog={onAddCatalog}
+              onAddPermission={onAddPermission}
+              draggedNode={draggedNode}
+              dropTargetId={dropTargetId}
+              onDragStart={startDrag}
+              onDragEnd={endDrag}
+              onDropTargetChange={handleDropTargetChange}
+              onDrop={handleDrop}
+            />
+          )}
+        />
+      )}
 
       {(overlay.type === "addCatalog" || overlay.type === "addPermission") && api && (
         <PermissionDialog
@@ -278,11 +308,10 @@ function nodeId(node: PermissionTreeNode): string {
   return id;
 }
 
-interface PermTreeNodeProps {
+interface PermTreeRowProps {
   node: PermissionTreeNode;
   depth: number;
-  expanded: Set<string>;
-  visibleIds: Set<string> | null;
+  isExpanded: boolean;
   onToggle: (id: string) => void;
   onEdit: (node: PermissionTreeNode) => void;
   onDelete: (node: PermissionTreeNode) => void;
@@ -296,17 +325,14 @@ interface PermTreeNodeProps {
   onDrop: (targetCatalogId: number | null) => void;
 }
 
-const PermTreeNode = memo(function PermTreeNode({
-  node, depth, expanded, visibleIds, onToggle, onEdit, onDelete,
+const PermTreeRow = memo(function PermTreeRow({
+  node, depth, isExpanded, onToggle, onEdit, onDelete,
   onAddCatalog, onAddPermission,
   draggedNode, dropTargetId, onDragStart, onDragEnd, onDropTargetChange, onDrop,
-}: PermTreeNodeProps) {
+}: PermTreeRowProps) {
   const id = nodeId(node);
 
-  if (visibleIds !== null && !visibleIds.has(id)) return null;
-
-  const hasChildren = node.PermissionTree && node.PermissionTree.length > 0;
-  const isExpanded = visibleIds !== null ? true : expanded.has(id);
+  const hasChildren = Boolean(node.PermissionTree && node.PermissionTree.length > 0);
   const isCatalog = isCatalogNode(node);
   const isDropTarget = dropTargetId === id && isCatalog;
   const isDragging = draggedNode && nodeId(draggedNode) === id;
@@ -353,27 +379,26 @@ const PermTreeNode = memo(function PermTreeNode({
   }, [isDropTarget, isExpanded, hasChildren, id, onToggle]);
 
   return (
-    <>
-      <div
-        className="group flex items-center gap-1 ui-tree-row"
-        onDragEnd={onDragEnd}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDropOnThis}
-        style={{
-          height: 26,
-          paddingLeft: depth * 16 + 8,
-          paddingRight: 8,
-          fontSize: 12,
-          cursor: hasChildren ? "pointer" : "default",
-          userSelect: "none",
-          opacity: isDragging ? 0.4 : 1,
-          backgroundColor: isDropTarget ? "rgba(14,99,156,0.25)" : undefined,
-          borderTop: isDropTarget ? "2px solid #0e639c" : "2px solid transparent",
-          transition: "background-color 120ms",
-        }}
-        onClick={() => hasChildren && onToggle(id)}
-      >
+    <div
+      className="group flex items-center gap-1 ui-tree-row"
+      onDragEnd={onDragEnd}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDropOnThis}
+      style={{
+        height: "100%",
+        paddingLeft: depth * 16 + 8,
+        paddingRight: 8,
+        fontSize: 12,
+        cursor: hasChildren ? "pointer" : "default",
+        userSelect: "none",
+        opacity: isDragging ? 0.4 : 1,
+        backgroundColor: isDropTarget ? "rgba(14,99,156,0.25)" : undefined,
+        borderTop: isDropTarget ? "2px solid #0e639c" : "2px solid transparent",
+        transition: "background-color 120ms",
+      }}
+      onClick={() => hasChildren && onToggle(id)}
+    >
         <span
           draggable
           onDragStart={handleDragStart}
@@ -424,48 +449,13 @@ const PermTreeNode = memo(function PermTreeNode({
           <button onClick={(e) => { e.stopPropagation(); onEdit(node); }} className="tree-action-btn" title="Edit"><Pencil size={11} /></button>
           <button onClick={(e) => { e.stopPropagation(); onDelete(node); }} className="tree-action-btn" style={{ color: "#F44336" }} title="Delete"><Trash2 size={11} /></button>
         </div>
-      </div>
-
-      {hasChildren && isExpanded && node.PermissionTree!.map((child) => (
-        <PermTreeNode
-          key={nodeId(child)}
-          node={child}
-          depth={depth + 1}
-          expanded={expanded}
-          visibleIds={visibleIds}
-          onToggle={onToggle}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onAddCatalog={onAddCatalog}
-          onAddPermission={onAddPermission}
-          draggedNode={draggedNode}
-          dropTargetId={dropTargetId}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-          onDropTargetChange={onDropTargetChange}
-          onDrop={onDrop}
-        />
-      ))}
-    </>
+    </div>
   );
 }, (prev, next) => {
   const id = nodeId(prev.node);
   if (prev.node !== next.node) return false;
   if (prev.depth !== next.depth) return false;
-
-  if (prev.visibleIds !== next.visibleIds) {
-    const prevVis = prev.visibleIds === null || prev.visibleIds.has(id);
-    const nextVis = next.visibleIds === null || next.visibleIds.has(id);
-    if (prevVis !== nextVis) return false;
-    if (nextVis && prev.visibleIds !== next.visibleIds) return false;
-  }
-
-  if (next.visibleIds === null) {
-    const prevExp = prev.expanded.has(id);
-    const nextExp = next.expanded.has(id);
-    if (prevExp !== nextExp) return false;
-    if (nextExp && prev.expanded !== next.expanded) return false;
-  }
+  if (prev.isExpanded !== next.isExpanded) return false;
 
   const prevDrop = prev.dropTargetId === id;
   const nextDrop = next.dropTargetId === id;

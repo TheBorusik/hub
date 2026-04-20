@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { X, ChevronRight, ChevronDown, Folder, FolderOpen, Search } from "lucide-react";
+import { ChevronRight, ChevronDown, Folder, FolderOpen, Search, X } from "lucide-react";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { t } from "@/lib/design-tokens";
 import type { HubWsApi } from "@/lib/ws-api";
 import type { PermissionTreeNode, PermissionSettings } from "../../types";
+import { inputStyle, labelStyle } from "../adapters/lib/adapter-dialog-styles";
 
 type Mode = "catalog" | "permission";
 
@@ -22,9 +26,9 @@ function isCatalogNode(n: PermissionTreeNode): boolean {
 export function PermissionDialog({ mode, editing, parentCatalogId, catalogId: propCatalogId, api, onClose, onDone }: PermissionDialogProps) {
   const [name, setName] = useState(editing?.Name ?? "");
   const [desc, setDesc] = useState(editing?.Description ?? "");
-  const [strId, setStrId] = useState(editing?.StrId ?? "");
+  const [strId] = useState(editing?.StrId ?? "");
   const [selectedCatalogId, setSelectedCatalogId] = useState<number | null>(
-    editing?.CatalogId ?? (mode === "catalog" ? (parentCatalogId ?? null) : (propCatalogId ?? null))
+    editing?.CatalogId ?? (mode === "catalog" ? (parentCatalogId ?? null) : (propCatalogId ?? null)),
   );
   const [permId, setPermId] = useState<number | "">(editing?.PermissionId ?? "");
   const [settingsType, setSettingsType] = useState<string>(editing?.PermissionSettings?.Type ?? "Unknown");
@@ -72,17 +76,18 @@ export function PermissionDialog({ mode, editing, parentCatalogId, catalogId: pr
     }
   };
 
-  return (
-    <div style={overlayBg}>
-      <div style={{ ...dialogStyle, width: 500 }}>
-        <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>
-            {editing ? "Edit" : "Add"} {mode === "catalog" ? "Catalog" : "Permission"}
-          </span>
-          <button onClick={onClose} disabled={submitting} className="toolbar-btn"><X size={14} /></button>
-        </div>
+  const title = `${editing ? "Edit" : "Add"} ${mode === "catalog" ? "Catalog" : "Permission"}`;
 
-        <div className="flex flex-col gap-3">
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="md"
+      style={{ width: 500, maxWidth: "min(500px, 92vw)" }}
+    >
+      <Modal.Header title={title} />
+      <Modal.Body>
+        <div className="flex flex-col" style={{ gap: t.space[3] }}>
           <label style={labelStyle}>
             Name*
             <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus placeholder="Name" />
@@ -92,8 +97,7 @@ export function PermissionDialog({ mode, editing, parentCatalogId, catalogId: pr
             <input value={desc} onChange={(e) => setDesc(e.target.value)} style={inputStyle} placeholder="Description" />
           </label>
 
-          {/* Catalog picker */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: t.space[1] }}>
             <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
               {mode === "catalog" ? "Parent Catalog" : "Catalog"}
             </span>
@@ -106,45 +110,59 @@ export function PermissionDialog({ mode, editing, parentCatalogId, catalogId: pr
             />
           </div>
 
-          {mode === "permission" && (<>
-            <label style={labelStyle}>
-              Permission ID
-              <input
-                type="number"
-                value={permId}
-                readOnly
-                style={{ ...inputStyle, opacity: 0.6, cursor: "default" }}
-                title="Auto-generated, cannot be changed"
-              />
-            </label>
-            <label style={labelStyle}>
-              Settings Type
-              <select value={settingsType} onChange={(e) => setSettingsType(e.target.value)} style={{ ...inputStyle, height: 28, cursor: "pointer" }}>
-                <option value="Unknown">Unknown</option>
-                <option value="Api">Api</option>
-                <option value="UI">UI</option>
-                <option value="Event">Event</option>
-              </select>
-            </label>
-            <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input type="checkbox" checked={confirmRequired} onChange={(e) => setConfirmRequired(e.target.checked)} />
-              Confirmation Required
-            </label>
-            <label style={labelStyle}>
-              API Path (comma separated)
-              <input value={apiPath} onChange={(e) => setApiPath(e.target.value)} style={inputStyle} placeholder="/api/path1, /api/path2" />
-            </label>
-          </>)}
+          {mode === "permission" && (
+            <>
+              <label style={labelStyle}>
+                Permission ID
+                <input
+                  type="number"
+                  value={permId}
+                  readOnly
+                  style={{ ...inputStyle, opacity: 0.6, cursor: "default" }}
+                  title="Auto-generated, cannot be changed"
+                />
+              </label>
+              <label style={labelStyle}>
+                Settings Type
+                <select
+                  value={settingsType}
+                  onChange={(e) => setSettingsType(e.target.value)}
+                  style={{ ...inputStyle, height: 28, cursor: "pointer" }}
+                >
+                  <option value="Unknown">Unknown</option>
+                  <option value="Api">Api</option>
+                  <option value="UI">UI</option>
+                  <option value="Event">Event</option>
+                </select>
+              </label>
+              <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: t.space[2], cursor: "pointer" }}>
+                <input type="checkbox" checked={confirmRequired} onChange={(e) => setConfirmRequired(e.target.checked)} />
+                Confirmation Required
+              </label>
+              <label style={labelStyle}>
+                API Path (comma separated)
+                <input value={apiPath} onChange={(e) => setApiPath(e.target.value)} style={inputStyle} placeholder="/api/path1, /api/path2" />
+              </label>
+            </>
+          )}
         </div>
-
-        <div className="flex gap-2" style={{ justifyContent: "flex-end", marginTop: 20 }}>
-          <button onClick={onClose} disabled={submitting} style={cancelBtnStyle}>Cancel</button>
-          <button onClick={handleSave} disabled={submitting || !name.trim()} style={{ ...primaryBtnStyle, opacity: name.trim() ? 1 : 0.5 }}>
-            {submitting ? "Saving..." : "Save"}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" size="sm" type="button" onClick={onClose} disabled={submitting}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          type="button"
+          onClick={() => { void handleSave(); }}
+          disabled={submitting || !name.trim()}
+          busy={submitting}
+        >
+          {submitting ? "Saving..." : "Save"}
+        </Button>
+      </Modal.Footer>
+    </Modal>
   );
 }
 
@@ -271,7 +289,6 @@ function CatalogPicker({ api, selectedId, onSelect, excludeCatalogId, isCatalogM
 
   return (
     <div style={{ border: "1px solid var(--color-border)", borderRadius: 4, background: "var(--color-input-bg)", overflow: "hidden" }}>
-      {/* Search */}
       <div style={{ padding: "4px 6px", borderBottom: "1px solid var(--color-border)" }}>
         <div className="flex items-center gap-1" style={{ background: "rgba(255,255,255,0.04)", borderRadius: 3, padding: "0 6px", height: 22 }}>
           <Search size={11} style={{ opacity: 0.4, flexShrink: 0 }} />
@@ -280,13 +297,11 @@ function CatalogPicker({ api, selectedId, onSelect, excludeCatalogId, isCatalogM
             placeholder="Search catalogs..."
             style={{ flex: 1, background: "none", border: "none", color: "var(--color-text)", fontSize: 11, outline: "none", height: "100%" }}
           />
-          {search && <button onClick={() => setSearch("")} className="toolbar-btn" style={{ padding: 0 }}><X size={10} /></button>}
+          {search && <button type="button" onClick={() => setSearch("")} className="toolbar-btn" style={{ padding: 0 }}><X size={10} /></button>}
         </div>
       </div>
 
-      {/* Tree */}
       <div style={{ maxHeight: 180, overflowY: "auto" }}>
-        {/* No parent / root option */}
         <div
           className="flex items-center gap-1"
           onClick={() => { onSelect(null); setSelectedName(null); }}
@@ -308,23 +323,15 @@ function CatalogPicker({ api, selectedId, onSelect, excludeCatalogId, isCatalogM
         {!loading && renderNodes(tree, 0)}
       </div>
 
-      {/* Selected summary */}
       {selectedId != null && (
         <div style={{ borderTop: "1px solid var(--color-border)", padding: "3px 8px", fontSize: 11, display: "flex", gap: 6, alignItems: "center" }}>
           <span style={{ color: "var(--color-text-muted)" }}>Selected:</span>
           <Folder size={10} style={{ color: "#dcb67a", flexShrink: 0 }} />
           <span style={{ color: "var(--color-text)", fontWeight: 500 }}>{selectedName ?? `ID: ${selectedId}`}</span>
           <span style={{ color: "var(--color-text-muted)", fontSize: 9 }}>(ID: {selectedId})</span>
-          <button onClick={() => { onSelect(null); setSelectedName(null); }} className="toolbar-btn" style={{ marginLeft: "auto", padding: 0 }}><X size={10} /></button>
+          <button type="button" onClick={() => { onSelect(null); setSelectedName(null); }} className="toolbar-btn" style={{ marginLeft: "auto", padding: 0 }}><X size={10} /></button>
         </div>
       )}
     </div>
   );
 }
-
-const overlayBg: React.CSSProperties = { position: "absolute", inset: 0, zIndex: 20, backgroundColor: "rgba(0,0,0,0.3)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 48 };
-const dialogStyle: React.CSSProperties = { backgroundColor: "var(--color-sidebar)", border: "1px solid var(--color-border)", borderRadius: 6, padding: 20, minWidth: 340, maxWidth: "80%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 4px 24px rgba(0,0,0,0.4)" };
-const labelStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--color-text-muted)" };
-const inputStyle: React.CSSProperties = { background: "var(--color-input-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)", fontSize: 12, padding: "4px 8px", height: 24, borderRadius: 3, outline: "none" };
-const cancelBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "none", border: "1px solid var(--color-border)", color: "var(--color-text-muted)", borderRadius: 3, cursor: "pointer" };
-const primaryBtnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, background: "#0e639c", border: "none", color: "#fff", borderRadius: 3, cursor: "pointer" };

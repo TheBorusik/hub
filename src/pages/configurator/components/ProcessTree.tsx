@@ -46,7 +46,11 @@ function filterCatalog(
   }
   if (flags.size > 0) {
     contents = contents.filter((p) => {
-      for (const f of flags) if (!(p as Record<string, unknown>)[f]) return false;
+      // `flags` — имена булевых флажков фильтра (Draft, Back, Permission, ...);
+      // они соответствуют полям `ProcessModel`, но динамический доступ через
+      // ключ требует `unknown`-шлюза, чтобы обойти отсутствие index signature.
+      const rec = p as unknown as Record<string, unknown>;
+      for (const f of flags) if (!rec[f]) return false;
       return true;
     });
   }
