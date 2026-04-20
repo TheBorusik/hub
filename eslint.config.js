@@ -24,15 +24,15 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
-      // Все правила пока warn: есть легаси-нарушения (229 hex, 352 spacing,
-      // 4 прямых ConfirmDialog, 1 defineTheme в wfm-csharp). Цель — сначала
-      // не блокировать build, но surface долг. По мере миграции можно
-      // ratchet to 'error' (сначала no-duplicate-confirm-dialog и
-      // no-monaco-theme-define — там мало violation'ов).
+      // hex / magic-spacing — пока warn: ~150 hex и ~350 magic-spacing
+      // легаси-предупреждений в неперекрашенных областях. Постепенно
+      // подчищаются и поднимутся до 'error'.
       'hub-ui/no-raw-hex': 'warn',
       'hub-ui/no-magic-spacing': 'warn',
-      'hub-ui/no-duplicate-confirm-dialog': 'warn',
-      'hub-ui/no-monaco-theme-define': 'warn',
+      // 0 нарушений после Sprint 2 + Monaco theme cleanup — фиксируем
+      // инвариант на error, чтобы новый код не возвращал дубли.
+      'hub-ui/no-duplicate-confirm-dialog': 'error',
+      'hub-ui/no-monaco-theme-define': 'error',
     },
   },
 ])

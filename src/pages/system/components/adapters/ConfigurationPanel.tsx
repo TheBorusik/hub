@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useMemo, useReducer, useState } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { useContourApi } from "@/lib/ws-api";
@@ -15,6 +15,8 @@ import { CreateSectionOverlay } from "./CreateSectionOverlay";
 import { UpsertTypeOverlay } from "./UpsertTypeOverlay";
 import { UpsertConfigOverlay } from "./UpsertConfigOverlay";
 import { Placeholder } from "./lib/Placeholder";
+import { useAdapterConfigData } from "./lib/useAdapterConfigData";
+import { useAdapterConfigActions } from "./lib/useAdapterConfigActions";
 
 /** Стабильная ссылка для memo (`?? []` каждый раз новый массив). */
 const EMPTY_CONFIG_SECTIONS: ConfigSection[] = [];
@@ -26,9 +28,10 @@ type Overlay =
   | { type: "createSection"; configId: number };
 
 /**
- * System → Configuration: дерево типов/конфигураций слева, справа — вкладки открытых
- * конфигураций и редактор секций. Состояние вкладок — в `configurationWorkspaceReducer`;
- * загрузка данных — локальные `useCallback` + API.
+ * System → Configuration: дерево типов/конфигураций слева, справа — вкладки
+ * открытых конфигураций и редактор секций. Состояние вкладок —
+ * `configurationWorkspaceReducer`. Загрузка/CRUD — два кастомных хука:
+ * `useAdapterConfigData` и `useAdapterConfigActions`.
  */
 export function ConfigurationPanel() {
   const api = useContourApi();
@@ -40,17 +43,22 @@ export function ConfigurationPanel() {
   );
   const { openTabs, activeTabId, dirtyTabs, sectionSelection } = workspace;
 
-  const [types, setTypes] = useState<AdapterType[]>([]);
-  const [loading, setLoading] = useState(false);
+  const data = useAdapterConfigData(api);
+  const {
+    types,
+    loading,
+    expandedTypes,
+    typeConfigs,
+    loadingConfigs,
+    configSections,
+    loadingSections,
+    setExpandedTypes,
+    loadTypes,
+    loadConfigs,
+    loadSections,
+  } = data;
+
   const [filter, setFilter] = useState("");
-
-  const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
-  const [typeConfigs, setTypeConfigs] = useState<Record<string, AdapterConfiguration[]>>({});
-  const [loadingConfigs, setLoadingConfigs] = useState<Set<string>>(new Set());
-
-  const [configSections, setConfigSections] = useState<Record<number, ConfigSection[]>>({});
-  const [loadingSections, setLoadingSections] = useState<Set<number>>(new Set());
-
   const [overlay, setOverlay] = useState<Overlay>({ type: "none" });
 
   const activeTab = openTabs.find((t) => t.config.ConfigurationId === activeTabId) ?? null;
@@ -59,67 +67,25 @@ export function ConfigurationPanel() {
     [openTabs],
   );
 
-  const loadTypes = useCallback(async () => {
-    if (!api) return;
-    setLoading(true);
-    try {
-      const res = await api.getAdapterTypes();
-      const list = (res as Record<string, unknown>).AdapterTypes;
-      setTypes(Array.isArray(list) ? (list as AdapterType[]) : []);
-    } catch {
-      setTypes([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [api]);
-
-  useEffect(() => {
-    loadTypes();
-  }, [loadTypes]);
-
-  const loadConfigs = useCallback(async (adapterType: string) => {
-    if (!api) return;
-    setLoadingConfigs((p) => new Set(p).add(adapterType));
-    try {
-      const res = await api.getAdapterConfigurations(adapterType);
-      const list = (res as Record<string, unknown>).Configurations;
-      setTypeConfigs((prev) => ({
-        ...prev,
-        [adapterType]: Array.isArray(list) ? (list as AdapterConfiguration[]) : [],
-      }));
-    } catch {
-      setTypeConfigs((prev) => ({ ...prev, [adapterType]: [] }));
-    } finally {
-      setLoadingConfigs((p) => {
-        const n = new Set(p);
-        n.delete(adapterType);
-        return n;
-      });
-    }
-  }, [api]);
-
-  const loadSections = useCallback(async (configId: number) => {
-    if (!api) return;
-    setLoadingSections((p) => new Set(p).add(configId));
-    try {
-      const res = await api.getSections(configId);
-      const list =
-        (res as Record<string, unknown>).Sections ??
-        (res as Record<string, unknown>).ConfigurationSections;
-      setConfigSections((prev) => ({
-        ...prev,
-        [configId]: Array.isArray(list) ? (list as ConfigSection[]) : [],
-      }));
-    } catch {
-      setConfigSections((prev) => ({ ...prev, [configId]: [] }));
-    } finally {
-      setLoadingSections((p) => {
-        const n = new Set(p);
-        n.delete(configId);
-        return n;
-      });
-    }
-  }, [api]);
+  const actions = useAdapterConfigActions({
+    api,
+    confirm,
+    loadTypes,
+    loadConfigs,
+    loadSections,
+    onConfigDeleted: useCallback(
+      (configId) => dispatchWorkspace({ type: "TAB_CLOSE", configId }),
+      [],
+    ),
+    onSectionDeleted: useCallback(
+      (configId) => dispatchWorkspace({ type: "TAB_SECTION", configId, sectionId: null }),
+      [],
+    ),
+    onSectionSaved: useCallback(
+      (configId) => dispatchWorkspace({ type: "TAB_DIRTY", configId, dirty: false }),
+      [],
+    ),
+  });
 
   const toggleType = (adapterType: string) => {
     const wasExpanded = expandedTypes.has(adapterType);
@@ -162,142 +128,6 @@ export function ConfigurationPanel() {
     setOverlay({ type: "createSection", configId });
   }, []);
 
-  const handleDeleteType = async (t: AdapterType) => {
-    if (!api) return;
-    const ok = await confirm({
-      title: "Delete Adapter Type",
-      message: `Delete adapter type "${t.AdapterType}"?`,
-      confirmLabel: "Delete",
-      tone: "danger",
-    });
-    if (!ok) return;
-    await api.deleteAdapterType(t.AdapterType);
-    loadTypes();
-  };
-
-  const handleDeleteConfig = async (c: AdapterConfiguration) => {
-    if (!api) return;
-    const ok = await confirm({
-      title: "Delete Configuration",
-      message: `Delete configuration "${c.Name}"?`,
-      confirmLabel: "Delete",
-      tone: "danger",
-    });
-    if (!ok) return;
-    await api.deleteAdapterConfiguration(c.ConfigurationId);
-    dispatchWorkspace({ type: "TAB_CLOSE", configId: c.ConfigurationId });
-    loadConfigs(c.AdapterType);
-  };
-
-  const handleSetDefault = async (c: AdapterConfiguration) => {
-    if (!api) return;
-    await api.setDefaultConfiguration(c.ConfigurationId);
-    loadConfigs(c.AdapterType);
-  };
-
-  const handleToggleEnabled = async (c: AdapterConfiguration) => {
-    if (!api) return;
-    await api.updateAdapterConfiguration({
-      ConfigurationId: c.ConfigurationId,
-      AdapterType: c.AdapterType,
-      Name: c.Name,
-      Description: c.Description,
-      Enabled: !c.Enabled,
-      Exported: c.Exported,
-    });
-    loadConfigs(c.AdapterType);
-  };
-
-  const handleClone = async (c: AdapterConfiguration) => {
-    if (!api) return;
-    await api.cloneConfiguration({
-      CloningConfigurationId: c.ConfigurationId,
-      AdapterType: c.AdapterType,
-      Name: `${c.Name}_clone`,
-      Description: c.Description,
-      Exported: false,
-      IsDefault: false,
-    });
-    loadConfigs(c.AdapterType);
-  };
-
-  const handleDeleteSection = useCallback(
-    async (section: ConfigSection, configId: number) => {
-      if (!api) return;
-      const ok = await confirm({
-        title: "Delete Section",
-        message: `Delete section "${section.DisplayName || section.Name}"?`,
-        confirmLabel: "Delete",
-        tone: "danger",
-      });
-      if (!ok) return;
-      await api.deleteSection(section.SectionId);
-      await loadSections(configId);
-      dispatchWorkspace({ type: "TAB_SECTION", configId, sectionId: null });
-    },
-    [api, confirm, loadSections],
-  );
-
-  const handleSaveSection = useCallback(
-    async (
-      configId: number,
-      section: ConfigSection,
-      editedJson: string,
-      editedBuildRules?: string,
-      editedBuildTable?: string,
-    ) => {
-      if (!api) return;
-      let parsedJson: unknown;
-      try {
-        parsedJson = JSON.parse(editedJson);
-      } catch {
-        alert("Invalid JSON — please fix before saving");
-        return;
-      }
-      let parsedRules: unknown = null;
-      if (editedBuildRules && editedBuildRules.trim()) {
-        try {
-          parsedRules = JSON.parse(editedBuildRules);
-        } catch {
-          alert("Invalid JSON in Build Rules");
-          return;
-        }
-      }
-      await api.updateSection({
-        SectionId: section.SectionId,
-        Name: section.Name,
-        DisplayName: section.DisplayName ?? null,
-        Inherited: section.Inherited ?? null,
-        JsonData: parsedJson,
-        BuildRules: parsedRules,
-        BuildTable: editedBuildTable?.trim() || null,
-      });
-      await loadSections(configId);
-      dispatchWorkspace({ type: "TAB_DIRTY", configId, dirty: false });
-    },
-    [api, loadSections],
-  );
-
-  const handleToggleLock = useCallback(
-    async (section: ConfigSection, configId: number) => {
-      if (!api) return;
-      await api.updateSection({
-        SectionId: section.SectionId,
-        Name: section.Name,
-        DisplayName: section.DisplayName ?? null,
-        Inherited: section.Inherited ?? null,
-        JsonData: section.JsonData
-          ? typeof section.JsonData === "string"
-            ? JSON.parse(section.JsonData)
-            : section.JsonData
-          : {},
-        Locked: !section.Locked,
-      });
-      await loadSections(configId);
-    },
-    [api, loadSections],
-  );
-
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ position: "relative" }}>
       <Group orientation="horizontal" id="config-master-detail">
@@ -322,7 +152,7 @@ export function ConfigurationPanel() {
             onRefresh={loadTypes}
             onAddType={() => setOverlay({ type: "upsertType", editing: null })}
             onEditType={(t) => setOverlay({ type: "upsertType", editing: t })}
-            onDeleteType={handleDeleteType}
+            onDeleteType={actions.handleDeleteType}
             onToggleType={toggleType}
             onAddConfig={(adapterType) =>
               setOverlay({ type: "upsertConfig", editing: null, adapterType })
@@ -330,11 +160,11 @@ export function ConfigurationPanel() {
             onEditConfig={(c) =>
               setOverlay({ type: "upsertConfig", editing: c, adapterType: c.AdapterType })
             }
-            onDeleteConfig={handleDeleteConfig}
+            onDeleteConfig={actions.handleDeleteConfig}
             onOpenConfig={openConfig}
-            onCloneConfig={handleClone}
-            onSetDefault={handleSetDefault}
-            onToggleEnabled={handleToggleEnabled}
+            onCloneConfig={actions.handleClone}
+            onSetDefault={actions.handleSetDefault}
+            onToggleEnabled={actions.handleToggleEnabled}
           />
         </Panel>
 
@@ -378,9 +208,9 @@ export function ConfigurationPanel() {
                           isLoadingSections={loadingSections.has(tab.config.ConfigurationId)}
                           onSelectSection={handleWorkspaceSection}
                           onAddSection={handleTabAddSection}
-                          onSaveSection={handleSaveSection}
-                          onDeleteSection={handleDeleteSection}
-                          onToggleLock={handleToggleLock}
+                          onSaveSection={actions.handleSaveSection}
+                          onDeleteSection={actions.handleDeleteSection}
+                          onToggleLock={actions.handleToggleLock}
                           onDirtyChange={handleWorkspaceDirty}
                         />
                       </div>
