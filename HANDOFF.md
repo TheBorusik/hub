@@ -28,28 +28,21 @@
     - При `data-selected="true"` лист получает полный цвет.
   - В `SystemTreeNav` увеличил `indent` 16 → 20, `rowHeight` 22 → 24.
 
-## ⚠️ Незакрытый визуальный баг: SYSTEM sidebar
+## ✅ Закрыто: визуальный баг SYSTEM sidebar
 
-**Симптом (проверено двумя скриншотами пользователя):** в `System → sidebar` разделы (`Adapters`, `Errors`) и их подразделы (`Status`, `Configuration`, `Base Sections`, `Table Data`, `WFM`, `Command`, `Event`, `Result`, `Other`) всё ещё выглядят «на одной линии» — ни индент, ни жирный шрифт не видны. `Permissions` и `Roles` (листья корня) тоже сливаются с подразделами.
+Коммит `2484e53` `fix(ui): TreeView hierarchy — move color/weight/cursor from inline to CSS`.
 
-**Что уже пробовали и не помогло:**
-1. Вернуть `fontWeight: isContainer ? 600 : 400` inline через `style` в `<TreeView>`.
-2. Заменить inline на CSS через `data-container`/`data-depth` и стиль `.ui-tree-row[data-container="true"]`.
-3. Увеличить `indent` в `SystemTreeNav` 16 → 20, `rowHeight` 22 → 24.
+**Причина** (гипотеза из предыдущей версии HANDOFF подтвердилась): в `TreeView.tsx` у каждой строки был inline `style={{ color: primary, fontWeight: isContainer ? 600 : 400, cursor }}`. Inline color побеждал CSS-правило `.ui-tree-row:not([data-container]) { color: muted }` по специфичности — поэтому все строки были одного цвета, иерархия не читалась. Дополнительный бонусный баг: CSS использовал несуществующую переменную `var(--color-text)`.
 
-Пользователь обновлял страницу, должно было быть подхвачено HMR.
-
-**Гипотезы, что проверять первым делом завтра (F5 + DevTools):**
-1. **Проверить в Elements у `Adapters` строки** — есть ли `data-container="true"` и `data-depth="0"` фактически на DOM. Если нет — значит `<TreeView>` не получает `children`/`expandable` по моим данным, или он где-то клонируется/проксируется, и атрибуты не доходят.
-2. **Проверить каскад CSS** — нет ли где-то перекрывающего правила, которое вынуждает `color` и `font-weight` одинаковыми. Подозрительно `src/styles/globals.css`:
-   - раздел «UI-kit hover states» может перекрывать.
-   - старый блок стилей tree-строк над `.ui-tree-row` — возможно, более специфичный селектор с тем же `color`/`font-weight`.
-   - Inline style `color` на самом `<div>` в `TreeView.tsx` задан: `color: node.disabled ? muted : primary` — **это бьёт наш CSS по специфичности**. Скорее всего именно здесь. Починка: убрать `color` из inline `style` в `TreeView.tsx` (оставить только при `disabled`), и/или поменять CSS на `.ui-tree-row[data-depth] { color: ... }` с `!important` (не хочется), либо перенести inline color в `data-disabled` + CSS.
-3. **Проверить, что `SystemTreeNav` реально использует `<TreeView>`** — не вернулся ли fallback. Файл: `hub/src/pages/system/components/SystemTreeNav.tsx`.
-4. **Indent** — даже при 20px может быть незаметно из-за того, что у контейнеров рендерится видимый chevron 14 px, а у листьев chevron-placeholder 14 px: в сумме визуально children сдвинуты только на `indent` px. Можно увеличить до `28-32` или сделать `padding-inline-start: calc(var(--depth) * 24px + 8px)` через CSS var.
-
-**Скорее всего корень проблемы — inline `color` на `div` в `TreeView.tsx`.** См. файл
-`hub/src/components/ui/TreeView/TreeView.tsx`, блок `style={{ ... color: node.disabled ? ... : t.color.text.primary, ... }}`.
+**Что сделано:**
+- В `TreeView.tsx` оставлены inline только структурные параметры (padding, height, gap, userSelect). `color`, `font-weight`, `cursor`, `opacity` теперь полностью через CSS по `data-container` / `data-depth` / `data-disabled`.
+- В `globals.css`:
+  - `.ui-tree-row[data-depth]` — базовый `cursor: pointer` + `color: var(--color-text-primary)`.
+  - `.ui-tree-row[data-container="true"]` — `font-weight: 700` (было 600).
+  - `.ui-tree-row:not([data-container="true"])[data-depth]` — `color: var(--color-text-muted)`.
+  - `.ui-tree-row[data-disabled="true"]` — `cursor: default`, `opacity: 0.6`.
+  - Заменили `var(--color-text)` → `var(--color-text-primary)`.
+- В `SystemTreeNav`: `indent` 20 → 24, `rowHeight` 24 → 26.
 
 ## Состояние Block C (общий итог)
 
