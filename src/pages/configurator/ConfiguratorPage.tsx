@@ -15,6 +15,7 @@ import { ProcessEditor } from "./components/ProcessEditor";
 import { CommitDialog } from "./components/CommitDialog";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { CreateProcessDialog } from "./components/CreateProcessDialog";
+import { EditApiDialog } from "./components/EditApiDialog";
 import { recomputeReturnStages } from "./utils/recomputeReturnStages";
 import { stableJson } from "./utils/stableJson";
 import { useToast } from "@/providers/ToastProvider";
@@ -58,6 +59,11 @@ export function ConfiguratorPage() {
    * (когда пользователь нажал «Edit Sub Process», а такого в `allModels` нет).
    */
   const [createProcessPrefill, setCreateProcessPrefill] = useState<string | null>(null);
+  /**
+   * Процесс, для которого открыт `EditApiDialog` (WFM API permission editor).
+   * `null` — диалог закрыт.
+   */
+  const [apiDialogFor, setApiDialogFor] = useState<ProcessModel | null>(null);
 
   const [crudModels, setCrudModels] = useState<CRUDModelInfo[]>([]);
   const [commands, setCommands] = useState<AdapterCommandInfo[]>([]);
@@ -474,6 +480,7 @@ export function ConfiguratorPage() {
                         onRefresh={loadTree}
                         onOpenProcess={openProcess}
                         onRemoveDraft={handleRemoveDraft}
+                        onOpenApi={setApiDialogFor}
                       />
                     </div>
                   </Panel>
@@ -523,6 +530,7 @@ export function ConfiguratorPage() {
                       onRefresh={loadTree}
                       onOpenProcess={openProcess}
                       onRemoveDraft={handleRemoveDraft}
+                      onOpenApi={setApiDialogFor}
                     />
                   </div>
                   <button
@@ -561,6 +569,16 @@ export function ConfiguratorPage() {
           api={api}
           onClose={() => setShowCommit(false)}
           onCommitted={() => { setShowCommit(false); loadTree(); }}
+        />
+      )}
+
+      {apiDialogFor && api && (
+        <EditApiDialog
+          api={api}
+          processName={apiDialogFor.Name ?? apiDialogFor.TypeName}
+          processTypeName={apiDialogFor.TypeName}
+          onClose={() => setApiDialogFor(null)}
+          onSaved={() => loadTree()}
         />
       )}
 

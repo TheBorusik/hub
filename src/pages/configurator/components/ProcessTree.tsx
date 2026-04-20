@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import {
   ChevronRight, ChevronDown, FolderOpen, Folder,
   RefreshCw, ChevronsUpDown, ChevronsDownUp,
-  X, Pencil,
+  X, Pencil, PlugZap,
 } from "lucide-react";
 import type { Catalog, ProcessModel } from "@/lib/ws-api-models";
 import { PanelToolbar } from "@/components/ui/PanelToolbar";
@@ -21,6 +21,12 @@ interface ProcessTreeProps {
   onRefresh: () => void;
   onOpenProcess: (model: ProcessModel) => void;
   onRemoveDraft: (typeName: string) => void;
+  /**
+   * Открыть `EditApiDialog` (WFM API permission editor) для процесса.
+   * Не обязателен — если не передан, кнопка `API` рядом с `Edit`
+   * и соответствующий пункт контекстного меню не рендерятся.
+   */
+  onOpenApi?: (model: ProcessModel) => void;
 }
 
 /* ─── Filter ────────────────────────────────────────── */
@@ -63,7 +69,7 @@ function filterCatalog(
 
 export function ProcessTree({
   catalogs, actionColors, loading, selectedTypeName,
-  onRefresh, onOpenProcess, onRemoveDraft,
+  onRefresh, onOpenProcess, onRemoveDraft, onOpenApi,
 }: ProcessTreeProps) {
   const [filter, setFilter] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -183,6 +189,7 @@ export function ProcessTree({
             key={cat.Name} catalog={cat} path={cat.Name} depth={0}
             expanded={expanded} selectedTypeName={selectedTypeName} actionColors={actionColors}
             onToggle={toggleExpand} onOpenProcess={onOpenProcess} onRemoveDraft={onRemoveDraft}
+            onOpenApi={onOpenApi}
           />
         ))}
         {filtered.length === 0 && !loading && (
@@ -205,11 +212,12 @@ interface CatalogNodeProps {
   onToggle: (path: string) => void;
   onOpenProcess: (model: ProcessModel) => void;
   onRemoveDraft: (typeName: string) => void;
+  onOpenApi?: (model: ProcessModel) => void;
 }
 
 function CatalogNode({
   catalog, path, depth, expanded, selectedTypeName, actionColors,
-  onToggle, onOpenProcess, onRemoveDraft,
+  onToggle, onOpenProcess, onRemoveDraft, onOpenApi,
 }: CatalogNodeProps) {
   const isOpen = expanded.has(path);
 
@@ -243,6 +251,7 @@ function CatalogNode({
               key={child.Name} catalog={child} path={`${path}.${child.Name}`} depth={depth + 1}
               expanded={expanded} selectedTypeName={selectedTypeName} actionColors={actionColors}
               onToggle={onToggle} onOpenProcess={onOpenProcess} onRemoveDraft={onRemoveDraft}
+              onOpenApi={onOpenApi}
             />
           ))}
           {(catalog.Contents ?? []).length > 0 && (
@@ -253,6 +262,7 @@ function CatalogNode({
                   isSelected={selectedTypeName === p.TypeName}
                   actionColor={actionColors[p.Action] ?? "#546e7a"}
                   onOpen={onOpenProcess} onRemoveDraft={onRemoveDraft}
+                  onOpenApi={onOpenApi}
                 />
               ))}
             </div>
@@ -272,12 +282,16 @@ interface ProcessRowProps {
   actionColor: string;
   onOpen: (model: ProcessModel) => void;
   onRemoveDraft: (typeName: string) => void;
+  onOpenApi?: (model: ProcessModel) => void;
 }
 
-function ProcessRow({ model, depth, isSelected, actionColor, onOpen, onRemoveDraft }: ProcessRowProps) {
-  type MenuId = "open" | "copy-name" | "copy-typename" | "remove-draft";
+function ProcessRow({ model, depth, isSelected, actionColor, onOpen, onRemoveDraft, onOpenApi }: ProcessRowProps) {
+  type MenuId = "open" | "edit-api" | "copy-name" | "copy-typename" | "remove-draft";
   const items: ContextMenuItem<MenuId>[] = [
     { id: "open", label: "Open" },
+    ...(onOpenApi
+      ? ([{ id: "edit-api", label: "Edit API…" }] as ContextMenuItem<MenuId>[])
+      : []),
     { kind: "separator" },
     { id: "copy-name", label: "Copy name" },
     { id: "copy-typename", label: "Copy TypeName" },
@@ -289,6 +303,9 @@ function ProcessRow({ model, depth, isSelected, actionColor, onOpen, onRemoveDra
     switch (id) {
       case "open":
         onOpen(model);
+        break;
+      case "edit-api":
+        onOpenApi?.(model);
         break;
       case "copy-name":
         navigator.clipboard?.writeText(model.Name ?? model.TypeName ?? "");
@@ -369,11 +386,22 @@ function ProcessRow({ model, depth, isSelected, actionColor, onOpen, onRemoveDra
         )}
       </div>
 
-      {/* Edit — видна только при hover строки */}
+      {/* API + Edit — видны только при hover строки (как row-actions в VS Code Explorer) */}
       <span className="ui-row-actions" style={{ marginLeft: 4, flexShrink: 0 }}>
+        {onOpenApi && (
+          <button
+            className="tree-action-btn"
+            title="Edit API · Roles / Command / Result DTO"
+            aria-label="Edit API"
+            onClick={(e) => { e.stopPropagation(); onOpenApi(model); }}
+          >
+            <PlugZap size={11} />
+          </button>
+        )}
         <button
           className="tree-action-btn"
           title="Edit"
+          aria-label="Edit"
           onClick={(e) => { e.stopPropagation(); onOpen(model); }}
         >
           <Pencil size={11} />
