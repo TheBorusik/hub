@@ -208,8 +208,10 @@ export function TreeView<TMeta = unknown>({
             role="treeitem"
             aria-expanded={isContainer ? isExpanded : undefined}
             aria-selected={isSelected}
+            data-selected={isSelected ? "true" : undefined}
             data-testid={node["data-testid"]}
             title={node.title}
+            className="ui-tree-row"
             onClick={(e) => {
               if (node.disabled) return;
               onSelect?.(node, e);
@@ -233,7 +235,6 @@ export function TreeView<TMeta = unknown>({
               height: rowHeight,
               paddingLeft: depth * indent + t.space[2],
               paddingRight: t.space[2],
-              background: isSelected ? t.color.bg.selected : "transparent",
               color: node.disabled ? t.color.text.muted : t.color.text.primary,
               opacity: node.disabled ? 0.6 : 1,
               cursor: node.disabled ? "default" : "pointer",
@@ -286,8 +287,8 @@ export function TreeView<TMeta = unknown>({
             )}
             {node.actions && (
               <span
-                className="tree-row-actions"
-                style={{ display: "inline-flex", gap: t.space[1], flexShrink: 0 }}
+                className="ui-row-actions"
+                style={{ gap: t.space[1], flexShrink: 0 }}
                 onClick={(e) => e.stopPropagation()}
               >
                 {node.actions}

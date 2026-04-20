@@ -45,20 +45,14 @@ export function StageList({ stages, selected, onSelect }: StageListProps) {
         {entries.map(([name, stage]) => (
           <div
             key={name}
-            className="flex items-center select-none"
+            className="flex items-center select-none ui-tree-row"
+            data-selected={name === selected ? "true" : undefined}
             style={{
               padding: "4px 8px",
               cursor: "pointer",
               borderLeft: `3px solid ${stageColor(stage.Type)}`,
-              background: name === selected ? "rgba(14,99,156,0.15)" : "transparent",
             }}
             onClick={() => onSelect(name)}
-            onMouseEnter={(e) => {
-              if (name !== selected) e.currentTarget.style.background = "var(--color-list-hover)";
-            }}
-            onMouseLeave={(e) => {
-              if (name !== selected) e.currentTarget.style.background = "transparent";
-            }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{

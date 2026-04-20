@@ -335,17 +335,15 @@ export function ProcessListPanel({
           return (
             <div
               key={p.ProcessId}
-              className="flex items-center cursor-pointer"
+              className="flex items-center cursor-pointer ui-tree-row"
+              data-selected={isActive ? "true" : undefined}
               onClick={() => onSelectProcess(p.ProcessId, p.Name, activeTab)}
               style={{
                 minHeight: 28,
                 padding: "2px 6px",
                 gap: 6,
-                background: isActive ? "rgba(0,122,204,0.2)" : "transparent",
                 outline: isActive ? "1px solid var(--color-focus-border)" : "none",
               }}
-              onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
-              onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
             >
               <input
                 type="checkbox"

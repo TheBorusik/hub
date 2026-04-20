@@ -74,17 +74,15 @@ export function ModelListPanel({ onSelectModel, selectedModelName }: ModelListPa
             <div
               key={model.Name}
               onClick={() => onSelectModel(model)}
-              className="flex items-center cursor-pointer truncate"
+              className="flex items-center cursor-pointer truncate ui-tree-row"
+              data-selected={isActive ? "true" : undefined}
               style={{
                 height: 22,
                 paddingLeft: 12,
                 paddingRight: 8,
                 fontSize: 13,
-                background: isActive ? "rgba(0,122,204,0.2)" : "transparent",
                 ...(isActive ? { outline: "1px solid var(--color-focus-border)" } : {}),
               }}
-              onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
-              onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = isActive ? "rgba(0,122,204,0.2)" : "transparent"; }}
             >
               <span className="truncate">{model.Name}</span>
               <span style={{ marginLeft: "auto", paddingLeft: 8, fontSize: 11, color: "var(--color-text-muted)", opacity: 0.6, flexShrink: 0 }}>

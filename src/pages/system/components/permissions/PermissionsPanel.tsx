@@ -355,7 +355,7 @@ const PermTreeNode = memo(function PermTreeNode({
   return (
     <>
       <div
-        className="group flex items-center gap-1"
+        className="group flex items-center gap-1 ui-tree-row"
         onDragEnd={onDragEnd}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -368,13 +368,11 @@ const PermTreeNode = memo(function PermTreeNode({
           cursor: hasChildren ? "pointer" : "default",
           userSelect: "none",
           opacity: isDragging ? 0.4 : 1,
-          backgroundColor: isDropTarget ? "rgba(14,99,156,0.25)" : "transparent",
+          backgroundColor: isDropTarget ? "rgba(14,99,156,0.25)" : undefined,
           borderTop: isDropTarget ? "2px solid #0e639c" : "2px solid transparent",
           transition: "background-color 120ms",
         }}
         onClick={() => hasChildren && onToggle(id)}
-        onMouseEnter={(e) => { if (!isDropTarget) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
-        onMouseLeave={(e) => { if (!isDropTarget) e.currentTarget.style.backgroundColor = "transparent"; }}
       >
         <span
           draggable

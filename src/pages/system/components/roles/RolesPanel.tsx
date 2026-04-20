@@ -166,15 +166,13 @@ export function RolesPanel() {
             return (
               <div
                 key={role.RoleId}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 ui-tree-row"
+                data-selected={isActive ? "true" : undefined}
                 onClick={() => selectRole(role.RoleId)}
                 style={{
                   height: 30, padding: "0 10px", cursor: "pointer", fontSize: 12, userSelect: "none",
-                  backgroundColor: isActive ? "rgba(14,99,156,0.35)" : "transparent",
                   color: isActive ? "#fff" : tok.color.text.primary,
                 }}
-                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
-                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = "transparent"; }}
               >
                 <Shield size={12} style={{ flexShrink: 0, opacity: 0.5 }} />
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: isActive ? 500 : 400 }}>
@@ -272,10 +270,8 @@ export function RolesPanel() {
                     {perms.map((p) => (
                       <div
                         key={p.PermissionId}
-                        className="flex items-center gap-2"
+                        className="flex items-center gap-2 ui-tree-row"
                         style={{ height: 28, fontSize: 12, padding: "0 4px", borderRadius: tok.radius.sm }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
                       >
                         <IconButton
                           size="xs"

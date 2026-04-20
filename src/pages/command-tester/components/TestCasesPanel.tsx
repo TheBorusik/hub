@@ -39,14 +39,12 @@ export function TestCasesPanel({ cases, onSelect, onRemove, onClose }: TestCases
           <div
             key={tc.Name}
             onClick={() => onSelect(tc)}
-            className="flex items-center justify-between cursor-pointer group"
+            className="flex items-center justify-between cursor-pointer group ui-tree-row"
             style={{
               height: 26,
               padding: "0 8px",
               fontSize: 13,
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
           >
             <span className="flex-1 truncate">{tc.Name}</span>
             {tc.Name !== "DEFAULT" && (

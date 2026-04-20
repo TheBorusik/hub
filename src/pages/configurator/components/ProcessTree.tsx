@@ -196,7 +196,7 @@ function CatalogNode({
   return (
     <div>
       <div
-        className="flex items-center select-none"
+        className="flex items-center select-none ui-tree-row"
         style={{
           height: 24,
           paddingLeft: depth * 14 + 8,
@@ -204,8 +204,6 @@ function CatalogNode({
           cursor: "pointer",
         }}
         onClick={() => onToggle(path)}
-        onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
       >
         {isOpen
           ? <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.5, marginRight: 2 }} />
@@ -259,21 +257,15 @@ interface ProcessRowProps {
 function ProcessRow({ model, depth, isSelected, actionColor, onOpen, onRemoveDraft }: ProcessRowProps) {
   return (
     <div
-      className="flex items-center select-none"
+      className="flex items-center select-none ui-tree-row"
+      data-selected={isSelected ? "true" : undefined}
       style={{
         height: 24,
         paddingLeft: depth * 14 + 8 + 20,
         paddingRight: 6,
         cursor: "pointer",
-        background: isSelected ? "rgba(14,99,156,0.18)" : "transparent",
       }}
       onClick={() => onOpen(model)}
-      onMouseEnter={(e) => {
-        if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = isSelected ? "rgba(14,99,156,0.18)" : "transparent";
-      }}
     >
       {/* Action badge */}
       <span style={{
@@ -330,15 +322,16 @@ function ProcessRow({ model, depth, isSelected, actionColor, onOpen, onRemoveDra
         )}
       </div>
 
-      {/* Edit */}
-      <button
-        className="tree-action-btn"
-        style={{ marginLeft: 4, flexShrink: 0 }}
-        title="Edit"
-        onClick={(e) => { e.stopPropagation(); onOpen(model); }}
-      >
-        <Pencil size={11} />
-      </button>
+      {/* Edit — видна только при hover строки */}
+      <span className="ui-row-actions" style={{ marginLeft: 4, flexShrink: 0 }}>
+        <button
+          className="tree-action-btn"
+          title="Edit"
+          onClick={(e) => { e.stopPropagation(); onOpen(model); }}
+        >
+          <Pencil size={11} />
+        </button>
+      </span>
     </div>
   );
 }

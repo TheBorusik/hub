@@ -1,11 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
   Shield,
   Users,
-  ChevronRight,
-  ChevronDown,
   Heart,
   Settings2,
   Layers,
@@ -16,43 +14,60 @@ import {
   FileWarning,
   MoreHorizontal,
 } from "lucide-react";
+import { TreeView, type TreeNode } from "@/components/ui/TreeView";
 import type { SystemView } from "../types";
 
-interface TreeItem {
-  id: string;
-  label: string;
-  icon: React.ElementType;
+interface ItemMeta {
   view?: SystemView;
-  children?: TreeItem[];
 }
 
-const TREE: TreeItem[] = [
-  {
-    id: "adapters",
-    label: "Adapters",
-    icon: Activity,
-    children: [
-      { id: "status", label: "Status", icon: Heart, view: "status" },
-      { id: "configuration", label: "Configuration", icon: Settings2, view: "configuration" },
-      { id: "base-sections", label: "Base Sections", icon: Layers, view: "base-sections" },
-      { id: "table-data", label: "Table Data", icon: Table2, view: "table-data" },
-    ],
-  },
-  {
-    id: "errors",
-    label: "Errors",
-    icon: AlertTriangle,
-    children: [
-      { id: "errors-wfm", label: "WFM", icon: AlertCircle, view: "errors-wfm" },
-      { id: "errors-command", label: "Command", icon: Terminal, view: "errors-command" },
-      { id: "errors-event", label: "Event", icon: Zap, view: "errors-event" },
-      { id: "errors-result", label: "Result", icon: FileWarning, view: "errors-result" },
-      { id: "errors-other", label: "Other", icon: MoreHorizontal, view: "errors-other" },
-    ],
-  },
-  { id: "permissions", label: "Permissions", icon: Shield, view: "permissions" },
-  { id: "roles", label: "Roles", icon: Users, view: "roles" },
+function leaf(id: string, label: string, Icon: typeof Activity, view: SystemView): TreeNode<ItemMeta> {
+  return {
+    id,
+    label,
+    icon: <Icon size={14} style={{ flexShrink: 0, opacity: 0.8 }} />,
+    meta: { view },
+  };
+}
+
+function group(id: string, label: string, Icon: typeof Activity, children: TreeNode<ItemMeta>[]): TreeNode<ItemMeta> {
+  return {
+    id,
+    label,
+    icon: <Icon size={14} style={{ flexShrink: 0, opacity: 0.8 }} />,
+    children,
+  };
+}
+
+const TREE: TreeNode<ItemMeta>[] = [
+  group("adapters", "Adapters", Activity, [
+    leaf("status", "Status", Heart, "status"),
+    leaf("configuration", "Configuration", Settings2, "configuration"),
+    leaf("base-sections", "Base Sections", Layers, "base-sections"),
+    leaf("table-data", "Table Data", Table2, "table-data"),
+  ]),
+  group("errors", "Errors", AlertTriangle, [
+    leaf("errors-wfm", "WFM", AlertCircle, "errors-wfm"),
+    leaf("errors-command", "Command", Terminal, "errors-command"),
+    leaf("errors-event", "Event", Zap, "errors-event"),
+    leaf("errors-result", "Result", FileWarning, "errors-result"),
+    leaf("errors-other", "Other", MoreHorizontal, "errors-other"),
+  ]),
+  leaf("permissions", "Permissions", Shield, "permissions"),
+  leaf("roles", "Roles", Users, "roles"),
 ];
+
+// Рекурсивно находим id-узла по его view.
+function findIdByView(nodes: TreeNode<ItemMeta>[], view: SystemView): string | null {
+  for (const n of nodes) {
+    if (n.meta?.view === view) return n.id;
+    if (n.children) {
+      const hit = findIdByView(n.children, view);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
 
 interface SystemTreeNavProps {
   activeView: SystemView;
@@ -60,106 +75,36 @@ interface SystemTreeNavProps {
 }
 
 export function SystemTreeNav({ activeView, onSelect }: SystemTreeNavProps) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    adapters: true,
-    errors: true,
-  });
-
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(["adapters", "errors"]));
+  const selectedId = useMemo(() => findIdByView(TREE, activeView), [activeView]);
 
   return (
     <div style={{ padding: "4px 0" }}>
-      {TREE.map((item) => (
-        <TreeNode
-          key={item.id}
-          item={item}
-          depth={0}
-          activeView={activeView}
-          expanded={expanded}
-          onToggle={toggleExpand}
-          onSelect={onSelect}
-        />
-      ))}
+      <TreeView<ItemMeta>
+        nodes={TREE}
+        selectedId={selectedId}
+        expandedIds={expanded}
+        onToggleExpand={(id, next) => {
+          setExpanded((prev) => {
+            const s = new Set(prev);
+            if (next) s.add(id);
+            else s.delete(id);
+            return s;
+          });
+        }}
+        onSelect={(node) => {
+          if (node.meta?.view) onSelect(node.meta.view);
+          else setExpanded((prev) => {
+            const s = new Set(prev);
+            if (s.has(node.id)) s.delete(node.id);
+            else s.add(node.id);
+            return s;
+          });
+        }}
+        indent={16}
+        rowHeight={22}
+        aria-label="System navigation"
+      />
     </div>
-  );
-}
-
-interface TreeNodeProps {
-  item: TreeItem;
-  depth: number;
-  activeView: SystemView;
-  expanded: Record<string, boolean>;
-  onToggle: (id: string) => void;
-  onSelect: (view: SystemView) => void;
-}
-
-function TreeNode({ item, depth, activeView, expanded, onToggle, onSelect }: TreeNodeProps) {
-  const hasChildren = item.children && item.children.length > 0;
-  const isExpanded = expanded[item.id] ?? false;
-  const isActive = item.view === activeView;
-  const Icon = item.icon;
-
-  const handleClick = () => {
-    if (hasChildren) {
-      onToggle(item.id);
-    } else if (item.view) {
-      onSelect(item.view);
-    }
-  };
-
-  return (
-    <>
-      <div
-        onClick={handleClick}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          height: 22,
-          paddingLeft: depth * 16 + 8,
-          paddingRight: 8,
-          cursor: "pointer",
-          fontSize: 13,
-          color: isActive ? "var(--color-text)" : "var(--color-text-muted)",
-          backgroundColor: isActive ? "rgba(255,255,255,0.06)" : "transparent",
-          fontWeight: hasChildren ? 600 : 400,
-          userSelect: "none",
-        }}
-        onMouseEnter={(e) => {
-          if (!isActive) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)";
-        }}
-        onMouseLeave={(e) => {
-          if (!isActive) e.currentTarget.style.backgroundColor = "transparent";
-        }}
-      >
-        {hasChildren ? (
-          isExpanded ? (
-            <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
-          ) : (
-            <ChevronRight size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
-          )
-        ) : (
-          <span style={{ width: 14, flexShrink: 0 }} />
-        )}
-        <Icon size={14} style={{ flexShrink: 0, opacity: 0.8 }} />
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {item.label}
-        </span>
-      </div>
-      {hasChildren && isExpanded &&
-        item.children!.map((child) => (
-          <TreeNode
-            key={child.id}
-            item={child}
-            depth={depth + 1}
-            activeView={activeView}
-            expanded={expanded}
-            onToggle={onToggle}
-            onSelect={onSelect}
-          />
-        ))}
-    </>
   );
 }

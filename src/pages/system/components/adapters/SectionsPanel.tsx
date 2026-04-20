@@ -224,11 +224,10 @@ export function SectionsPanel() {
               {filtered.map((s) => {
                 const isSel = s.SectionId === selectedId;
                 return (
-                  <div key={s.SectionId} className="flex items-center group"
+                  <div key={s.SectionId} className="flex items-center group ui-tree-row"
+                    data-selected={isSel ? "true" : undefined}
                     onClick={() => setSelectedId(s.SectionId)}
-                    style={{ height: 26, padding: "0 10px", cursor: "pointer", fontSize: 12, gap: 6, color: isSel ? "var(--color-text)" : "var(--color-text-muted)", backgroundColor: isSel ? "rgba(255,255,255,0.07)" : "transparent", fontWeight: isSel ? 500 : 400 }}
-                    onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
-                    onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = "transparent"; }}
+                    style={{ height: 26, padding: "0 10px", cursor: "pointer", fontSize: 12, gap: 6, color: isSel ? "var(--color-text)" : "var(--color-text-muted)", fontWeight: isSel ? 500 : 400 }}
                   >
                     {s.Locked ? <Lock size={12} style={{ flexShrink: 0, color: "#F6511D" }} /> : <Folder size={12} style={{ flexShrink: 0, opacity: 0.6 }} />}
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.Name}</span>

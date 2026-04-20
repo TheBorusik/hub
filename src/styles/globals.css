@@ -332,8 +332,24 @@ a {
   gap: 2px;
 }
 .ui-data-table-row:hover .ui-row-actions,
-.ui-data-table-row:focus-within .ui-row-actions {
+.ui-data-table-row:focus-within .ui-row-actions,
+.ui-tree-row:hover .ui-row-actions,
+.ui-tree-row:focus-within .ui-row-actions {
   visibility: visible;
+}
+
+/* <TreeView> — hover/selected через CSS. */
+.ui-tree-row {
+  background-color: transparent;
+}
+.ui-tree-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+.ui-tree-row[data-selected="true"] {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+.ui-tree-row[data-selected="true"]:hover {
+  background-color: rgba(255, 255, 255, 0.07);
 }
 
 .resize-handle-h {

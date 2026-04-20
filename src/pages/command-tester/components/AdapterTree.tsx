@@ -78,20 +78,18 @@ function NodeRow({
   return (
     <div
       onClick={handleClick}
-      className="flex items-center cursor-pointer"
+      className="flex items-center cursor-pointer ui-tree-row"
+      data-selected={active ? "true" : undefined}
       style={{
         height: 22,
         paddingLeft: depth * 8 + 4,
         paddingRight: 8,
         fontSize: 13,
         color,
-        background: active ? "var(--color-focus-border)" + "33" : "transparent",
         ...(active
           ? { outline: "1px solid var(--color-focus-border)" }
           : {}),
       }}
-      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
-      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
     >
       {!isCommand ? (
         node.expanded
