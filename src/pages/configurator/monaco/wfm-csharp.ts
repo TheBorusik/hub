@@ -122,7 +122,7 @@ const languageDefinition = {
   keywords: csharpKeywords,
   namespaceFollows: ["namespace", "using"],
   operators: csharpOperators,
-  symbols: /[=><!~?:&|+\-*\/\^%]+/,
+  symbols: /[=><!~?:&|+\-*/^%]+/,
   escapes: /\\(?:[abfnrtv\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})/,
   tokenizer: {
     root: [
@@ -142,7 +142,7 @@ const languageDefinition = {
           "@default": "@brackets",
         },
       }],
-      [/[{}()\[\]]/, "@brackets"],
+      [/[{}()[\]]/, "@brackets"],
       [/[<>](?!@symbols)/, "@brackets"],
       [/@symbols/, {
         cases: {
@@ -150,7 +150,7 @@ const languageDefinition = {
           "@default": "",
         },
       }],
-      [/[0-9_]*\.[0-9_]+([eE][\-+]?\d+)?[fFdD]?/, "number.float"],
+      [/[0-9_]*\.[0-9_]+([eE][-+]?\d+)?[fFdD]?/, "number.float"],
       [/0[xX][0-9a-fA-F_]+/, "number.hex"],
       [/0[bB][01_]+/, "number.hex"],
       [/[0-9_]+/, "number"],
@@ -177,13 +177,13 @@ const languageDefinition = {
     namespace: [
       { include: "@whitespace" },
       [/[A-Z]\w*/, "namespace"],
-      [/[\.=]/, "delimiter"],
+      [/[.=]/, "delimiter"],
       ["", "", "@pop"],
     ],
     comment: [
-      [/[^\/*]+/, "comment"],
+      [/[^/*]+/, "comment"],
       ["\\*/", "comment", "@pop"],
-      [/[\/*]/, "comment"],
+      [/[/*]/, "comment"],
     ],
     string: [
       [/[^\\"]+/, "string"],

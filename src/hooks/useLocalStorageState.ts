@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
 
 export interface LocalStorageStateOptions<T> {
   /**
@@ -72,9 +72,6 @@ export function useLocalStorageState<T>(
   };
 
   const [state, setState] = useState<T>(readInitial);
-
-  const latest = useRef(state);
-  latest.current = state;
 
   useEffect(() => {
     if (typeof window === "undefined") return;

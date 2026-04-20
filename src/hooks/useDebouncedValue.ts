@@ -12,13 +12,12 @@ export function useDebouncedValue<T>(value: T, delay: number = 200): T {
   const [debounced, setDebounced] = useState<T>(value);
 
   useEffect(() => {
-    if (delay <= 0) {
-      setDebounced(value);
-      return;
-    }
+    if (delay <= 0) return;
     const timer = window.setTimeout(() => setDebounced(value), delay);
     return () => window.clearTimeout(timer);
   }, [value, delay]);
 
-  return debounced;
+  // При `delay <= 0` debounce фактически выключен — возвращаем значение
+  // синхронно, минуя внутренний state (чтобы не делать setState в effect).
+  return delay <= 0 ? value : debounced;
 }

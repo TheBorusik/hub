@@ -33,6 +33,12 @@ export default defineConfig([
       // инвариант на error, чтобы новый код не возвращал дубли.
       'hub-ui/no-duplicate-confirm-dialog': 'error',
       'hub-ui/no-monaco-theme-define': 'error',
+      // Провайдеры (ContourProvider, NavigationProvider, NotificationsProvider,
+      // ProblemsProvider, ToastProvider, MonacoProvider, ConfirmDialog/useConfirm,
+      // Modal/useModal) намеренно соэкспортируют Provider-компонент, хуки и
+      // типы из одного файла — это стандартный React-Context паттерн. Splitting
+      // каждого провайдера на два файла не даёт пользы — оставляем warn.
+      'react-refresh/only-export-components': 'warn',
     },
   },
 ])

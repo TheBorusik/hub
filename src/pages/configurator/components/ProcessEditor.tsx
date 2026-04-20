@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import type { HubWsApi } from "@/lib/ws-api";
 import type {
   ProcessModel, WebProcess,
@@ -82,12 +82,18 @@ export function ProcessEditor({
 
   const { dirtyStages, reset: resetDirtySnapshot } = useStageDirtyTracking(process);
 
-  // Смена процесса — сбрасываем UI-стейт редактора.
-  useEffect(() => {
+  // Смена процесса — сбрасываем UI-стейт редактора. Используем паттерн
+  // «derived state on prop change»: храним в стейте TypeName,
+  // при рассинхронизации синхронно ресетим UI — без эффекта (и без
+  // лишнего кадра со «старым» активным табом). См.
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [prevTypeName, setPrevTypeName] = useState(process?.TypeName);
+  if (prevTypeName !== process?.TypeName) {
+    setPrevTypeName(process?.TypeName);
     setActiveTab("__diagram__");
     setOpenStageTabs([]);
     setSpecialView(null);
-  }, [process?.TypeName]);
+  }
 
   const {
     saving, validating, compileDiagnostics, setCompileDiagnostics,
@@ -152,37 +158,10 @@ export function ProcessEditor({
     onQuickOpenStages: useCallback(() => setQuickPick("stages"), []),
   });
 
-  if (tab.loading) {
-    return (
-      <div className="flex items-center justify-center h-full" style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
-        Loading {tab.typeName}...
-      </div>
-    );
-  }
-  if (!process) {
-    return (
-      <div className="flex items-center justify-center h-full" style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
-        Failed to load process
-      </div>
-    );
-  }
-
-  const stages = process.Stages ?? {};
+  const stages = process?.Stages ?? {};
   const stageNames = Object.keys(stages);
   const isDiagram = activeTab === "__diagram__" && !specialView;
   const isStageOpen = activeTab !== "__diagram__" && !specialView && !!stages[activeTab];
-
-  const handleApplyCode = (next: WebProcess) => {
-    // Сохраняем существующий WebData — сервер при парсинге кода
-    // не знает про раскладку на диаграмме.
-    const merged: WebProcess = { ...next, WebData: process.WebData ?? next.WebData };
-    onProcessUpdate(recomputeReturnStages(merged));
-    // Apply вызывается только если createProcessAssembly не вернул
-    // ошибок — компиляция валидна, индикатор можно очистить.
-    setCompileDiagnostics([]);
-    problems.clearSource(compileProblemSourceFor(next.TypeName));
-    toast.push("success", `Code applied to ${next.TypeName}`);
-  };
 
   const stagesQuickPickItems = useMemo<QuickPickItem[]>(
     () => Object.values(stages).map((s) => ({
@@ -198,14 +177,16 @@ export function ProcessEditor({
   );
 
   const paletteItems = useMemo<QuickPickItem[]>(
-    () => buildProcessPaletteItems({
-      process, activeTab, isStageOpen, autoSaveEnabled,
-      setSpecialView, onGotoDiagram: gotoDiagram,
-      setUsingsDialogOpen, setModelDialog, setCreateStagePrefill,
-      onProcessUpdate,
-      handleSave, handleValidateProcess, handlePack, handleUnpackClick,
-      toggleAutoSave, handleAskDeleteStage,
-    }),
+    () => process
+      ? buildProcessPaletteItems({
+          process, activeTab, isStageOpen, autoSaveEnabled,
+          setSpecialView, onGotoDiagram: gotoDiagram,
+          setUsingsDialogOpen, setModelDialog, setCreateStagePrefill,
+          onProcessUpdate,
+          handleSave, handleValidateProcess, handlePack, handleUnpackClick,
+          toggleAutoSave, handleAskDeleteStage,
+        })
+      : [],
     [
       process, activeTab, isStageOpen, autoSaveEnabled,
       gotoDiagram, onProcessUpdate,
@@ -213,6 +194,33 @@ export function ProcessEditor({
       toggleAutoSave, handleAskDeleteStage,
     ],
   );
+
+  if (tab.loading) {
+    return (
+      <div className="flex items-center justify-center h-full" style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
+        Loading {tab.typeName}...
+      </div>
+    );
+  }
+  if (!process) {
+    return (
+      <div className="flex items-center justify-center h-full" style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
+        Failed to load process
+      </div>
+    );
+  }
+
+  const handleApplyCode = (next: WebProcess) => {
+    // Сохраняем существующий WebData — сервер при парсинге кода
+    // не знает про раскладку на диаграмме.
+    const merged: WebProcess = { ...next, WebData: process.WebData ?? next.WebData };
+    onProcessUpdate(recomputeReturnStages(merged));
+    // Apply вызывается только если createProcessAssembly не вернул
+    // ошибок — компиляция валидна, индикатор можно очистить.
+    setCompileDiagnostics([]);
+    problems.clearSource(compileProblemSourceFor(next.TypeName));
+    toast.push("success", `Code applied to ${next.TypeName}`);
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

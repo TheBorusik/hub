@@ -85,13 +85,24 @@ export function ProcessTree({
   }, [filtered]);
 
   const toggleExpand = useCallback((path: string) => {
-    setExpanded((prev) => { const s = new Set(prev); s.has(path) ? s.delete(path) : s.add(path); return s; });
+    setExpanded((prev) => {
+      const s = new Set(prev);
+      if (s.has(path)) s.delete(path); else s.add(path);
+      return s;
+    });
   }, []);
 
   const collectPaths = useCallback((cats: Catalog[], pfx = ""): string[] => {
-    const r: string[] = [];
-    for (const c of cats) { const p = pfx ? `${pfx}.${c.Name}` : c.Name; r.push(p); r.push(...collectPaths(c.Catalogs ?? [], p)); }
-    return r;
+    const walk = (list: Catalog[], prefix: string): string[] => {
+      const r: string[] = [];
+      for (const c of list) {
+        const p = prefix ? `${prefix}.${c.Name}` : c.Name;
+        r.push(p);
+        r.push(...walk(c.Catalogs ?? [], p));
+      }
+      return r;
+    };
+    return walk(cats, pfx);
   }, []);
 
   const handleToggleAll = useCallback(() => {
@@ -100,7 +111,11 @@ export function ProcessTree({
   }, [allExpanded, filtered, collectPaths]);
 
   const toggleFlag = (f: string) => {
-    setActiveFlags((prev) => { const s = new Set(prev); s.has(f) ? s.delete(f) : s.add(f); return s; });
+    setActiveFlags((prev) => {
+      const s = new Set(prev);
+      if (s.has(f)) s.delete(f); else s.add(f);
+      return s;
+    });
   };
 
   return (

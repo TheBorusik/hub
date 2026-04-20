@@ -62,6 +62,11 @@ export function CodePreview({ api, process, onApplyToProcess }: CodePreviewProps
     const key = processName;
     if (lastRequested.current === key) return;
     lastRequested.current = key;
+    // reloadFromProcess инициирует async-загрузку кода с сервера; внутри
+    // есть setState'ы, но они привязаны к завершению запроса, а не к самому
+    // эффекту. Поэтому rule react-hooks/set-state-in-effect здесь не
+    // применим.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     reloadFromProcess();
   }, [processName, reloadFromProcess]);
 

@@ -160,6 +160,10 @@ export function ViewerPage() {
     const intent = consumeIntent("viewer");
     if (!intent || intent.kind !== "openProcessInViewer") return;
     const tab = intent.tab ?? "completed";
+    // Эффект реагирует на внешний intent (navigation из других секций / Ctrl+P)
+    // — это пограничный «внешний источник» в терминах React docs, поэтому
+    // setState тут уместен.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setListTab(tab);
     handleSelectProcess(intent.processId, intent.name, tab);
     // `intentVersion` — чтобы эффект сработал и при повторной навигации
