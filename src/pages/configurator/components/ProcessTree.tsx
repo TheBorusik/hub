@@ -230,7 +230,7 @@ function CatalogNode({
             <div>
               {(catalog.Contents ?? []).map((p) => (
                 <ProcessRow
-                  key={p.TypeName} model={p} depth={depth}
+                  key={p.TypeName} model={p} depth={depth + 1}
                   isSelected={selectedTypeName === p.TypeName}
                   actionColor={actionColors[p.Action] ?? "#546e7a"}
                   onOpen={onOpenProcess} onRemoveDraft={onRemoveDraft}

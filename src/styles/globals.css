@@ -367,16 +367,26 @@ a {
   color: var(--color-text-primary);
   font-weight: 400;
 }
-/* Иерархия: контейнеры — ярче и жирнее; листья — приглушённые.
- * Правила применяются только там, где строки рендерит примитив <TreeView>
- * и проставляет data-container. В legacy-местах с .ui-tree-row без
- * data-container цвет остаётся без изменений. */
-.ui-tree-row[data-container="true"] {
-  color: var(--color-text-primary);
+/* Иерархия как в VS Code sidebar:
+ *   - корневые контейнеры (depth=0) — КАПСОМ, чуть мельче, с letter-spacing, почти белые;
+ *   - вложенные контейнеры — bold в обычном регистре;
+ *   - листья — заметно приглушённые.
+ * Правила применяются только к строкам примитива <TreeView>, у которого проставлен
+ * data-container. В legacy-местах с .ui-tree-row без data-container всё остаётся как было. */
+.ui-tree-row[data-container="true"][data-depth="0"] {
+  color: #ffffff;
   font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.ui-tree-row[data-container="true"]:not([data-depth="0"]) {
+  color: #ffffff;
+  font-weight: 600;
 }
 .ui-tree-row:not([data-container="true"])[data-depth] {
-  color: var(--color-text-muted);
+  color: #9d9d9d;
+  font-weight: 400;
 }
 .ui-tree-row[data-selected="true"]:not([data-container="true"])[data-depth] {
   color: var(--color-text-primary);

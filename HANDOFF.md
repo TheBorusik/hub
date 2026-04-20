@@ -30,19 +30,20 @@
 
 ## ✅ Закрыто: визуальный баг SYSTEM sidebar
 
-Коммит `2484e53` `fix(ui): TreeView hierarchy — move color/weight/cursor from inline to CSS`.
+Подтверждено пользователем. Итог серии коммитов:
 
-**Причина** (гипотеза из предыдущей версии HANDOFF подтвердилась): в `TreeView.tsx` у каждой строки был inline `style={{ color: primary, fontWeight: isContainer ? 600 : 400, cursor }}`. Inline color побеждал CSS-правило `.ui-tree-row:not([data-container]) { color: muted }` по специфичности — поэтому все строки были одного цвета, иерархия не читалась. Дополнительный бонусный баг: CSS использовал несуществующую переменную `var(--color-text)`.
+- `2484e53` `fix(ui): TreeView hierarchy — move color/weight/cursor from inline to CSS`
+  — убраны inline `color`/`font-weight`/`cursor`/`opacity` с рядов `TreeView`, переведены на CSS по `data-container` / `data-depth` / `data-disabled`. Исправлена несуществующая `var(--color-text)` → `var(--color-text-primary)`.
 
-**Что сделано:**
-- В `TreeView.tsx` оставлены inline только структурные параметры (padding, height, gap, userSelect). `color`, `font-weight`, `cursor`, `opacity` теперь полностью через CSS по `data-container` / `data-depth` / `data-disabled`.
-- В `globals.css`:
-  - `.ui-tree-row[data-depth]` — базовый `cursor: pointer` + `color: var(--color-text-primary)`.
-  - `.ui-tree-row[data-container="true"]` — `font-weight: 700` (было 600).
-  - `.ui-tree-row:not([data-container="true"])[data-depth]` — `color: var(--color-text-muted)`.
-  - `.ui-tree-row[data-disabled="true"]` — `cursor: default`, `opacity: 0.6`.
-  - Заменили `var(--color-text)` → `var(--color-text-primary)`.
-- В `SystemTreeNav`: `indent` 20 → 24, `rowHeight` 24 → 26.
+- **VS Code-style иерархия** (текущий коммит):
+  - Корневые контейнеры (`data-depth="0"`) в `SystemTreeNav`: КАПСОМ, 11px, letter-spacing 0.5px, `#ffffff`. Это даёт явную визуальную границу, как секции в VS Code Explorer.
+  - Вложенные контейнеры: bold, `#ffffff`.
+  - Листья: `#9d9d9d` (заметно приглушённее), обычный вес.
+  - Листья в состоянии selected возвращаются к `#cccccc`.
+
+- **Добавлен корневой раздел `AUTH`** в `SystemTreeNav`, куда перенесены `Permissions` и `Roles`. Раньше они висели на корневом уровне рядом с `Errors`, и визуально склеивались с его детьми. Теперь три параллельные корневые группы: `ADAPTERS`, `ERRORS`, `AUTH`. `auth` раскрыт по умолчанию.
+
+- **Исправлены отступы процессов в Configurator ProcessTree**: `ProcessRow` получал `depth={parent.depth}` вместо `depth + 1`, из-за чего бейдж `[Action]` процесса оказывался левее имени родительского каталога. Теперь процессы выравниваются под именем родителя (как файлы под папкой в VS Code Explorer).
 
 ## Состояние Block C (общий итог)
 

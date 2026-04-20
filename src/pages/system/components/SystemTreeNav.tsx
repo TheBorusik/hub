@@ -13,6 +13,7 @@ import {
   Zap,
   FileWarning,
   MoreHorizontal,
+  Lock,
 } from "lucide-react";
 import { TreeView, type TreeNode } from "@/components/ui/TreeView";
 import type { SystemView } from "../types";
@@ -53,8 +54,10 @@ const TREE: TreeNode<ItemMeta>[] = [
     leaf("errors-result", "Result", FileWarning, "errors-result"),
     leaf("errors-other", "Other", MoreHorizontal, "errors-other"),
   ]),
-  leaf("permissions", "Permissions", Shield, "permissions"),
-  leaf("roles", "Roles", Users, "roles"),
+  group("auth", "Auth", Lock, [
+    leaf("permissions", "Permissions", Shield, "permissions"),
+    leaf("roles", "Roles", Users, "roles"),
+  ]),
 ];
 
 // Рекурсивно находим id-узла по его view.
@@ -75,7 +78,7 @@ interface SystemTreeNavProps {
 }
 
 export function SystemTreeNav({ activeView, onSelect }: SystemTreeNavProps) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(["adapters", "errors"]));
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(["adapters", "errors", "auth"]));
   const selectedId = useMemo(() => findIdByView(TREE, activeView), [activeView]);
 
   return (
