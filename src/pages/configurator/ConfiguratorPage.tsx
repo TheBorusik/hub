@@ -481,6 +481,7 @@ export function ConfiguratorPage() {
                         onOpenProcess={openProcess}
                         onRemoveDraft={handleRemoveDraft}
                         onOpenApi={setApiDialogFor}
+                        onCreateProcess={() => setCreateProcessPrefill("")}
                       />
                     </div>
                   </Panel>
@@ -531,6 +532,7 @@ export function ConfiguratorPage() {
                       onOpenProcess={openProcess}
                       onRemoveDraft={handleRemoveDraft}
                       onOpenApi={setApiDialogFor}
+                      onCreateProcess={() => setCreateProcessPrefill("")}
                     />
                   </div>
                   <button

@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import {
   ChevronRight, ChevronDown, FolderOpen, Folder,
   RefreshCw, ChevronsUpDown, ChevronsDownUp,
-  X, Pencil, PlugZap,
+  X, Pencil, PlugZap, FilePlus2,
 } from "lucide-react";
 import type { Catalog, ProcessModel } from "@/lib/ws-api-models";
 import { PanelToolbar } from "@/components/ui/PanelToolbar";
@@ -27,6 +27,11 @@ interface ProcessTreeProps {
    * и соответствующий пункт контекстного меню не рендерятся.
    */
   onOpenApi?: (model: ProcessModel) => void;
+  /**
+   * Открыть `CreateProcessDialog`. Если не передан, кнопка `+` в
+   * тулбаре и пункт меню `Create new process…` не показываются.
+   */
+  onCreateProcess?: () => void;
 }
 
 /* ─── Filter ────────────────────────────────────────── */
@@ -69,7 +74,7 @@ function filterCatalog(
 
 export function ProcessTree({
   catalogs, actionColors, loading, selectedTypeName,
-  onRefresh, onOpenProcess, onRemoveDraft, onOpenApi,
+  onRefresh, onOpenProcess, onRemoveDraft, onOpenApi, onCreateProcess,
 }: ProcessTreeProps) {
   const [filter, setFilter] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -141,6 +146,14 @@ export function ProcessTree({
         }
         right={
           <>
+            {onCreateProcess && (
+              <IconButton
+                size="xs"
+                label="Create new process…"
+                icon={<FilePlus2 size={14} />}
+                onClick={onCreateProcess}
+              />
+            )}
             <IconButton
               size="xs"
               label="Refresh"
