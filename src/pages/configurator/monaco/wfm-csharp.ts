@@ -1,9 +1,13 @@
 import type { Monaco } from "@monaco-editor/react";
 import type * as MonacoNs from "monaco-editor";
+import { ensureWfmDarkTheme } from "@/components/ui/CodeEditor";
 
 /**
  * WFM C# Monaco customization: дополнительная подсветка доменных типов,
  * кастомная тема и snippets для Configurator (портировано из AncestorAdmin).
+ *
+ * Регистрация темы `wfm-dark` делегирована в `MonacoProvider`
+ * (см. `ensureWfmDarkTheme`) — здесь только token rules.
  */
 
 const foregroundColors = {
@@ -264,7 +268,6 @@ export const WFM_KEYWORDS: string[] = [
 ];
 
 let languageRegistered = false;
-let themeRegistered = false;
 
 export function registerWfmCSharpLanguage(monaco: Monaco): void {
   if (languageRegistered) return;
@@ -273,16 +276,7 @@ export function registerWfmCSharpLanguage(monaco: Monaco): void {
 }
 
 export function defineWfmTheme(monaco: Monaco): void {
-  if (themeRegistered) return;
-  monaco.editor.defineTheme("wfm-dark", {
-    base: "vs-dark",
-    inherit: true,
-    rules: themeRules,
-    colors: {
-      "editor.background": "#1e1e1e",
-    },
-  });
-  themeRegistered = true;
+  ensureWfmDarkTheme(monaco, themeRules);
 }
 
 export interface WfmCompletionContext {

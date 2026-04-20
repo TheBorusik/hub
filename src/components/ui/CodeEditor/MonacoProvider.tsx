@@ -10,26 +10,58 @@ export interface MonacoProviderValue {
 
 const Ctx = createContext<MonacoProviderValue | null>(null);
 
+const FALLBACK_EDITOR_BG = "#1e1e1e";
+
+function readEditorBg(): string {
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue("--color-editor")
+    .trim();
+  return v || FALLBACK_EDITOR_BG;
+}
+
 /**
  * Единая тёмная тема для Monaco в Hub (не C#/не WFM). C#-редакторы используют
- * `wfm-dark` через setupWfmCSharp; она определяется в своём месте и читается
- * отсюда же — кросс-регистраций нет.
+ * `wfm-dark` (см. ниже) — обе темы регистрируются здесь, чтобы исключить
+ * дубли (см. `eslint-rules/no-monaco-theme-define`).
  */
 function defineHubDarkTheme(monaco: Monaco, registered: { current: boolean }): void {
   if (registered.current) return;
-  const editorBg = getComputedStyle(document.documentElement)
-    .getPropertyValue("--color-editor")
-    .trim() || "#1e1e1e";
   const theme: MonacoNs.editor.IStandaloneThemeData = {
     base: "vs-dark",
     inherit: true,
     rules: [],
     colors: {
-      "editor.background": editorBg,
+      "editor.background": readEditorBg(),
     },
   };
   monaco.editor.defineTheme("hub-dark", theme);
   registered.current = true;
+}
+
+/* ---------------------------------------------------------------- WFM theme */
+
+const wfmThemeRegistry = { current: false };
+
+/**
+ * WFM C#-тема. Правила (token rules) предоставляются доменным модулем
+ * `pages/configurator/monaco/wfm-csharp.ts`, но регистрация
+ * `monaco.editor.defineTheme("wfm-dark", ...)` живёт здесь — единый
+ * theme-bootstrap. Дубль-вызовы безопасны: внутренний guard.
+ */
+export function ensureWfmDarkTheme(
+  monaco: Monaco,
+  rules: MonacoNs.editor.ITokenThemeRule[],
+): void {
+  if (wfmThemeRegistry.current) return;
+  monaco.editor.defineTheme("wfm-dark", {
+    base: "vs-dark",
+    inherit: true,
+    rules,
+    colors: {
+      "editor.background": readEditorBg(),
+    },
+  });
+  wfmThemeRegistry.current = true;
 }
 
 /**
