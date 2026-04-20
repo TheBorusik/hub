@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { createPortal } from "react-dom";
-import { X, GitCommitHorizontal } from "lucide-react";
+import { GitCommitHorizontal } from "lucide-react";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { FormRow } from "@/components/ui/FormRow";
+import { t } from "@/lib/design-tokens";
 
 interface CommitMessageDialogProps {
   /** Имя объекта, который коммитим — пре-заполняет сообщение (`Update {typeName}`). */
@@ -13,7 +16,8 @@ interface CommitMessageDialogProps {
 
 /**
  * Диалог ввода commit message (используется для коммита global model в
- * `ProcessAssembly`). Enter — commit, Esc — отмена.
+ * `ProcessAssembly`). Enter — commit, Esc — отмена. На <Modal>: focus-trap,
+ * return focus, общий backdrop / z-index из дизайн-токенов.
  */
 export function CommitMessageDialog({
   typeName,
@@ -24,54 +28,11 @@ export function CommitMessageDialog({
   const [message, setMessage] = useState(`Update ${typeName}`);
   const canCommit = message.trim().length > 0 && !busy;
 
-  return createPortal(
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-      }}
-      onMouseDown={onCancel}
-    >
-      <div
-        style={{
-          background: "var(--color-sidebar)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 6,
-          width: 420,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div
-          className="flex items-center justify-between shrink-0"
-          style={{ padding: "8px 14px", borderBottom: "1px solid var(--color-border)" }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)" }}>
-            Commit {typeName}
-          </span>
-          <button className="toolbar-btn" onClick={onCancel}>
-            <X size={14} />
-          </button>
-        </div>
-        <div style={{ padding: "12px 14px" }}>
-          <label
-            style={{
-              fontSize: 11,
-              color: "var(--color-text-muted)",
-              fontWeight: 600,
-              display: "block",
-              marginBottom: 4,
-              textTransform: "uppercase",
-              letterSpacing: 0.4,
-            }}
-          >
-            Commit message
-          </label>
+  return (
+    <Modal open onClose={onCancel} size="sm" aria-label={`Commit ${typeName}`}>
+      <Modal.Header title={`Commit ${typeName}`} />
+      <Modal.Body>
+        <FormRow label="Commit message">
           <input
             autoFocus
             value={message}
@@ -80,64 +41,36 @@ export function CommitMessageDialog({
               if (e.key === "Enter" && canCommit) {
                 e.preventDefault();
                 onCommit(message.trim());
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                onCancel();
               }
             }}
             style={{
               width: "100%",
-              background: "var(--color-surface-400)",
-              border: "1px solid var(--color-border)",
-              borderRadius: 3,
-              padding: "5px 8px",
-              fontSize: 12,
-              color: "var(--color-text-primary)",
+              background: t.color.bg.editor,
+              border: `1px solid ${t.color.border.default}`,
+              borderRadius: t.radius.sm,
+              padding: `${t.space[2]} ${t.space[4]}`,
+              fontSize: t.font.size.xs,
+              color: t.color.text.primary,
               outline: "none",
             }}
           />
-        </div>
-        <div
-          className="flex items-center justify-end gap-2 shrink-0"
-          style={{ padding: "8px 14px", borderTop: "1px solid var(--color-border)" }}
+        </FormRow>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button size="sm" variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          variant="primary"
+          icon={<GitCommitHorizontal size={13} />}
+          disabled={!canCommit}
+          busy={busy}
+          onClick={() => onCommit(message.trim())}
         >
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "4px 14px",
-              fontSize: 12,
-              borderRadius: 3,
-              border: "1px solid var(--color-border)",
-              background: "transparent",
-              color: "var(--color-text-primary)",
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onCommit(message.trim())}
-            disabled={!canCommit}
-            style={{
-              padding: "4px 14px",
-              fontSize: 12,
-              borderRadius: 3,
-              border: "none",
-              background: canCommit ? "#1bb61b" : "var(--color-surface-400)",
-              color: "#fff",
-              cursor: canCommit ? "pointer" : "not-allowed",
-              opacity: canCommit ? 1 : 0.6,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-            }}
-          >
-            <GitCommitHorizontal size={13} />
-            {busy ? "Committing..." : "Commit"}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+          {busy ? "Committing..." : "Commit"}
+        </Button>
+      </Modal.Footer>
+    </Modal>
   );
 }

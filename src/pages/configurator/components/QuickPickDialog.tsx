@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
+import { useState, useMemo, useRef, useEffect, useCallback, type RefObject } from "react";
+import { Modal } from "@/components/ui/Modal";
+import { t } from "@/lib/design-tokens";
 
 export interface QuickPickItem {
   id: string;
@@ -19,23 +20,24 @@ interface QuickPickDialogProps {
   onClose: () => void;
 }
 
+/**
+ * Quick-picker (VS Code-style command/stage palette). Поверх <Modal>:
+ * focus-trap, Esc, единый backdrop/z-index из дизайн-токенов.
+ *
+ * Кастомный layout (без header/footer/body padding) — render-as-children,
+ * только input + filtered list внутри <Modal>.
+ */
 export function QuickPickDialog({ items, placeholder, initialQuery, onClose }: QuickPickDialogProps) {
   const [query, setQuery] = useState(initialQuery ?? "");
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 30);
-    return () => clearTimeout(t);
-  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter((it) => {
       const hay = `${it.label} ${it.description ?? ""} ${it.detail ?? ""} ${it.searchHay ?? ""}`.toLowerCase();
-      // Лёгкий fuzzy: все символы query должны встречаться по порядку.
       let idx = 0;
       for (const ch of q) {
         idx = hay.indexOf(ch, idx);
@@ -61,7 +63,6 @@ export function QuickPickDialog({ items, placeholder, initialQuery, onClose }: Q
   }, [onClose]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedIdx((i) => Math.min(i + 1, filtered.length - 1));
@@ -78,101 +79,124 @@ export function QuickPickDialog({ items, placeholder, initialQuery, onClose }: Q
       if (picked) executeItem(picked);
       return;
     }
-  }, [filtered, selectedIdx, onClose, executeItem]);
+  }, [filtered, selectedIdx, executeItem]);
 
-  return createPortal(
-    <div
-      style={{
-        position: "fixed", inset: 0, zIndex: 10001,
-        display: "flex", alignItems: "flex-start", justifyContent: "center",
-        paddingTop: "12vh", background: "rgba(0,0,0,0.3)",
-      }}
-      onMouseDown={onClose}
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="md"
+      initialFocus={inputRef as RefObject<HTMLElement | null>}
+      aria-label={placeholder ?? "Quick pick"}
+      style={{ alignSelf: "flex-start", marginTop: "12vh", width: 560 }}
     >
-      <div
-        onMouseDown={(e) => e.stopPropagation()}
+      <input
+        ref={inputRef}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder ?? "Type to filter..."}
         style={{
-          background: "var(--color-sidebar)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 6,
-          boxShadow: "0 12px 40px rgba(0,0,0,0.55)",
-          width: 560, maxWidth: "90vw",
-          display: "flex", flexDirection: "column",
-          overflow: "hidden",
+          padding: `${t.space[5]} ${t.space[6]}`,
+          fontSize: t.font.size.md,
+          background: t.color.bg.editor,
+          border: "none",
+          borderBottom: `1px solid ${t.color.border.default}`,
+          color: t.color.text.primary,
+          outline: "none",
         }}
+      />
+      <div
+        ref={listRef}
+        style={{ maxHeight: 360, overflowY: "auto" }}
+        role="listbox"
       >
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder ?? "Type to filter..."}
-          style={{
-            padding: "10px 12px",
-            fontSize: 13,
-            background: "var(--color-editor)",
-            border: "none",
-            borderBottom: "1px solid var(--color-border)",
-            color: "var(--color-text-primary)",
-            outline: "none",
-          }}
-        />
-        <div
-          ref={listRef}
-          style={{ maxHeight: 360, overflowY: "auto" }}
-        >
-          {filtered.length === 0 ? (
-            <div style={{ padding: "10px 12px", fontSize: 12, color: "var(--color-text-muted)" }}>
-              No matches
-            </div>
-          ) : (
-            filtered.map((it, idx) => {
-              const active = idx === selectedIdx;
-              return (
-                <div
-                  key={it.id}
-                  data-idx={idx}
-                  onMouseDown={(e) => { e.preventDefault(); executeItem(it); }}
-                  onMouseEnter={() => setSelectedIdx(idx)}
+        {filtered.length === 0 ? (
+          <div
+            style={{
+              padding: `${t.space[5]} ${t.space[6]}`,
+              fontSize: t.font.size.xs,
+              color: t.color.text.muted,
+            }}
+          >
+            No matches
+          </div>
+        ) : (
+          filtered.map((it, idx) => {
+            const active = idx === selectedIdx;
+            return (
+              <div
+                key={it.id}
+                data-idx={idx}
+                role="option"
+                aria-selected={active}
+                onMouseDown={(e) => { e.preventDefault(); executeItem(it); }}
+                onMouseMove={() => {
+                  if (selectedIdx !== idx) setSelectedIdx(idx);
+                }}
+                style={{
+                  padding: `${t.space[3]} ${t.space[6]}`,
+                  fontSize: t.font.size.xs,
+                  cursor: "pointer",
+                  background: active ? t.color.bg.selected : "transparent",
+                  color: t.color.text.primary,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: t.space[4],
+                }}
+              >
+                {it.iconColor && (
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: t.radius.full,
+                      background: it.iconColor,
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                <span
                   style={{
-                    padding: "6px 12px",
-                    fontSize: 12,
-                    cursor: "pointer",
-                    background: active ? "var(--color-surface-500, #094771)" : "transparent",
-                    color: "var(--color-text-primary)",
-                    display: "flex", alignItems: "center", gap: 8,
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  {it.iconColor && (
-                    <span style={{
-                      width: 8, height: 8, borderRadius: "50%",
-                      background: it.iconColor, flexShrink: 0,
-                    }} />
-                  )}
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {it.label}
-                    {it.description && (
-                      <span style={{ color: "var(--color-text-muted)", marginLeft: 6, fontSize: 11 }}>
-                        {it.description}
-                      </span>
-                    )}
-                  </span>
-                  {it.detail && (
-                    <span style={{
-                      fontSize: 10, color: "var(--color-text-muted)",
-                      background: "var(--color-surface-400)", padding: "1px 6px",
-                      borderRadius: 3, flexShrink: 0,
-                    }}>
-                      {it.detail}
+                  {it.label}
+                  {it.description && (
+                    <span
+                      style={{
+                        color: t.color.text.muted,
+                        marginLeft: t.space[3],
+                        fontSize: t.font.size.xs,
+                      }}
+                    >
+                      {it.description}
                     </span>
                   )}
-                </div>
-              );
-            })
-          )}
-        </div>
+                </span>
+                {it.detail && (
+                  <span
+                    style={{
+                      fontSize: t.font.size.xs,
+                      color: t.color.text.muted,
+                      background: t.color.bg.panel,
+                      padding: `1px ${t.space[3]}`,
+                      borderRadius: t.radius.sm,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {it.detail}
+                  </span>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }
