@@ -101,8 +101,8 @@ export function SystemTreeNav({ activeView, onSelect }: SystemTreeNavProps) {
             return s;
           });
         }}
-        indent={16}
-        rowHeight={22}
+        indent={20}
+        rowHeight={24}
         aria-label="System navigation"
       />
     </div>
