@@ -338,6 +338,16 @@ a {
   visibility: visible;
 }
 
+/* <ContextMenu> — hover для пунктов. */
+.ui-context-menu-item:not([data-disabled="true"]):hover {
+  background: rgba(14, 99, 156, 0.35);
+  color: #fff;
+}
+.ui-context-menu-item[data-danger="true"]:not([data-disabled="true"]):hover {
+  background: rgba(244, 135, 113, 0.2);
+  color: #f48771;
+}
+
 /* <TreeView> — hover/selected через CSS. */
 .ui-tree-row {
   background-color: transparent;

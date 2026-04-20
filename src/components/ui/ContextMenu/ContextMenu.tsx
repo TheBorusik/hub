@@ -1,250 +1,193 @@
 import {
-  createContext,
+  cloneElement,
+  isValidElement,
   useCallback,
-  useContext,
   useEffect,
-  useMemo,
+  useLayoutEffect,
   useRef,
   useState,
-  type ReactNode,
+  type MouseEvent as ReactMouseEvent,
+  type ReactElement,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight } from "lucide-react";
 import { t } from "@/lib/design-tokens";
-import { useClickOutside } from "@/hooks/useClickOutside";
-import { useHotkey } from "@/hooks/useHotkey";
-import { Kbd } from "@/components/ui/Kbd";
 
-export interface ContextMenuItem {
-  id: string;
-  label?: ReactNode;
-  icon?: ReactNode;
-  shortcut?: string;
-  disabled?: boolean;
-  danger?: boolean;
-  /** Разделитель — рендерится как `<hr>`, остальные поля игнорируются. */
-  separator?: boolean;
-  submenu?: ContextMenuItem[];
-  onClick?: () => void;
+export type ContextMenuItem<ID extends string = string> =
+  | {
+      kind?: "item";
+      id: ID;
+      label: string;
+      icon?: React.ReactNode;
+      shortcut?: string;
+      disabled?: boolean;
+      danger?: boolean;
+    }
+  | { kind: "separator"; id?: string };
+
+interface ContextMenuProps<ID extends string = string> {
+  items: ContextMenuItem<ID>[];
+  onSelect: (id: ID) => void;
+  children: ReactElement;
 }
-
-interface OpenState {
-  x: number;
-  y: number;
-  items: ContextMenuItem[];
-}
-
-interface ContextMenuContextValue {
-  open: (e: { clientX: number; clientY: number } | MouseEvent, items: ContextMenuItem[]) => void;
-  close: () => void;
-}
-
-const Ctx = createContext<ContextMenuContextValue | null>(null);
 
 /**
- * Провайдер единственного portal-менеджера контекстного меню. Подключить в
- * корне приложения (App.tsx) — тогда любой компонент через `useContextMenu()`
- * может открыть меню правым кликом / длинным тапом.
+ * Примитив контекстного меню в стиле VS Code.
+ * Оборачивает единственный child и перехватывает на нём `contextmenu`;
+ * меню рендерится через портал в `document.body`.
  */
-export function ContextMenuProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<OpenState | null>(null);
+export function ContextMenu<ID extends string = string>({
+  items,
+  onSelect,
+  children,
+}: ContextMenuProps<ID>) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
-  const open = useCallback<ContextMenuContextValue["open"]>((e, items) => {
-    setState({ x: e.clientX, y: e.clientY, items });
-  }, []);
-  const close = useCallback(() => setState(null), []);
+  const close = useCallback(() => setPos(null), []);
 
-  const value = useMemo(() => ({ open, close }), [open, close]);
-
-  return (
-    <Ctx.Provider value={value}>
-      {children}
-      {state && <ContextMenuPopup x={state.x} y={state.y} items={state.items} onClose={close} />}
-    </Ctx.Provider>
+  const handleContextMenu = useCallback(
+    (e: ReactMouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setPos({ x: e.clientX, y: e.clientY });
+    },
+    []
   );
-}
 
-export function useContextMenu(): ContextMenuContextValue {
-  const ctx = useContext(Ctx);
-  if (!ctx) {
-    // noop-fallback — если провайдер не смонтирован (например, в storybook).
-    return {
-      open: () => {},
-      close: () => {},
+  // Закрываем меню по клику вне, Esc, resize, scroll, blur.
+  useEffect(() => {
+    if (!pos) return;
+    const onDocDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) close();
     };
-  }
-  return ctx;
-}
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    const onScroll = () => close();
+    const onResize = () => close();
+    const onBlur = () => close();
+    document.addEventListener("mousedown", onDocDown, true);
+    document.addEventListener("keydown", onKey, true);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown, true);
+      document.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [pos, close]);
 
-interface PopupProps {
-  x: number;
-  y: number;
-  items: ContextMenuItem[];
-  onClose: () => void;
-}
-
-function clampPosition(x: number, y: number, w: number, h: number) {
-  const maxX = window.innerWidth - w - 4;
-  const maxY = window.innerHeight - h - 4;
-  return {
-    x: Math.max(4, Math.min(x, maxX)),
-    y: Math.max(4, Math.min(y, maxY)),
-  };
-}
-
-function ContextMenuPopup({ x, y, items, onClose }: PopupProps) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState({ x, y });
-
-  useClickOutside(rootRef, onClose, true);
-  useHotkey("escape", onClose, { preventDefault: false });
-
-  useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    const { offsetWidth: w, offsetHeight: h } = el;
-    setPos(clampPosition(x, y, w, h));
-  }, [x, y, items]);
-
-  return createPortal(
-    <div
-      ref={rootRef}
-      role="menu"
-      style={{
-        position: "fixed",
-        top: pos.y,
-        left: pos.x,
-        minWidth: 200,
-        background: t.color.bg.panel,
-        border: `1px solid ${t.color.border.default}`,
-        borderRadius: t.radius.md,
-        boxShadow: t.shadow.elev1,
-        padding: `${t.space[1]} 0`,
-        zIndex: t.z.contextMenu,
-        color: t.color.text.primary,
-        fontSize: t.font.size.sm,
-      }}
-    >
-      {items.map((it, i) => {
-        if (it.separator) {
-          return (
-            <hr
-              key={`sep-${i}`}
-              style={{
-                margin: `${t.space[1]} 0`,
-                border: "none",
-                borderTop: `1px solid ${t.color.border.default}`,
-              }}
-            />
-          );
-        }
-        return (
-          <ContextMenuRow
-            key={it.id}
-            item={it}
-            onClose={onClose}
-          />
-        );
-      })}
-    </div>,
-    document.body,
-  );
-}
-
-interface RowProps {
-  item: ContextMenuItem;
-  onClose: () => void;
-}
-
-function ContextMenuRow({ item, onClose }: RowProps) {
-  const [hovered, setHovered] = useState(false);
-  const [subPos, setSubPos] = useState<{ top: number; left: number } | null>(null);
-  const rowRef = useRef<HTMLDivElement | null>(null);
-  const hasSub = !!(item.submenu && item.submenu.length > 0);
-
-  useEffect(() => {
-    if (!hovered || !hasSub) {
-      setSubPos(null);
-      return;
+  // Подстраиваем позицию, чтобы не вылезло за экран.
+  useLayoutEffect(() => {
+    if (!pos || !menuRef.current) return;
+    const el = menuRef.current;
+    const rect = el.getBoundingClientRect();
+    const pad = 4;
+    let { x, y } = pos;
+    if (x + rect.width + pad > window.innerWidth) x = Math.max(pad, window.innerWidth - rect.width - pad);
+    if (y + rect.height + pad > window.innerHeight) y = Math.max(pad, window.innerHeight - rect.height - pad);
+    if (x !== pos.x || y !== pos.y) {
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
     }
-    const el = rowRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setSubPos({ top: r.top, left: r.right });
-  }, [hovered, hasSub]);
+  }, [pos]);
 
-  const click = () => {
-    if (item.disabled) return;
-    if (hasSub) return;
-    item.onClick?.();
-    onClose();
-  };
+  const child = isValidElement(children)
+    ? cloneElement(children as ReactElement<{ onContextMenu?: (e: ReactMouseEvent) => void }>, {
+        onContextMenu: handleContextMenu,
+      })
+    : children;
 
   return (
-    <div
-      ref={rowRef}
-      role="menuitem"
-      aria-disabled={item.disabled}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onClick={click}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: t.space[3],
-        padding: `${t.space[2]} ${t.space[5]}`,
-        cursor: item.disabled ? "default" : "pointer",
-        background: hovered && !item.disabled ? t.color.bg.hoverStrong : "transparent",
-        color: item.disabled
-          ? t.color.text.muted
-          : item.danger
-            ? t.color.text.danger
-            : t.color.text.primary,
-        opacity: item.disabled ? 0.5 : 1,
-      }}
-    >
-      <span style={{ width: 14, display: "inline-flex", flexShrink: 0 }}>{item.icon}</span>
-      <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {item.label}
-      </span>
-      {item.shortcut && <Kbd>{item.shortcut}</Kbd>}
-      {hasSub && <ChevronRight size={12} style={{ color: t.color.text.muted }} />}
-      {hasSub && subPos && hovered &&
+    <>
+      {child}
+      {pos &&
         createPortal(
           <div
+            ref={menuRef}
             role="menu"
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
+            className="ui-context-menu"
             style={{
               position: "fixed",
-              top: subPos.top,
-              left: subPos.left,
+              left: pos.x,
+              top: pos.y,
+              zIndex: 10000,
               minWidth: 180,
-              background: t.color.bg.panel,
+              padding: 4,
+              background: t.color.bg.elevated,
               border: `1px solid ${t.color.border.default}`,
               borderRadius: t.radius.md,
-              boxShadow: t.shadow.elev1,
-              padding: `${t.space[1]} 0`,
-              zIndex: t.z.contextMenu,
+              boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
+              fontSize: t.font.size.xs,
+              color: t.color.text.primary,
+              userSelect: "none",
             }}
           >
-            {item.submenu!.map((sub, j) =>
-              sub.separator ? (
-                <hr
-                  key={`sep-${j}`}
-                  style={{
-                    margin: `${t.space[1]} 0`,
-                    border: "none",
-                    borderTop: `1px solid ${t.color.border.default}`,
+            {items.map((it, i) => {
+              if (it.kind === "separator") {
+                return (
+                  <div
+                    key={`sep-${i}`}
+                    role="separator"
+                    style={{
+                      height: 1,
+                      margin: "4px 6px",
+                      background: t.color.border.default,
+                      opacity: 0.6,
+                    }}
+                  />
+                );
+              }
+              const disabled = !!it.disabled;
+              return (
+                <div
+                  key={it.id}
+                  role="menuitem"
+                  aria-disabled={disabled}
+                  className="ui-context-menu-item"
+                  data-danger={it.danger ? "true" : undefined}
+                  data-disabled={disabled ? "true" : undefined}
+                  onClick={() => {
+                    if (disabled) return;
+                    close();
+                    onSelect(it.id as ID);
                   }}
-                />
-              ) : (
-                <ContextMenuRow key={sub.id} item={sub} onClose={onClose} />
-              ),
-            )}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: t.space[2],
+                    padding: `${t.space[1]} ${t.space[2]}`,
+                    borderRadius: t.radius.sm,
+                    cursor: disabled ? "default" : "pointer",
+                    opacity: disabled ? 0.45 : 1,
+                    color: it.danger ? "#f48771" : undefined,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {it.icon ? (
+                    <span style={{ width: 14, display: "inline-flex", alignItems: "center", flexShrink: 0, opacity: 0.85 }}>
+                      {it.icon}
+                    </span>
+                  ) : (
+                    <span style={{ width: 14, flexShrink: 0 }} />
+                  )}
+                  <span style={{ flex: 1 }}>{it.label}</span>
+                  {it.shortcut && (
+                    <span style={{ marginLeft: t.space[4], opacity: 0.55, fontSize: 11 }}>
+                      {it.shortcut}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>,
-          document.body,
+          document.body
         )}
-    </div>
+    </>
   );
 }
+
+export type { ContextMenuProps };

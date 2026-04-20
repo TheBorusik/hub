@@ -8,6 +8,7 @@ import type { Catalog, ProcessModel } from "@/lib/ws-api-models";
 import { PanelToolbar } from "@/components/ui/PanelToolbar";
 import { IconButton } from "@/components/ui/Button/IconButton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ContextMenu, type ContextMenuItem } from "@/components/ui/ContextMenu";
 import { t as tok } from "@/lib/design-tokens";
 
 /* ─── Props ─────────────────────────────────────────── */
@@ -255,7 +256,34 @@ interface ProcessRowProps {
 }
 
 function ProcessRow({ model, depth, isSelected, actionColor, onOpen, onRemoveDraft }: ProcessRowProps) {
+  type MenuId = "open" | "copy-name" | "copy-typename" | "remove-draft";
+  const items: ContextMenuItem<MenuId>[] = [
+    { id: "open", label: "Open" },
+    { kind: "separator" },
+    { id: "copy-name", label: "Copy name" },
+    { id: "copy-typename", label: "Copy TypeName" },
+    ...(model.Draft
+      ? ([{ kind: "separator" }, { id: "remove-draft", label: "Remove draft", danger: true }] as ContextMenuItem<MenuId>[])
+      : []),
+  ];
+  const onMenuSelect = (id: MenuId) => {
+    switch (id) {
+      case "open":
+        onOpen(model);
+        break;
+      case "copy-name":
+        navigator.clipboard?.writeText(model.Name ?? model.TypeName ?? "");
+        break;
+      case "copy-typename":
+        navigator.clipboard?.writeText(model.TypeName ?? "");
+        break;
+      case "remove-draft":
+        onRemoveDraft(model.TypeName);
+        break;
+    }
+  };
   return (
+    <ContextMenu<MenuId> items={items} onSelect={onMenuSelect}>
     <div
       className="flex items-center select-none ui-tree-row"
       data-selected={isSelected ? "true" : undefined}
@@ -333,6 +361,7 @@ function ProcessRow({ model, depth, isSelected, actionColor, onOpen, onRemoveDra
         </button>
       </span>
     </div>
+    </ContextMenu>
   );
 }
 
