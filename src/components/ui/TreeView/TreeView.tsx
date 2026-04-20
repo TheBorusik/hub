@@ -239,6 +239,8 @@ export function TreeView<TMeta = unknown>({
               opacity: node.disabled ? 0.6 : 1,
               cursor: node.disabled ? "default" : "pointer",
               userSelect: "none",
+              // Контейнеры (разделы) — жирнее, чтобы иерархия читалась.
+              fontWeight: isContainer ? 600 : 400,
             }}
           >
             <span
