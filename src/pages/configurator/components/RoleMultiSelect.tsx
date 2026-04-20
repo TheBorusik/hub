@@ -121,6 +121,9 @@ export function RoleMultiSelect({
     };
     const onKey = (e: KeyboardEvent | globalThis.KeyboardEvent) => {
       if (e.key === "Escape") {
+        // Esc внутри открытого dropdown'а закрывает именно dropdown, а не
+        // модалку-родителя; останавливаем всплытие чтобы <Modal> не поймал.
+        e.stopPropagation();
         close();
         triggerRef.current?.focus();
       }
@@ -266,7 +269,11 @@ export function RoleMultiSelect({
               maxHeight: 280,
               display: "flex",
               flexDirection: "column",
-              zIndex: t.z.dropdown,
+              // --z-context-menu (6000) — выше --z-modal (5001), чтобы
+              // dropdown корректно отображался над backdrop'ом модалки.
+              // Обычный --z-dropdown (1000) ниже модалки и визуально прятал
+              // список за Modal overlay.
+              zIndex: t.z.contextMenu,
               background: t.color.bg.panel,
               border: `1px solid ${t.color.border.default}`,
               borderRadius: t.radius.md,
