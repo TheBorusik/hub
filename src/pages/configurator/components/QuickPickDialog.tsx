@@ -48,14 +48,12 @@ export function QuickPickDialog({ items, placeholder, initialQuery, onClose }: Q
     });
   }, [items, query]);
 
-  useEffect(() => {
-    setSelectedIdx(0);
-  }, [query]);
+  const effectiveIdx = selectedIdx >= filtered.length ? 0 : selectedIdx;
 
   useEffect(() => {
-    const el = listRef.current?.querySelector(`[data-idx="${selectedIdx}"]`) as HTMLElement | null;
+    const el = listRef.current?.querySelector(`[data-idx="${effectiveIdx}"]`) as HTMLElement | null;
     el?.scrollIntoView({ block: "nearest" });
-  }, [selectedIdx]);
+  }, [effectiveIdx]);
 
   const executeItem = useCallback((item: QuickPickItem) => {
     item.action();
@@ -75,11 +73,11 @@ export function QuickPickDialog({ items, placeholder, initialQuery, onClose }: Q
     }
     if (e.key === "Enter") {
       e.preventDefault();
-      const picked = filtered[selectedIdx];
+      const picked = filtered[effectiveIdx];
       if (picked) executeItem(picked);
       return;
     }
-  }, [filtered, selectedIdx, executeItem]);
+  }, [filtered, effectiveIdx, executeItem]);
 
   return (
     <Modal
@@ -93,7 +91,7 @@ export function QuickPickDialog({ items, placeholder, initialQuery, onClose }: Q
       <input
         ref={inputRef}
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => { setQuery(e.target.value); setSelectedIdx(0); }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder ?? "Type to filter..."}
         style={{
@@ -123,7 +121,7 @@ export function QuickPickDialog({ items, placeholder, initialQuery, onClose }: Q
           </div>
         ) : (
           filtered.map((it, idx) => {
-            const active = idx === selectedIdx;
+            const active = idx === effectiveIdx;
             return (
               <div
                 key={it.id}
