@@ -361,19 +361,30 @@ a {
 .ui-tree-row[data-selected="true"]:hover {
   background-color: rgba(255, 255, 255, 0.07);
 }
-/* Иерархия: контейнеры — ярче и чуть жирнее; листья — приглушённые.
+/* База для всех строк TreeView — курсор, цвет. */
+.ui-tree-row[data-depth] {
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-weight: 400;
+}
+/* Иерархия: контейнеры — ярче и жирнее; листья — приглушённые.
  * Правила применяются только там, где строки рендерит примитив <TreeView>
  * и проставляет data-container. В legacy-местах с .ui-tree-row без
  * data-container цвет остаётся без изменений. */
 .ui-tree-row[data-container="true"] {
-  color: var(--color-text);
-  font-weight: 600;
+  color: var(--color-text-primary);
+  font-weight: 700;
 }
 .ui-tree-row:not([data-container="true"])[data-depth] {
   color: var(--color-text-muted);
 }
 .ui-tree-row[data-selected="true"]:not([data-container="true"])[data-depth] {
-  color: var(--color-text);
+  color: var(--color-text-primary);
+}
+.ui-tree-row[data-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
+  color: var(--color-text-muted);
 }
 
 .resize-handle-h {

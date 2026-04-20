@@ -211,6 +211,7 @@ export function TreeView<TMeta = unknown>({
             data-selected={isSelected ? "true" : undefined}
             data-container={isContainer ? "true" : undefined}
             data-depth={depth}
+            data-disabled={node.disabled ? "true" : undefined}
             data-testid={node["data-testid"]}
             title={node.title}
             className="ui-tree-row"
@@ -231,18 +232,17 @@ export function TreeView<TMeta = unknown>({
               onContextMenu?.(node, e);
             }}
             style={{
+              // Только структурные параметры; color/font-weight/cursor — через
+              // CSS (см. `.ui-tree-row[data-container="true"]` в globals.css).
+              // Иначе inline-стиль побеждает CSS по специфичности и иерархия
+              // (bold + muted leaves) становится невидимой.
               display: "flex",
               alignItems: "center",
               gap: t.space[2],
               height: rowHeight,
               paddingLeft: depth * indent + t.space[2],
               paddingRight: t.space[2],
-              color: node.disabled ? t.color.text.muted : t.color.text.primary,
-              opacity: node.disabled ? 0.6 : 1,
-              cursor: node.disabled ? "default" : "pointer",
               userSelect: "none",
-              // Контейнеры (разделы) — жирнее, чтобы иерархия читалась.
-              fontWeight: isContainer ? 600 : 400,
             }}
           >
             <span
