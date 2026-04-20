@@ -1,6 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type CSSProperties } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { FormRow } from "@/components/ui/FormRow";
+import { ProcessType } from "@/lib/ws-api-models";
 import { t as tok } from "@/lib/design-tokens";
 
 interface CreateProcessDialogProps {
@@ -11,19 +13,39 @@ interface CreateProcessDialogProps {
    */
   takenProcessNames?: Set<string>;
   takenTypeNames?: Set<string>;
-  onSubmit: (args: { name: string; typeName: string }) => void;
+  onSubmit: (args: {
+    name: string;
+    typeName: string;
+    description: string;
+    type: ProcessType;
+  }) => void;
   onCancel: () => void;
 }
+
+const TYPE_OPTIONS: Array<{ value: ProcessType; label: string; hint: string }> = [
+  { value: ProcessType.Api,   label: "API",   hint: "External API endpoint" },
+  { value: ProcessType.Lk,    label: "LK",    hint: "Личный кабинет" },
+  { value: ProcessType.Admin, label: "Admin", hint: "Admin-side process" },
+  { value: ProcessType.Other, label: "Other", hint: "Generic / system" },
+];
 
 /**
  * Диалог создания нового процесса.
  *
- * Используется, когда пользователь просит открыть подпроцесс
- * (`Edit Sub Process`/`Edit` на форме стейджа SubStart), но процесса
- * с таким `Name` в репозитории/БД ещё нет.
+ * Используется двумя путями:
+ *  - пользователь просит открыть подпроцесс (`Edit Sub Process` / `Edit`
+ *    на SubStart), а процесса с таким `Name` в репозитории/БД ещё нет;
+ *  - вручную из CommandPalette «Create new process…».
  *
- * По соглашению `TypeName` = `Name` без точек (см. `wfm-processes-crud-conventions.mdc`):
+ * По соглашению `TypeName` = `Name` без точек (см.
+ * `wfm-processes-crud-conventions.mdc`):
  * `App.Domain.Subdomain.Action` → `AppDomainSubdomainAction`.
+ *
+ * `Type` и `Description` — поля для UX-согласованности со старой админкой;
+ * в текущей логике создания (через `createNewProcessAssembly` PROCESS +
+ * WEBDATA) они не отправляются на сервер, но хранятся в форме для будущего
+ * использования и передаются в `onSubmit` — consumer решает, что с ними
+ * делать.
  */
 export function CreateProcessDialog({
   initialName,
@@ -35,11 +57,14 @@ export function CreateProcessDialog({
   const [name, setName] = useState<string>(initialName ?? "");
   const [typeName, setTypeName] = useState<string>(initialName ? initialName.replace(/\./g, "") : "");
   const [typeNameTouched, setTypeNameTouched] = useState<boolean>(false);
+  const [description, setDescription] = useState<string>("");
+  const [type, setType] = useState<ProcessType>(ProcessType.Other);
   const [error, setError] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 50);
+    const id = window.setTimeout(() => inputRef.current?.focus(), 50);
+    return () => window.clearTimeout(id);
   }, []);
 
   const handleNameChange = (next: string) => {
@@ -52,10 +77,10 @@ export function CreateProcessDialog({
 
   const handleSubmit = () => {
     const n = name.trim();
-    const t = typeName.trim();
+    const tn = typeName.trim();
     if (!n) { setError("Process Name is required"); return; }
-    if (!t) { setError("Type Name is required"); return; }
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(t)) {
+    if (!tn) { setError("Type Name is required"); return; }
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(tn)) {
       setError("Type Name must be a valid C# identifier");
       return;
     }
@@ -63,70 +88,104 @@ export function CreateProcessDialog({
       setError(`Process with Name "${n}" already exists`);
       return;
     }
-    if (takenTypeNames?.has(t)) {
-      setError(`Class with TypeName "${t}" already exists`);
+    if (takenTypeNames?.has(tn)) {
+      setError(`Class with TypeName "${tn}" already exists`);
       return;
     }
-    onSubmit({ name: n, typeName: t });
+    onSubmit({ name: n, typeName: tn, description: description.trim(), type });
   };
 
-  const inputStyle: React.CSSProperties = {
+  const inputStyle: CSSProperties = {
     width: "100%",
     padding: "6px 8px",
-    fontSize: 13,
+    fontSize: tok.font.size.sm,
     background: tok.color.bg.editor,
     border: `1px solid ${tok.color.border.default}`,
     borderRadius: tok.radius.sm,
     color: tok.color.text.primary,
     outline: "none",
     boxSizing: "border-box",
-    fontFamily: "var(--font-mono, monospace)",
+    fontFamily: tok.font.mono,
+  };
+
+  const selectStyle: CSSProperties = {
+    ...inputStyle,
+    fontFamily: "inherit",
+  };
+
+  const textareaStyle: CSSProperties = {
+    ...inputStyle,
+    fontFamily: "inherit",
+    minHeight: 52,
+    resize: "vertical",
   };
 
   return (
     <Modal open onClose={onCancel} size="md" initialFocus={inputRef} aria-label="Create new process">
       <Modal.Header title="Create new process" />
       <Modal.Body>
-        <div style={{ fontSize: 11, color: tok.color.text.muted, marginBottom: 14 }}>
+        <div style={{ fontSize: tok.font.size.xs, color: tok.color.text.muted, marginBottom: tok.space[5] }}>
           A draft process will be created and opened in a new tab. Save it to persist.
         </div>
 
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 11, color: tok.color.text.muted, fontWeight: 600, display: "block", marginBottom: 4 }}>
-            Process Name
-          </label>
-          <input
-            ref={inputRef}
-            value={name}
-            onChange={(e) => handleNameChange(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
-            placeholder="App.Domain.Subdomain.Action"
-            style={inputStyle}
-          />
-          <div style={{ fontSize: 10, color: tok.color.text.muted, marginTop: 2 }}>
-            Value of <code>[Process("...")]</code>.
-          </div>
-        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: tok.space[4] }}>
+          <FormRow
+            label="Process Name"
+            required
+            hint={<>Value of <code>[Process(&quot;…&quot;)]</code>.</>}
+          >
+            <input
+              ref={inputRef}
+              value={name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+              placeholder="App.Domain.Subdomain.Action"
+              style={inputStyle}
+            />
+          </FormRow>
 
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 11, color: tok.color.text.muted, fontWeight: 600, display: "block", marginBottom: 4 }}>
-            Type Name
-          </label>
-          <input
-            value={typeName}
-            onChange={(e) => { setTypeName(e.target.value); setTypeNameTouched(true); setError(""); }}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
-            placeholder="AppDomainSubdomainAction"
-            style={inputStyle}
-          />
-          <div style={{ fontSize: 10, color: tok.color.text.muted, marginTop: 2 }}>
-            C# class name. Autofilled from Name (without dots), you can override.
-          </div>
-        </div>
+          <FormRow
+            label="Type Name"
+            required
+            hint="C# class name. Autofilled from Name (without dots), you can override."
+          >
+            <input
+              value={typeName}
+              onChange={(e) => { setTypeName(e.target.value); setTypeNameTouched(true); setError(""); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+              placeholder="AppDomainSubdomainAction"
+              style={inputStyle}
+            />
+          </FormRow>
 
-        {error && (
-          <div style={{ fontSize: 11, color: "#f44336", marginTop: 2, marginBottom: 4 }}>{error}</div>
-        )}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: tok.space[4] }}>
+            <FormRow label="Type" hint={TYPE_OPTIONS.find((o) => o.value === type)?.hint}>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as ProcessType)}
+                style={selectStyle}
+              >
+                {TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </FormRow>
+
+            <FormRow label="Description" hint="Optional.">
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Short description…"
+                rows={2}
+                style={textareaStyle}
+              />
+            </FormRow>
+          </div>
+
+          {error && (
+            <div style={{ fontSize: tok.font.size.xs, color: tok.color.text.danger }}>{error}</div>
+          )}
+        </div>
       </Modal.Body>
       <Modal.Footer>
         <Button size="sm" variant="secondary" onClick={onCancel}>Cancel</Button>

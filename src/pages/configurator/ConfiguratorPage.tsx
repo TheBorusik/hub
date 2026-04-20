@@ -591,7 +591,10 @@ export function ConfiguratorPage() {
             ...tabs.map((t) => t.typeName),
           ])}
           onCancel={() => setCreateProcessPrefill(null)}
-          onSubmit={({ name, typeName }) => {
+          onSubmit={({ name, typeName /*, description, type */ }) => {
+            // description/type пока собираются в форме только для UX-паритета
+            // со старой админкой и не отправляются на сервер — по соглашению
+            // создание делается через createNewProcessAssembly PROCESS+WEBDATA.
             setCreateProcessPrefill(null);
             createDraftProcessTab(name, typeName);
           }}
