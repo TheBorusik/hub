@@ -43,7 +43,16 @@ export function CommandPalette({ context }: CommandPaletteProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const commands = useCommandList();
 
-  useHotkey(["mod+shift+p"], () => setOpen((v) => !v), {
+  useHotkey(["mod+shift+p"], () => {
+    setOpen((v) => {
+      const next = !v;
+      if (next) {
+        setQuery("");
+        setActive(0);
+      }
+      return next;
+    });
+  }, {
     ignoreWhenTyping: false,
   });
 
@@ -56,8 +65,6 @@ export function CommandPalette({ context }: CommandPaletteProps) {
 
   useEffect(() => {
     if (!open) return;
-    setQuery("");
-    setActive(0);
     inputRef.current?.focus();
   }, [open]);
 
@@ -76,9 +83,9 @@ export function CommandPalette({ context }: CommandPaletteProps) {
       .map((x) => x.c);
   }, [commands, deferredQuery]);
 
-  useEffect(() => {
-    setActive(0);
-  }, [deferredQuery]);
+  // При изменении query сбрасываем «активный индекс» прямо из onChange —
+  // без setState-в-effect.
+  const clampedActive = active >= filtered.length ? 0 : active;
 
   const run = (cmd: Command) => {
     setOpen(false);
@@ -131,7 +138,10 @@ export function CommandPalette({ context }: CommandPaletteProps) {
             ref={inputRef}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActive(0);
+            }}
             onKeyDown={(e) => {
               if (e.key === "ArrowDown") {
                 e.preventDefault();
@@ -141,7 +151,7 @@ export function CommandPalette({ context }: CommandPaletteProps) {
                 setActive((i) => Math.max(i - 1, 0));
               } else if (e.key === "Enter") {
                 e.preventDefault();
-                const cmd = filtered[active];
+                const cmd = filtered[clampedActive];
                 if (cmd) run(cmd);
               }
             }}
@@ -169,7 +179,7 @@ export function CommandPalette({ context }: CommandPaletteProps) {
             <EmptyState title="No commands" hint="Try another query" dense />
           )}
           {filtered.map((c, i) => {
-            const isActive = i === active;
+            const isActive = i === clampedActive;
             const kb = typeof c.keybinding === "string"
               ? c.keybinding
               : Array.isArray(c.keybinding) ? c.keybinding[0] : undefined;

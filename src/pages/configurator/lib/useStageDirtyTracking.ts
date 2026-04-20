@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ProcessStage, WebProcess } from "@/lib/ws-api-models";
 import { stableJson } from "../utils/stableJson";
 
@@ -20,58 +20,68 @@ export interface StageDirtyTracking {
   reset: () => void;
 }
 
+interface Snapshot {
+  typeName: string | null;
+  fingerprints: Record<string, string>;
+}
+
+function computeFingerprints(stages: Record<string, ProcessStage> | undefined): Record<string, string> {
+  if (!stages) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(stages)) {
+    out[k] = stageFingerprint(v);
+  }
+  return out;
+}
+
 /**
  * Tracking dirty-стейджей через сравнение «контрольной строки» (fingerprint)
  * каждого стейджа с её снимком, взятым при первом рендере процесса или после
  * успешного `reset()`.
  *
- * Снимок переинициализируется автоматически при смене `process.TypeName`.
+ * Снимок переинициализируется автоматически при смене `process.TypeName`
+ * (паттерн "derived state on prop change" — синхронный setState в рендере,
+ * без эффекта).
  *
  * Вынесено из `ProcessEditor.tsx`, чтобы оркестратор не таскал этот state.
  */
 export function useStageDirtyTracking(process: WebProcess | null): StageDirtyTracking {
-  const stageSnapshots = useRef<Record<string, string>>({});
-  const snapshotTaken = useRef(false);
-  const currentTypeNameRef = useRef<string | null>(null);
-  const [generation, setGeneration] = useState(0);
+  const typeName = process?.TypeName ?? null;
+  const stages = process?.Stages;
 
-  // Сбрасываем снимок при смене процесса.
-  if (currentTypeNameRef.current !== (process?.TypeName ?? null)) {
-    currentTypeNameRef.current = process?.TypeName ?? null;
-    stageSnapshots.current = {};
-    snapshotTaken.current = false;
-  }
+  const [snapshot, setSnapshot] = useState<Snapshot>(() => ({
+    typeName,
+    fingerprints: computeFingerprints(stages),
+  }));
 
-  if (process?.Stages && !snapshotTaken.current) {
-    const snap: Record<string, string> = {};
-    for (const [k, v] of Object.entries(process.Stages)) {
-      snap[k] = stageFingerprint(v);
-    }
-    stageSnapshots.current = snap;
-    snapshotTaken.current = true;
+  // Derived state on prop change: при смене процесса синхронно пересчитываем
+  // снимок — без эффекта и без «вспышки dirty» на один кадр.
+  let effectiveSnapshot = snapshot;
+  if (snapshot.typeName !== typeName) {
+    effectiveSnapshot = {
+      typeName,
+      fingerprints: computeFingerprints(stages),
+    };
+    setSnapshot(effectiveSnapshot);
   }
 
   const dirtyStages = useMemo(() => {
-    void generation;
     const set = new Set<string>();
-    if (!process?.Stages) return set;
-    for (const [k, v] of Object.entries(process.Stages)) {
-      if (stageFingerprint(v) !== stageSnapshots.current[k]) {
+    if (!stages) return set;
+    for (const [k, v] of Object.entries(stages)) {
+      if (stageFingerprint(v) !== effectiveSnapshot.fingerprints[k]) {
         set.add(k);
       }
     }
     return set;
-  }, [process?.Stages, generation]);
+  }, [stages, effectiveSnapshot]);
 
   const reset = useCallback(() => {
-    if (!process?.Stages) return;
-    const snap: Record<string, string> = {};
-    for (const [k, v] of Object.entries(process.Stages)) {
-      snap[k] = stageFingerprint(v);
-    }
-    stageSnapshots.current = snap;
-    setGeneration((g) => g + 1);
-  }, [process?.Stages]);
+    setSnapshot({
+      typeName,
+      fingerprints: computeFingerprints(stages),
+    });
+  }, [typeName, stages]);
 
   return { dirtyStages, reset };
 }

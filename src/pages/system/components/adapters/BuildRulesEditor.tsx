@@ -106,7 +106,12 @@ function TableCombobox({ value, onChange }: { value: string; onChange: (val: str
     } catch { /* ignore */ }
   }, [api]);
 
-  useEffect(() => { loadTables(); }, [loadTables]);
+  useEffect(() => {
+    // loadTables lazy-loads список таблиц с сервера; внутри setState, но это
+    // привязано к ответу async-запроса, а не к самому эффекту.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadTables();
+  }, [loadTables]);
 
   const lowerVal = value.toLowerCase();
   const filtered = lowerVal ? tables.filter((t) => t.toLowerCase().includes(lowerVal)) : tables;

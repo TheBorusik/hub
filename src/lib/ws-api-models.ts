@@ -138,6 +138,62 @@ export enum WfmCommand {
 
   // API
   ApiUpsert = "System.WFM.API.Upsert",
+  GetApiRelatedData = "System.WFM.API.GetRelatedData",
+}
+
+// --- API editor (WFM API permission per process) ---
+
+/**
+ * Handler-тип API-вызова. Соответствует HandlerType в payload
+ * `System.WFM.API.Upsert` на сервере.
+ */
+export type ApiHandlerType = "Sync" | "Async" | "Execute";
+
+export interface ApiRoleInfo {
+  RoleId: number;
+  Name: string;
+  Description?: string;
+}
+
+/**
+ * Ответ `System.WFM.GetApiRelatedData`:
+ *  - `Roles` — все доступные роли (для мульти-селекта);
+ *  - `PermissionRoles` — роли, уже назначенные этому API;
+ *  - `CommandDTO` / `ResultDTO` — текущие DTO (произвольная форма JSON).
+ *
+ * Дополнительные поля сервер может возвращать или нет — все опциональны,
+ * чтобы клиент не падал на менее богатых ответах.
+ */
+export interface ApiRelatedData {
+  Roles: ApiRoleInfo[];
+  PermissionRoles: ApiRoleInfo[];
+  CommandDTO: unknown;
+  ResultDTO: unknown;
+  HandlerType?: ApiHandlerType;
+  SaveManual?: boolean;
+  SaveCompleted?: boolean;
+  Description?: string;
+}
+
+/** Payload команды `System.WFM.API.Upsert`. */
+export interface ApiUpsertPayload {
+  MethodName: string;
+  Description: string;
+  HandlerType: ApiHandlerType;
+  SaveManual: boolean;
+  SaveCompleted: boolean;
+  /** Имена (не RoleId) — серверу нужны именно имена. */
+  Roles: string[];
+  CommandDTO: unknown;
+  ResultDTO: unknown;
+}
+
+/** Типы процесса из old-admin `ProcessTypes` enum. */
+export enum ProcessType {
+  Api = "api",
+  Lk = "lk",
+  Admin = "admin",
+  Other = "other",
 }
 
 export interface CRUDModelInfo {

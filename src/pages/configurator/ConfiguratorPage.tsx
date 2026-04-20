@@ -15,6 +15,7 @@ import { ProcessEditor } from "./components/ProcessEditor";
 import { CommitDialog } from "./components/CommitDialog";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { CreateProcessDialog } from "./components/CreateProcessDialog";
+import { EditApiDialog } from "./components/EditApiDialog";
 import { recomputeReturnStages } from "./utils/recomputeReturnStages";
 import { stableJson } from "./utils/stableJson";
 import { useToast } from "@/providers/ToastProvider";
@@ -58,6 +59,11 @@ export function ConfiguratorPage() {
    * (когда пользователь нажал «Edit Sub Process», а такого в `allModels` нет).
    */
   const [createProcessPrefill, setCreateProcessPrefill] = useState<string | null>(null);
+  /**
+   * Процесс, для которого открыт `EditApiDialog` (WFM API permission editor).
+   * `null` — диалог закрыт.
+   */
+  const [apiDialogFor, setApiDialogFor] = useState<ProcessModel | null>(null);
 
   const [crudModels, setCrudModels] = useState<CRUDModelInfo[]>([]);
   const [commands, setCommands] = useState<AdapterCommandInfo[]>([]);
@@ -474,6 +480,8 @@ export function ConfiguratorPage() {
                         onRefresh={loadTree}
                         onOpenProcess={openProcess}
                         onRemoveDraft={handleRemoveDraft}
+                        onOpenApi={setApiDialogFor}
+                        onCreateProcess={() => setCreateProcessPrefill("")}
                       />
                     </div>
                   </Panel>
@@ -523,6 +531,8 @@ export function ConfiguratorPage() {
                       onRefresh={loadTree}
                       onOpenProcess={openProcess}
                       onRemoveDraft={handleRemoveDraft}
+                      onOpenApi={setApiDialogFor}
+                      onCreateProcess={() => setCreateProcessPrefill("")}
                     />
                   </div>
                   <button
@@ -564,6 +574,16 @@ export function ConfiguratorPage() {
         />
       )}
 
+      {apiDialogFor && api && (
+        <EditApiDialog
+          api={api}
+          processName={apiDialogFor.Name ?? apiDialogFor.TypeName}
+          processTypeName={apiDialogFor.TypeName}
+          onClose={() => setApiDialogFor(null)}
+          onSaved={() => loadTree()}
+        />
+      )}
+
       {createProcessPrefill !== null && (
         <CreateProcessDialog
           initialName={createProcessPrefill}
@@ -573,7 +593,10 @@ export function ConfiguratorPage() {
             ...tabs.map((t) => t.typeName),
           ])}
           onCancel={() => setCreateProcessPrefill(null)}
-          onSubmit={({ name, typeName }) => {
+          onSubmit={({ name, typeName /*, description, type */ }) => {
+            // description/type пока собираются в форме только для UX-паритета
+            // со старой админкой и не отправляются на сервер — по соглашению
+            // создание делается через createNewProcessAssembly PROCESS+WEBDATA.
             setCreateProcessPrefill(null);
             createDraftProcessTab(name, typeName);
           }}

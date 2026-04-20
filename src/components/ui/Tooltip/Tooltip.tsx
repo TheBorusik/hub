@@ -102,6 +102,10 @@ export function Tooltip({
     setOpen(false);
   };
 
+  // Паттерн cloneElement с callback-ref используется намеренно: Tooltip
+  // оборачивает произвольный элемент-триггер без введения лишней обёртки.
+  // Написать иначе без forwardRef у всех возможных children невозможно.
+  // eslint-disable-next-line react-hooks/refs
   const trigger = cloneElement(children, {
     ref: (node: HTMLElement | null) => {
       triggerRef.current = node;

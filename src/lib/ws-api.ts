@@ -31,6 +31,8 @@ import {
   type WebGlobalModel,
   type GetProcessTreeResponse,
   type AdapterTreeNode,
+  type ApiRelatedData,
+  type ApiUpsertPayload,
 } from "./ws-api-models";
 
 interface ExecuteAdapter {
@@ -609,6 +611,35 @@ export class HubWsApi {
     return this.requestPayload<Record<string, unknown>, UpsertProcessAssemblyResponse>(
       { Name: name, Category: category, Model: model, CreateNew: createNew },
       WfmCommand.Upsert,
+      "00:01:00",
+      60_000,
+    );
+  }
+
+  // --- WFM API permission editor (Edit API dialog) ---
+
+  /**
+   * Запросить контекст для `EditApiDialog` по процессу:
+   * доступные роли, уже назначенные, текущие Command/Result DTO и пр.
+   * Порт `WfmService.getApiRelatedData` из old-admin.
+   */
+  async getApiRelatedData(methodName: string): Promise<ApiRelatedData> {
+    return this.requestPayload<{ MethodName: string }, ApiRelatedData>(
+      { MethodName: methodName },
+      WfmCommand.GetApiRelatedData,
+      "00:00:30",
+    );
+  }
+
+  /**
+   * Сохранить настройки API для процесса: Roles (имена), Command/Result DTO,
+   * handler-тип, SaveManual/SaveCompleted.
+   * Порт `WfmService.upsertApi` из old-admin.
+   */
+  async upsertApi(payload: ApiUpsertPayload): Promise<unknown> {
+    return this.requestPayload<ApiUpsertPayload, unknown>(
+      payload,
+      WfmCommand.ApiUpsert,
       "00:01:00",
       60_000,
     );
