@@ -470,6 +470,11 @@ export function ConfiguratorPage() {
     </div>
   );
 
+  // api === null только на ПЕРВОМ маунте провайдера (ws ещё не готов).
+  // useContourApi возвращает последний известный api во время потерь
+  // соединения / reauth — поэтому здесь поддерево не размонтируется при
+  // временных обрывах. Overlay "Connecting…/Authorizing…" рисуется поверх
+  // приложения через <WebSocketOverlays/> в AuthGate.
   if (!api) {
     return (
       <div className="flex items-center justify-center h-full" style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
