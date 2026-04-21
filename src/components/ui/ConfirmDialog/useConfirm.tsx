@@ -92,13 +92,20 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={value}>
       {children}
       {current && (
+        // ВАЖНО: {...current.opts} идёт ПЕРВЫМ. В opts от consumer'а лежит
+        // свой `onConfirm: () => Promise<void>` (ConfirmOptions), который
+        // по типу должен быть скрыт через Omit, но рантайм этого не знает —
+        // spread пропускает его как обычный prop. Если поставить spread
+        // ПОСЛЕ наших overrides, он перебивает `onConfirm={onConfirmClick}`,
+        // и тогда кнопка зовёт async-handler напрямую, минуя busy/close
+        // логику провайдера (→ окно не закрывается, кнопка активна).
         <ConfirmDialog
+          {...current.opts}
           open
           onConfirm={onConfirmClick}
           onCancel={onCancel}
           busy={busy}
           error={error}
-          {...current.opts}
         />
       )}
     </Ctx.Provider>

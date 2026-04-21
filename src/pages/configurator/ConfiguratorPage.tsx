@@ -13,11 +13,7 @@ import { BranchSelector } from "./components/BranchSelector";
 import { ProcessTree } from "./components/ProcessTree";
 import { ProcessEditor } from "./components/ProcessEditor";
 import { CommitDialog } from "./components/CommitDialog";
-// Прямой импорт ConfirmDialog — намеренно: для Remove Draft нам нужен
-// локальный busy-state (блокировать повторные клики + спиннер на кнопке),
-// который удобнее держать в компоненте, а не через useConfirm.
-// eslint-disable-next-line hub-ui/no-duplicate-confirm-dialog
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { CreateProcessDialog } from "./components/CreateProcessDialog";
 import { EditApiDialog } from "./components/EditApiDialog";
 import { recomputeReturnStages } from "./utils/recomputeReturnStages";
@@ -34,6 +30,7 @@ export function ConfiguratorPage() {
   const toast = useToast();
   const { clearSource: clearProblems } = useProblems();
   const { registerDirtyGuard, consumeIntent, currentSection, intentVersion } = useNavigation();
+  const confirm = useConfirm();
   const [catalogs, setCatalogs] = useState<Catalog[]>([]);
   const [allModels, setAllModels] = useState<ProcessModel[]>([]);
   const [actionColors, setActionColors] = useState<Record<string, string>>({});
@@ -72,10 +69,6 @@ export function ConfiguratorPage() {
    * глобальный useConfirm) — чтобы явно блокировать повторные клики через
    * `removing` и гарантированно закрывать окно по завершении запроса.
    */
-  const [removeDraftState, setRemoveDraftState] = useState<
-    | { typeName: string; removing: boolean; error: string | null }
-    | null
-  >(null);
 
   const [crudModels, setCrudModels] = useState<CRUDModelInfo[]>([]);
   const [commands, setCommands] = useState<AdapterCommandInfo[]>([]);
@@ -394,32 +387,23 @@ export function ConfiguratorPage() {
   }, [tabs, clearProblems]);
 
   const handleRemoveDraft = useCallback((typeName: string) => {
-    setRemoveDraftState({ typeName, removing: false, error: null });
-  }, []);
-
-  const handleRemoveDraftConfirm = useCallback(async () => {
-    // Берём actual typeName и сразу помечаем removing=true (оба шага атомарны
-    // через функциональный setState — повторный клик уйдёт в `cur.removing`
-    // условие ниже).
-    let typeName: string | null = null;
-    setRemoveDraftState((cur) => {
-      if (!cur || cur.removing) return cur;
-      typeName = cur.typeName;
-      return { ...cur, removing: true, error: null };
+    void confirm({
+      title: "Remove Draft",
+      message: `Remove draft for ${typeName}?`,
+      confirmLabel: "Remove",
+      tone: "danger",
+      async onConfirm() {
+        if (!api) return;
+        try {
+          await api.removeDraft(typeName);
+          loadTree();
+        } catch (e) {
+          console.error("Remove draft failed", e);
+          throw e instanceof Error ? e : new Error(String(e));
+        }
+      },
     });
-    if (!typeName || !api) return;
-    try {
-      await api.removeDraft(typeName);
-      setRemoveDraftState(null);
-      loadTree();
-    } catch (e) {
-      console.error("Remove draft failed", e);
-      setRemoveDraftState((cur) => cur
-        ? { ...cur, removing: false, error: e instanceof Error ? e.message : String(e) }
-        : cur,
-      );
-    }
-  }, [api, loadTree]);
+  }, [api, confirm, loadTree]);
 
   const updateProcess = useCallback((typeName: string, process: WebProcess) => {
     setTabs((prev) =>
@@ -627,20 +611,6 @@ export function ConfiguratorPage() {
           processTypeName={apiDialogFor.TypeName}
           onClose={() => setApiDialogFor(null)}
           onSaved={() => loadTree()}
-        />
-      )}
-
-      {removeDraftState && (
-        <ConfirmDialog
-          open
-          title="Remove Draft"
-          message={`Remove draft for ${removeDraftState.typeName}?`}
-          confirmLabel="Remove"
-          tone="danger"
-          busy={removeDraftState.removing}
-          error={removeDraftState.error}
-          onConfirm={() => { void handleRemoveDraftConfirm(); }}
-          onCancel={() => setRemoveDraftState(null)}
         />
       )}
 
