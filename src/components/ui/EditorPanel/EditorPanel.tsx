@@ -150,12 +150,14 @@ function renderHeaderActions(
           );
         }
 
-        // С label — text button.
+        // С label — text button в стиле toolbar (ghost: без обводки,
+        // только hover-подложка, как toolbar-buttons в VS Code).
+        // Явный variant от consumer'а перекрывает ghost.
         return (
           <Button
             key={action.id}
             size="sm"
-            variant={action.variant ?? "secondary"}
+            variant={action.variant ?? "ghost"}
             icon={icon}
             onClick={action.onClick}
             disabled={action.disabled}

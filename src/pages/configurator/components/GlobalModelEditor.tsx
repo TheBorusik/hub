@@ -16,8 +16,6 @@ import { PanelHeader } from "@/components/ui/PanelHeader";
 import { CountBadge } from "@/components/ui/CountBadge";
 import { t as tok } from "@/lib/design-tokens";
 import { setupWfmCSharp } from "../monaco/wfm-csharp";
-import { categoryBadgeColor } from "../lib/global-models";
-
 export type GlobalModelBusyState =
   | "idle"
   | "saving"
@@ -112,7 +110,9 @@ export function GlobalModelEditor({
       onClick: onSave,
       disabled: busy !== "idle" || !isDirty,
       loading: busy === "saving",
-      variant: isDirty ? "primary" : "secondary",
+      // Primary когда dirty — привлекаем внимание к pending-save;
+      // в ghost-стиле (default) — когда сохранять нечего.
+      variant: isDirty ? "primary" : undefined,
     },
     {
       id: "commit",
@@ -126,27 +126,9 @@ export function GlobalModelEditor({
 
   return (
     <>
-    <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
       <EditorPanel
         title={model.TypeName}
         icon={<FileCode2 size={14} style={{ color: tok.color.accent }} />}
-        badge={
-          <span
-            style={{
-              fontSize: 9,
-              padding: "1px 5px",
-              borderRadius: tok.radius.sm,
-              background: categoryBadgeColor(model.Category),
-              color: "#1e1e1e",
-              fontWeight: 700,
-              lineHeight: "14px",
-              letterSpacing: 0.4,
-              flexShrink: 0,
-            }}
-          >
-            {model.Category}
-          </span>
-        }
         state={{ dirty: isDirty }}
         actions={actions}
         language="csharp"
@@ -168,8 +150,8 @@ export function GlobalModelEditor({
           tabCompletion: "on",
           minimap: { enabled: false },
         }}
+        style={{ flex: 1, minHeight: 0 }}
       />
-    </div>
 
       {diagnostics.length > 0 && (
         <div
