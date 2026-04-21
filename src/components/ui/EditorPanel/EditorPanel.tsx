@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import { CodeEditor } from "@/components/ui/CodeEditor";
 import { PanelHeader } from "@/components/ui/PanelHeader";
 import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/Button/IconButton";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { t } from "@/lib/design-tokens";
 import type { EditorPanelProps, EditorAction } from "./types";
@@ -108,7 +109,11 @@ export function EditorPanel({
 
 /**
  * Рендер actions для правой части PanelHeader: dot-индикатор dirty
- * (если нет визуала в самом заголовке) + набор <Button>-ов.
+ * + набор кнопок.
+ *
+ * Action без `label` рендерится как <IconButton> (только иконка +
+ * hover-подложка, без border — как toolbar-кнопки в VS Code).
+ * Action с `label` — как <Button> с текстом (Save / Validate / ...).
  */
 function renderHeaderActions(
   actions: EditorAction[],
@@ -126,6 +131,26 @@ function renderHeaderActions(
           action.icon
         );
         const title = action.hotkey ? `${action.title} (${action.hotkey})` : action.title;
+
+        // Без label — ghost icon button (одна иконка, без рамки).
+        if (!action.label) {
+          const ibVariant =
+            action.variant === "danger" ? "danger" :
+            action.variant === "primary" ? "primary" : "ghost";
+          return (
+            <IconButton
+              key={action.id}
+              size="xs"
+              variant={ibVariant}
+              icon={icon}
+              label={title}
+              onClick={action.onClick}
+              disabled={action.disabled}
+            />
+          );
+        }
+
+        // С label — text button.
         return (
           <Button
             key={action.id}
