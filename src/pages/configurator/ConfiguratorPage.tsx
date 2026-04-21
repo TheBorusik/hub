@@ -257,12 +257,19 @@ export function ConfiguratorPage() {
   }, [api, registerDirtyGuard]);
 
   /**
-   * Создать новый процесс на сервере через
-   * `WFM.ProcessAssembly.Upsert(Category: "PROCESS", Name, Model: {}, CreateNew: true)`.
-   * Сервер сгенерирует TypeName (удалит точки из Name), создаст скелет модели
-   * и вернёт её TypeName. После этого подтягиваем полную модель через
-   * `loadProcessAssembly(typeName)` и открываем её в новой табе в чистом
-   * (non-dirty) состоянии.
+   * Создать новый процесс на сервере — делаем ДВА Upsert'а, как при обычном
+   * save (см. DirtyGuard.saveAll выше):
+   *  1) Category "PROCESS", Name=<processName>, Model: {}, CreateNew: true —
+   *     серверная часть процесса (C# skeleton).
+   *  2) Category "WEBDATA", Name=<TypeName>+"WebData", Model: {},
+   *     CreateNew: true — метаданные для диаграммы (раскладка стейджей).
+   *
+   * Оба вызова нужны — без WEBDATA процесс откроется без диаграммной
+   * раскладки (это ровно то, что делал old-admin createProcess
+   * createNewProcessAssembly('PROCESS') + createNewProcessAssembly('WEBDATA')).
+   *
+   * Затем подтягиваем полную модель через `loadProcessAssembly(TypeName)`
+   * и открываем её в новой табе в чистом (non-dirty) состоянии.
    */
   const createDraftProcessTab = useCallback(async (processName: string, typeNameHint: string) => {
     if (!api) return;
@@ -290,11 +297,15 @@ export function ConfiguratorPage() {
     setActiveTab(typeNameHint);
 
     try {
-      // 1) upsert с пустой моделью — сервер создаст skeleton, вернёт TypeName.
+      // 1) PROCESS upsert — сервер создаст skeleton, вернёт финальный TypeName.
       const upsertRes = await api.upsertProcessAssembly(trimmed, "PROCESS", {}, true);
       const serverTypeName = upsertRes.TypeName || typeNameHint;
 
-      // 2) подтянуть полную модель.
+      // 2) WEBDATA upsert — раскладка диаграммы. Имя = TypeName + "WebData"
+      //    (тот же паттерн, что и при save в DirtyGuard выше).
+      await api.upsertProcessAssembly(`${serverTypeName}WebData`, "WEBDATA", {}, true);
+
+      // 3) Подтянуть полную модель.
       const getRes = await api.loadProcessAssembly(serverTypeName);
       const rawModel = getRes.Model ?? (getRes as unknown as WebProcess);
       const proc = recomputeReturnStages(rawModel);
