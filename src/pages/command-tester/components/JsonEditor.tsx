@@ -20,6 +20,10 @@ export interface JsonEditorProps {
   minimap?: boolean;
   /** Заголовок панели. Если не задан — panel header не рендерится. */
   label?: string;
+  /** Иконка слева от заголовка (например, chevron для collapsible). */
+  icon?: React.ReactNode;
+  /** Клик по заголовку (например, toggle collapse). */
+  onHeaderClick?: () => void;
   /** Уникальный путь модели Monaco — чтобы не смешивать модели между редакторами. */
   path?: string;
   /** Доп. действия в правой части заголовка. */
@@ -49,6 +53,8 @@ export function JsonEditor({
   readOnly = false,
   minimap = false,
   label,
+  icon,
+  onHeaderClick,
   path,
   actions,
   badge,
@@ -62,6 +68,8 @@ export function JsonEditor({
   return (
     <EditorPanel
       title={label}
+      icon={icon}
+      onHeaderClick={onHeaderClick}
       language="json"
       value={toSafeString(value)}
       onChange={onChange}

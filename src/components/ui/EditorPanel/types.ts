@@ -58,6 +58,12 @@ export interface EditorPanelProps {
   hint?: string;
   /** Actions в правой части заголовка. */
   actions?: EditorAction[];
+  /**
+   * Клик по самому заголовку (без учёта actions). Полезно для
+   * collapsible-панелей — тогда icon делают chevron и по клику меняют
+   * состояние.
+   */
+  onHeaderClick?: () => void;
   /** Уникальные action'ы, которые должны быть слева (редко). */
   leftActions?: EditorAction[];
 

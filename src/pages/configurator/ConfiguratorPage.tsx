@@ -417,7 +417,11 @@ export function ConfiguratorPage() {
         activeId={activeId}
         onChange={setActiveTab}
         onClose={closeTab}
-        style={{ background: tok.color.bg.sidebar }}
+        // В VS Code tab strip имеет цвет editor.background — активный
+        // таб визуально сливается с editor-area, пустое пространство
+        // справа от вкладок тоже тёмное (editor), а не высветляется
+        // до sidebar.
+        style={{ background: tok.color.bg.editor }}
       />
     );
   };

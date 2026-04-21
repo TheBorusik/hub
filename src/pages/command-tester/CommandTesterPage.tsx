@@ -439,32 +439,19 @@ export function CommandTesterPage() {
                           setRequestDataCollapsed(requestDataRef.current?.isCollapsed() ?? false);
                         }}
                       >
-                        <div className="flex flex-col h-full overflow-hidden">
-                          <button
-                            className="flex items-center shrink-0 select-none cursor-pointer"
-                            onClick={() => {
-                              if (requestDataRef.current?.isCollapsed()) {
-                                requestDataRef.current.expand();
-                              } else {
-                                requestDataRef.current?.collapse();
-                              }
-                            }}
-                            style={{
-                              height: 26, padding: "0 12px", gap: 4, fontSize: 11, fontWeight: 600,
-                              color: "var(--color-text-muted)", background: "var(--color-sidebar)",
-                              borderBottom: "1px solid var(--color-border)", border: "none", borderTop: "none",
-                              textTransform: "uppercase", letterSpacing: "0.04em",
-                            }}
-                          >
-                            {requestDataCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                            Request Data
-                          </button>
-                          {!requestDataCollapsed && (
-                            <div className="flex-1 min-h-0">
-                              <JsonEditor value={activeTab.dataJson} onChange={(v) => updateTab(activeTab.id, { dataJson: v })} />
-                            </div>
-                          )}
-                        </div>
+                        <JsonEditor
+                          value={activeTab.dataJson}
+                          onChange={(v) => updateTab(activeTab.id, { dataJson: v })}
+                          label="Request Data"
+                          icon={requestDataCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                          onHeaderClick={() => {
+                            if (requestDataRef.current?.isCollapsed()) {
+                              requestDataRef.current.expand();
+                            } else {
+                              requestDataRef.current?.collapse();
+                            }
+                          }}
+                        />
                       </Panel>
                     </Group>
                   </Panel>
