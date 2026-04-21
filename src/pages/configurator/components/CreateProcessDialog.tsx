@@ -35,17 +35,17 @@ const TYPE_OPTIONS: Array<{ value: ProcessType; label: string; hint: string }> =
  * Используется двумя путями:
  *  - пользователь просит открыть подпроцесс (`Edit Sub Process` / `Edit`
  *    на SubStart), а процесса с таким `Name` в репозитории/БД ещё нет;
- *  - вручную из CommandPalette «Create new process…».
+ *  - вручную из ProcessTree / CommandPalette «Create new process…».
  *
- * По соглашению `TypeName` = `Name` без точек (см.
- * `wfm-processes-crud-conventions.mdc`):
- * `App.Domain.Subdomain.Action` → `AppDomainSubdomainAction`.
+ * `TypeName` генерируется автоматически как `Name` без точек
+ * (см. `wfm-processes-crud-conventions.mdc`):
+ * `App.Domain.Subdomain.Action` → `AppDomainSubdomainAction`. Пользователь
+ * его не вводит — сервер генерирует такой же.
  *
- * `Type` и `Description` — поля для UX-согласованности со старой админкой;
+ * `Type` и `Description` — для UX-согласованности со старой админкой;
  * в текущей логике создания (через `createNewProcessAssembly` PROCESS +
- * WEBDATA) они не отправляются на сервер, но хранятся в форме для будущего
- * использования и передаются в `onSubmit` — consumer решает, что с ними
- * делать.
+ * WEBDATA) они не отправляются на сервер, но передаются в `onSubmit` —
+ * consumer решает, что с ними делать.
  */
 export function CreateProcessDialog({
   initialName,
@@ -55,8 +55,6 @@ export function CreateProcessDialog({
   onCancel,
 }: CreateProcessDialogProps) {
   const [name, setName] = useState<string>(initialName ?? "");
-  const [typeName, setTypeName] = useState<string>(initialName ? initialName.replace(/\./g, "") : "");
-  const [typeNameTouched, setTypeNameTouched] = useState<boolean>(false);
   const [description, setDescription] = useState<string>("");
   const [type, setType] = useState<ProcessType>(ProcessType.Other);
   const [error, setError] = useState<string>("");
@@ -67,21 +65,14 @@ export function CreateProcessDialog({
     return () => window.clearTimeout(id);
   }, []);
 
-  const handleNameChange = (next: string) => {
-    setName(next);
-    setError("");
-    if (!typeNameTouched) {
-      setTypeName(next.replace(/\./g, ""));
-    }
-  };
+  const derivedTypeName = name.replace(/\./g, "");
 
   const handleSubmit = () => {
     const n = name.trim();
-    const tn = typeName.trim();
+    const tn = derivedTypeName.trim();
     if (!n) { setError("Process Name is required"); return; }
-    if (!tn) { setError("Type Name is required"); return; }
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(tn)) {
-      setError("Type Name must be a valid C# identifier");
+    if (!tn || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(tn)) {
+      setError("Process Name must translate to a valid C# identifier (after removing dots)");
       return;
     }
     if (takenProcessNames?.has(n)) {
@@ -132,55 +123,43 @@ export function CreateProcessDialog({
           <FormRow
             label="Process Name"
             required
-            hint={<>Value of <code>[Process(&quot;…&quot;)]</code>.</>}
+            hint={
+              name
+                ? <>Value of <code>[Process(&quot;…&quot;)]</code>. TypeName (class): <code>{derivedTypeName || "—"}</code></>
+                : <>Value of <code>[Process(&quot;…&quot;)]</code>.</>
+            }
           >
             <input
               ref={inputRef}
               value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
+              onChange={(e) => { setName(e.target.value); setError(""); }}
               onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
               placeholder="App.Domain.Subdomain.Action"
               style={inputStyle}
             />
           </FormRow>
 
-          <FormRow
-            label="Type Name"
-            required
-            hint="C# class name. Autofilled from Name (without dots), you can override."
-          >
-            <input
-              value={typeName}
-              onChange={(e) => { setTypeName(e.target.value); setTypeNameTouched(true); setError(""); }}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
-              placeholder="AppDomainSubdomainAction"
-              style={inputStyle}
-            />
+          <FormRow label="Type" hint={TYPE_OPTIONS.find((o) => o.value === type)?.hint}>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as ProcessType)}
+              style={selectStyle}
+            >
+              {TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           </FormRow>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: tok.space[4] }}>
-            <FormRow label="Type" hint={TYPE_OPTIONS.find((o) => o.value === type)?.hint}>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as ProcessType)}
-                style={selectStyle}
-              >
-                {TYPE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </FormRow>
-
-            <FormRow label="Description" hint="Optional.">
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Short description…"
-                rows={2}
-                style={textareaStyle}
-              />
-            </FormRow>
-          </div>
+          <FormRow label="Description" hint="Optional.">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Short description…"
+              rows={2}
+              style={textareaStyle}
+            />
+          </FormRow>
 
           {error && (
             <div style={{ fontSize: tok.font.size.xs, color: tok.color.text.danger }}>{error}</div>

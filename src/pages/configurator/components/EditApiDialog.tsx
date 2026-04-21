@@ -18,7 +18,8 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Toggle";
 import { FormRow } from "@/components/ui/FormRow";
-import { CodeEditor, type CodeEditorMarker } from "@/components/ui/CodeEditor";
+import type { CodeEditorMarker } from "@/components/ui/CodeEditor";
+import { EditorPanel } from "@/components/ui/EditorPanel";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { useAutoSaveLayout } from "@/hooks/useAutoSaveLayout";
 import { useHotkey } from "@/hooks/useHotkey";
@@ -496,84 +497,41 @@ interface DtoEditorPaneProps {
 function DtoEditorPane({ title, json, markers, onChange, onFormat, pathKey }: DtoEditorPaneProps) {
   const valid = json.error === null;
   return (
-    <div
-      style={{
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        background: t.color.bg.panel,
-        border: `1px solid ${t.color.border.default}`,
-        borderRadius: t.radius.md,
-        overflow: "hidden",
-        minHeight: 0,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: t.space[3],
-          padding: `${t.space[2]} ${t.space[3]}`,
-          borderBottom: `1px solid ${t.color.border.default}`,
-          background: t.color.bg.toolbar,
-          flexShrink: 0,
-        }}
-      >
-        <FileJson2 size={13} color={`${t.color.text.muted}`} />
-        <span style={{ fontSize: t.font.size.xs, color: t.color.text.primary, fontWeight: 500 }}>{title}</span>
-        <div style={{ flex: 1 }} />
-        <JsonStatusBadge valid={valid} />
-        <button
-          type="button"
-          onClick={onFormat}
-          title="Format JSON (Shift+Alt+F)"
+    <EditorPanel
+      title={title}
+      icon={<FileJson2 size={13} />}
+      badge={
+        <span
           style={{
             display: "inline-flex",
             alignItems: "center",
             gap: t.space[1],
-            background: "transparent",
-            border: `1px solid ${t.color.border.default}`,
-            color: t.color.text.primary,
-            cursor: "pointer",
-            padding: `${t.space[1]} ${t.space[2]}`,
-            borderRadius: t.radius.sm,
             fontSize: t.font.size.xs,
+            color: valid ? t.color.text.success : t.color.text.danger,
           }}
         >
-          <Wand2 size={11} />
-          Format
-        </button>
-      </div>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <CodeEditor
-          language="json"
-          theme="hub-dark"
-          value={json.text}
-          onChange={onChange}
-          path={pathKey}
-          markers={markers}
-          markerOwner="api-dto"
-          options={{ tabSize: 2, insertSpaces: true }}
-          aria-label={title}
-        />
-      </div>
-    </div>
-  );
-}
-
-function JsonStatusBadge({ valid }: { valid: boolean }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: t.space[1],
-        fontSize: t.font.size.xs,
-        color: valid ? t.color.text.success : t.color.text.danger,
-      }}
-    >
-      {valid ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
-      {valid ? "Valid JSON" : "Invalid JSON"}
-    </span>
+          {valid ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
+          {valid ? "Valid JSON" : "Invalid JSON"}
+        </span>
+      }
+      actions={[
+        {
+          id: "format",
+          icon: <Wand2 size={12} />,
+          title: "Format JSON",
+          hotkey: "Shift+Alt+F",
+          onClick: onFormat,
+        },
+      ]}
+      language="json"
+      theme="hub-dark"
+      value={json.text}
+      onChange={onChange}
+      path={pathKey}
+      markers={markers}
+      markerOwner="api-dto"
+      aria-label={title}
+      options={{ tabSize: 2, insertSpaces: true, minimap: { enabled: false } }}
+    />
   );
 }
