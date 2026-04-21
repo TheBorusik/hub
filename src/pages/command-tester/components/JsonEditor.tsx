@@ -1,11 +1,12 @@
 import { useId } from "react";
-import { CodeEditor } from "@/components/ui/CodeEditor";
+import { EditorPanel } from "@/components/ui/EditorPanel";
 import { t as tok } from "@/lib/design-tokens";
 
 /**
- * JSON-редактор с опциональным label-заголовком. С Block C это тонкая
- * обёртка над общим `<CodeEditor>`: единая тема, единые маркеры, единый
- * MonacoProvider в корне приложения (без повторной инициализации).
+ * JSON-редактор с опциональным label-заголовком. 
+ * 
+ * Новая версия использует унифицированный EditorPanel компонент.
+ * Сохраняет обратную совместимость со старым API.
  */
 interface JsonEditorProps {
   value: string;
@@ -16,6 +17,35 @@ interface JsonEditorProps {
   height?: string;
   /** Путь модели Monaco — чтобы не мешать модели разных редакторов. */
   path?: string;
+  /** Дополнительные действия в тулбаре */
+  actions?: Array<{
+    id: string;
+    icon: React.ReactNode;
+    label?: string;
+    title: string;
+    onClick: () => void;
+    disabled?: boolean;
+    loading?: boolean;
+    hotkey?: string;
+  }>;
+  /** Состояние редактора */
+  state?: {
+    dirty?: boolean;
+    saving?: boolean;
+    validating?: boolean;
+  };
+  /** Маркеры ошибок/предупреждений */
+  markers?: Array<{
+    message: string;
+    severity: "error" | "warning" | "info";
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber?: number;
+    endColumn?: number;
+    source?: string;
+  }>;
+  /** Вариант отображения */
+  variant?: "default" | "compact" | "borderless";
 }
 
 function toSafeString(v: unknown): string {
@@ -25,6 +55,67 @@ function toSafeString(v: unknown): string {
 }
 
 export function JsonEditor({
+  value,
+  readOnly = false,
+  minimap = false,
+  onChange,
+  label,
+  path: customPath,
+  actions = [],
+  state = {},
+  markers = [],
+  variant = "default",
+}: JsonEditorProps) {
+  const uid = useId();
+  const modelPath = customPath ?? `inmemory://jsoneditor/${uid}`;
+  const safeValue = toSafeString(value);
+
+  // Преобразуем действия в формат EditorPanel
+  const editorActions = actions.map(action => ({
+    id: action.id,
+    icon: action.icon,
+    label: action.label,
+    title: action.title,
+    onClick: action.onClick,
+    disabled: action.disabled,
+    loading: action.loading,
+    hotkey: action.hotkey,
+    variant: "secondary" as const,
+  }));
+
+  // Определяем опции редактора
+  const editorOptions = {
+    tabSize: 2,
+    padding: { top: variant === "compact" ? 4 : 8 },
+    minimap: { enabled: minimap },
+    wordWrap: "on" as const,
+  };
+
+  return (
+    <EditorPanel
+      title={label || "JSON Editor"}
+      value={safeValue}
+      onChange={onChange}
+      language="json"
+      readOnly={readOnly}
+      path={modelPath}
+      actions={editorActions}
+      state={state}
+      markers={markers}
+      variant={variant}
+      showHeader={!!label}
+      showToolbar={actions.length > 0 || state.dirty || markers.length > 0}
+      options={editorOptions}
+      style={{ height: "100%" }}
+    />
+  );
+}
+
+/**
+ * Старая версия JsonEditor для обратной совместимости.
+ * @deprecated Используйте новый JsonEditor с EditorPanel
+ */
+export function LegacyJsonEditor({
   value,
   readOnly = false,
   minimap = false,
@@ -56,18 +147,23 @@ export function JsonEditor({
         </div>
       )}
       <div className="flex-1 min-h-0">
-        <CodeEditor
+        <EditorPanel
+          title={label || "JSON Editor"}
           value={safeValue}
           onChange={onChange}
           language="json"
           readOnly={readOnly}
           path={modelPath}
-          minimap={minimap}
-          wordWrap="on"
+          variant="borderless"
+          showHeader={false}
+          showToolbar={false}
           options={{
             tabSize: 2,
             padding: { top: 8 },
+            minimap: { enabled: minimap },
+            wordWrap: "on",
           }}
+          style={{ height: "100%" }}
         />
       </div>
     </div>
