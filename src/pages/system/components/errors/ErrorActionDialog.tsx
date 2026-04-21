@@ -142,7 +142,7 @@ export function ErrorActionDialog({ mode, row, api, onClose, onDone }: ErrorActi
           </div>
         ) : (
           <div style={{ flex: 1, minHeight: 200, display: "flex", flexDirection: "column" }}>
-            <JsonEditor value={editorValue} onChange={setEditorValue} height="100%" />
+            <JsonEditor value={editorValue} onChange={setEditorValue} />
           </div>
         )}
       </Modal.Body>

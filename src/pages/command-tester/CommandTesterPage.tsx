@@ -393,29 +393,37 @@ export function CommandTesterPage() {
                   <Panel defaultSize={50} minSize={20}>
                     <Group orientation="vertical" id="cmd-tester-request">
                       <Panel defaultSize={70} minSize={20}>
-                        <div className="h-full relative">
-                          {/* Test case actions toolbar */}
-                          <div
-                            className="absolute top-0 right-[12px] z-10 flex items-center select-none"
-                            style={{ gap: 2, padding: "2px 4px", background: "var(--color-sidebar)", borderRadius: "0 0 4px 4px" }}
-                          >
-                            <span style={{ fontSize: 12, color: "var(--color-accent)", marginRight: 4 }}>{activeTab.caseName}</span>
-                            <button onClick={() => setOverlay(overlay === "add" ? "none" : "add")} className="toolbar-btn" title="Add test case">
-                              <Plus size={16} />
-                            </button>
-                            <button onClick={handleSaveTestCase} disabled={!canSave} className="toolbar-btn" title="Save test case">
-                              <Save size={16} />
-                            </button>
-                            <button onClick={() => setShowTestCases(!showTestCases)} className="toolbar-btn" title="Test cases">
-                              <List size={16} />
-                            </button>
-                          </div>
-                          <JsonEditor
-                            value={activeTab.requestJson}
-                            onChange={(v) => updateTab(activeTab.id, { requestJson: v })}
-                            label="Request Body"
-                          />
-                        </div>
+                        <JsonEditor
+                          value={activeTab.requestJson}
+                          onChange={(v) => updateTab(activeTab.id, { requestJson: v })}
+                          label="Request Body"
+                          badge={
+                            <span style={{ fontSize: 11, color: "var(--color-accent)" }}>
+                              {activeTab.caseName}
+                            </span>
+                          }
+                          actions={[
+                            {
+                              id: "add-test-case",
+                              icon: <Plus size={13} />,
+                              title: "Add test case",
+                              onClick: () => setOverlay(overlay === "add" ? "none" : "add"),
+                            },
+                            {
+                              id: "save-test-case",
+                              icon: <Save size={13} />,
+                              title: "Save test case",
+                              onClick: handleSaveTestCase,
+                              disabled: !canSave,
+                            },
+                            {
+                              id: "test-cases-list",
+                              icon: <List size={13} />,
+                              title: "Test cases",
+                              onClick: () => setShowTestCases(!showTestCases),
+                            },
+                          ]}
+                        />
                       </Panel>
 
                       <ResizeHandle direction="vertical" />

@@ -255,6 +255,12 @@ function ModalBody({ children, padded = true, style }: ModalBodyProps) {
         flex: 1,
         minHeight: 0,
         overflow: "auto",
+        // display:flex обязателен для случаев, когда внутрь кладут компонент
+        // с height:100% (например, <CodeEditor> / <EditorPanel>): без явного
+        // flex-контекста дочерний элемент получает computed height=0 и виден
+        // только header+footer модалки.
+        display: "flex",
+        flexDirection: "column",
         padding: padded ? `${t.space[5]} ${t.space[6]}` : 0,
         color: t.color.text.primary,
         fontSize: t.font.size.md,

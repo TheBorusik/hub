@@ -14,7 +14,10 @@
   --color-surface-800: #606060;
   --color-surface-900: #a1a1a1;
 
-  --color-activitybar: #333333;
+  /* VS Code 2024+ — ActivityBar и Sidebar имеют один и тот же фон; editor
+     чуть темнее. Раньше activitybar был #333333, теперь выравниваем с
+     sidebar, чтобы левая колонка + дерево читались единой областью. */
+  --color-activitybar: #252526;
   --color-sidebar: #252526;
   --color-editor: #1e1e1e;
   --color-titlebar: #3c3c3c;

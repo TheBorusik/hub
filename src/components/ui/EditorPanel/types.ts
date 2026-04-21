@@ -1,124 +1,98 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import type { Monaco } from "@monaco-editor/react";
+import type * as MonacoNs from "monaco-editor";
 import type { CodeEditorLanguage, CodeEditorMarker } from "@/components/ui/CodeEditor";
 
 /**
- * Состояние редактора (грязный, сохраняется, валидируется)
+ * Состояние редактора (грязный, сохраняется, валидируется и пр.).
+ *
+ * Используется **только для визуальной подсветки** (dot у заголовка,
+ * disabled состояние у actions, если consumer захочет на него смотреть).
+ * На сами actions EditorPanel не реагирует — их формирует consumer.
  */
 export interface EditorState {
-  /** Флаг изменений, не сохранённых на сервере */
+  /** Есть несохранённые изменения. Добавляет dot в заголовок. */
   dirty?: boolean;
-  /** Флаг выполнения операции сохранения */
+  /** Идёт сохранение — на усмотрение consumer'а, EditorPanel ничего не делает. */
   saving?: boolean;
-  /** Флаг выполнения операции валидации */
+  /** Идёт валидация — аналогично. */
   validating?: boolean;
-  /** Флаг выполнения операции форматирования */
+  /** Идёт форматирование — аналогично. */
   formatting?: boolean;
-  /** Флаг выполнения операции коммита */
-  committing?: boolean;
-  /** Флаг загрузки содержимого */
-  loading?: boolean;
 }
 
 /**
- * Действие в тулбаре редактора
+ * Действие в правой части заголовка / тулбара редактора.
+ *
+ * Принципы:
+ *   - EditorPanel не добавляет никаких «стандартных» actions сам —
+ *     только то, что consumer передал в `actions`.
+ *   - `id` уникален внутри списка; используется для React key.
+ *   - `label` опционален — если не указан, рендерится только иконка
+ *     (<IconButton>-style, как в панелях VS Code).
  */
 export interface EditorAction {
-  /** Идентификатор действия (для key) */
   id: string;
-  /** Иконка действия */
   icon: ReactNode;
-  /** Текст на кнопке (опционально) */
   label?: string;
-  /** Всплывающая подсказка */
   title: string;
-  /** Обработчик клика */
   onClick: () => void;
-  /** Состояние disabled */
   disabled?: boolean;
-  /** Вариант кнопки */
-  variant?: "primary" | "secondary" | "ghost";
-  /** Состояние загрузки (показывает спиннер вместо иконки) */
+  /** Показывает spinner вместо иконки. */
   loading?: boolean;
-  /** Горячая клавиша */
+  variant?: "primary" | "secondary" | "ghost" | "danger";
+  /** Показать hotkey в title / tooltip. Чисто информационно. */
   hotkey?: string;
 }
 
-/**
- * Основные пропсы компонента EditorPanel
- */
+export type EditorPanelVariant = "default" | "compact" | "borderless";
+
 export interface EditorPanelProps {
-  /** Заголовок панели */
-  title: string;
-  /** Иконка слева от заголовка */
-  icon?: ReactNode;
-  /** Бейдж (например, количество ошибок) */
-  badge?: ReactNode;
-  /** Подсказка/дополнительная информация */
-  hint?: string;
-  /** Действия в тулбаре */
-  actions?: EditorAction[];
-  /** Содержимое редактора */
-  value: string;
-  /** Обработчик изменения содержимого */
-  onChange?: (value: string) => void;
-  /** Язык программирования */
-  language: CodeEditorLanguage;
-  /** Состояние редактора */
-  state?: EditorState;
-  /** Маркеры ошибок/предупреждений */
-  markers?: CodeEditorMarker[];
-  /** Вариант отображения */
-  variant?: "default" | "compact" | "borderless";
-  /** Показывать ли заголовок */
-  showHeader?: boolean;
-  /** Показывать ли тулбар */
-  showToolbar?: boolean;
-  /** Только для чтения */
-  readOnly?: boolean;
-  /** Уникальный путь модели (для Monaco) */
-  path?: string;
-  /** Тема редактора */
-  theme?: string;
-  /** Дополнительные опции Monaco */
-  options?: Record<string, unknown>;
-  /** Обработчик монтирования редактора */
-  onMount?: (editor: any, monaco: any) => void;
-  /** Обработчик перед монтированием */
-  beforeMount?: (monaco: any) => void;
-  /** CSS класс */
-  className?: string;
-  /** Стили */
-  style?: React.CSSProperties;
-  /** ARIA label */
-  "aria-label"?: string;
-}
-
-/**
- * Пропсы для встроенного компонента проблем/ошибок
- */
-export interface ProblemsPanelProps {
-  /** Массив маркеров */
-  markers: CodeEditorMarker[];
-  /** Заголовок панели (по умолчанию "Problems") */
+  /** Заголовок панели (если `showHeader=false`, игнорируется). */
   title?: string;
-  /** Максимальная высота */
-  maxHeight?: number | string;
-  /** Обработчик клика по проблеме (для перехода к строке) */
-  onProblemClick?: (marker: CodeEditorMarker) => void;
-  /** Показывать ли панель проблем */
-  showProblems?: boolean;
-}
+  /** Иконка слева от заголовка. */
+  icon?: ReactNode;
+  /** Бейдж рядом с заголовком (например, счётчик). */
+  badge?: ReactNode;
+  /** Подзаголовок справа от заголовка (тихий, monospace). */
+  hint?: string;
+  /** Actions в правой части заголовка. */
+  actions?: EditorAction[];
+  /** Уникальные action'ы, которые должны быть слева (редко). */
+  leftActions?: EditorAction[];
 
-/**
- * Конфигурация горячих клавиш
- */
-export interface EditorHotkeys {
-  /** Сохранить (Ctrl+S) */
-  save?: () => void;
-  /** Валидировать (Ctrl+Shift+V) */
-  validate?: () => void;
-  /** Форматировать (Shift+Alt+F) */
-  format?: () => void;
-  /** Коммит (Ctrl+Shift+C) */
-  commit?: () => void;
+  /** Содержимое редактора. */
+  value: string;
+  onChange?: (value: string) => void;
+  language: CodeEditorLanguage;
+
+  /** Состояние — только для визуальной подсветки. */
+  state?: EditorState;
+
+  /** Маркеры ошибок/предупреждений. */
+  markers?: CodeEditorMarker[];
+  /** Owner маркеров. default: "editor-panel". */
+  markerOwner?: string;
+
+  /** Вариант отображения. default: "default". */
+  variant?: EditorPanelVariant;
+  /** Показывать ли заголовок. default: true. */
+  showHeader?: boolean;
+  /** Только для чтения. */
+  readOnly?: boolean;
+  /** Уникальный путь модели Monaco. */
+  path?: string;
+  /** Явная тема редактора (если `undefined`, CodeEditor выберет по языку). */
+  theme?: string;
+
+  /** Опции Monaco — прокидываются в CodeEditor. */
+  options?: MonacoNs.editor.IStandaloneEditorConstructionOptions;
+
+  onMount?: (editor: MonacoNs.editor.IStandaloneCodeEditor, monaco: Monaco) => void;
+  beforeMount?: (monaco: Monaco) => void;
+
+  className?: string;
+  style?: CSSProperties;
+  /** ARIA label для обёртки. */
+  "aria-label"?: string;
 }

@@ -3,6 +3,5 @@ export type {
   EditorPanelProps,
   EditorAction,
   EditorState,
-  ProblemsPanelProps,
-  EditorHotkeys,
+  EditorPanelVariant,
 } from "./types";

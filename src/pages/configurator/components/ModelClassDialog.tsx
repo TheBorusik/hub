@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Save } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { CodeEditor } from "@/components/ui/CodeEditor";
+import { EditorPanel } from "@/components/ui/EditorPanel";
 
 interface ModelClassDialogProps {
   title: string;
@@ -17,18 +17,20 @@ export function ModelClassDialog({ title, body, onSave, onClose }: ModelClassDia
   return (
     <Modal open onClose={onClose} size="xl" aria-label={title}>
       <Modal.Header title={title} />
-      <Modal.Body padded={false} style={{ height: "65vh", padding: 0 }}>
-        <CodeEditor
+      <Modal.Body padded={false} style={{ height: "65vh" }}>
+        <EditorPanel
+          showHeader={false}
+          language="csharp"
           value={value}
           onChange={setValue}
-          language="csharp"
           path={`inmemory://model/${title}`}
-          wordWrap="on"
           options={{
             fontSize: 13,
             padding: { top: 8 },
             acceptSuggestionOnEnter: "smart",
             tabCompletion: "on",
+            wordWrap: "on",
+            minimap: { enabled: false },
           }}
         />
       </Modal.Body>

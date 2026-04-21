@@ -256,7 +256,7 @@ export function ErrorsTable({ errorType }: ErrorsTableProps) {
           <>
             <Modal.Header title={overlay.title} />
             <Modal.Body style={{ height: "55vh", padding: 0 }}>
-              <JsonEditor value={overlay.data} readOnly height="100%" />
+              <JsonEditor value={overlay.data} readOnly />
             </Modal.Body>
           </>
         )}

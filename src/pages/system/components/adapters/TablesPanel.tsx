@@ -331,7 +331,7 @@ function UpsertRowModal({ open, initialJson, isEdit, tableName, onSave, onClose 
     <Modal open={open} onClose={onClose} size="lg" aria-label={`${isEdit ? "Edit" : "Add"} row`}>
       <Modal.Header title={`${isEdit ? "Edit" : "Add"} Row in ${tableName}`} />
       <Modal.Body padded={false} style={{ height: "50vh", padding: 0 }}>
-        <JsonEditor value={json} onChange={setJson} height="100%" />
+        <JsonEditor value={json} onChange={setJson} />
       </Modal.Body>
       {error && (
         <div
