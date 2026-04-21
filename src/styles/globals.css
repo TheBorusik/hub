@@ -411,20 +411,23 @@ a {
 }
 
 /*
- * VS Code-style resize handle: физически 1px разделитель без «transparent
- * gap»'ов — чтобы между панелями не просвечивал фон приложения (иначе
- * визуально ощущается, как зазор/отступ слева у редактора). Hit-area для
- * мыши расширяется через ::before (невидимая полоса 6px по центру).
+ * VS Code-style resize handle.
+ *
+ * Физически 1px видимая линия (`background`), hit-area расширена на ±3px
+ * через ::before (прозрачный абсолютный слой). Транзишн оставлен только
+ * на цвет — изменение ширины/позиции во время drag'а rrp может оставить
+ * псевдо-элемент в промежуточном (невидимом) состоянии.
  */
 .resize-handle-h {
   width: 1px !important;
   min-width: 1px !important;
-  background: var(--color-border);
+  flex-basis: 1px !important;
+  background-color: var(--color-border);
   position: relative;
   cursor: col-resize;
-  transition: background 150ms;
+  z-index: 1;
+  transition: background-color 150ms;
 }
-
 .resize-handle-h::before {
   content: "";
   position: absolute;
@@ -434,22 +437,21 @@ a {
   right: -3px;
   z-index: 1;
 }
-
 .resize-handle-h:hover,
-.resize-handle-h:active,
-.resize-handle-h[data-active] {
-  background: #007acc;
+.resize-handle-h:active {
+  background-color: #007acc;
 }
 
 .resize-handle-v {
   height: 1px !important;
   min-height: 1px !important;
-  background: var(--color-border);
+  flex-basis: 1px !important;
+  background-color: var(--color-border);
   position: relative;
   cursor: row-resize;
-  transition: background 150ms;
+  z-index: 1;
+  transition: background-color 150ms;
 }
-
 .resize-handle-v::before {
   content: "";
   position: absolute;
@@ -459,11 +461,9 @@ a {
   bottom: -3px;
   z-index: 1;
 }
-
 .resize-handle-v:hover,
-.resize-handle-v:active,
-.resize-handle-v[data-active] {
-  background: #007acc;
+.resize-handle-v:active {
+  background-color: #007acc;
 }
 
 @keyframes wfm-toast-in {

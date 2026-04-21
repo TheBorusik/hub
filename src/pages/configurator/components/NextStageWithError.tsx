@@ -1,26 +1,10 @@
 import { useCallback, useState } from "react";
-import type { CSSProperties } from "react";
 import { Group, Panel, usePanelRef } from "react-resizable-panels";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { useAutoSaveLayout } from "@/hooks/useAutoSaveLayout";
 import { CSharpEditor } from "./CSharpEditor";
 import type { StageEditorActionCallbacks } from "../monaco/wfm-csharp";
-
-const errorToggleStyle: CSSProperties = {
-  height: 26,
-  padding: "0 12px",
-  gap: 4,
-  fontSize: 11,
-  fontWeight: 600,
-  color: "var(--color-text-muted)",
-  background: "var(--color-sidebar)",
-  border: "none",
-  width: "100%",
-  textAlign: "left",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-};
 
 export interface NextStageWithErrorProps {
   stageName: string;
@@ -44,6 +28,10 @@ export interface NextStageWithErrorProps {
  * Stage», Monaco строил новую модель — и это давало видимое мигание.
  * Стабильное дерево + `collapsible` Panel убирают ремоунт (как сделано
  * для «Request Data» в CommandTester).
+ *
+ * Хидеры обеих секций ходят через EditorPanel (через CSharpEditor prop'ы
+ * `label` / `icon` / `onHeaderClick`) — чтобы фон был тот же, что и у
+ * Monaco-редактора.
  */
 export function NextStageWithError({
   stageName,
@@ -93,29 +81,17 @@ export function NextStageWithError({
           setCollapsed(errorPanelRef.current?.isCollapsed() ?? false);
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-          <button
-            className="flex items-center shrink-0 select-none cursor-pointer"
-            onClick={toggle}
-            style={errorToggleStyle}
-          >
-            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-            Get Error Next Stage
-          </button>
-          {!collapsed && (
-            <div style={{ flex: 1, minHeight: 0 }}>
-              <CSharpEditor
-                label=""
-                value={errorValue}
-                onChange={onChangeError}
-                stageNames={stageNames}
-                currentStageName={stageName}
-                processResultName={processResultName}
-                actions={actions}
-              />
-            </div>
-          )}
-        </div>
+        <CSharpEditor
+          label="Get Error Next Stage"
+          icon={collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          onHeaderClick={toggle}
+          value={errorValue}
+          onChange={onChangeError}
+          stageNames={stageNames}
+          currentStageName={stageName}
+          processResultName={processResultName}
+          actions={actions}
+        />
       </Panel>
     </Group>
   );

@@ -14,6 +14,10 @@ export interface CSharpEditorProps {
   onChange: (v: string) => void;
   /** Заголовок панели. Если не задан — заголовок не рисуется. */
   label?: string;
+  /** Иконка слева от заголовка (например, chevron для collapsible). */
+  icon?: React.ReactNode;
+  /** Клик по заголовку (например, toggle collapse). */
+  onHeaderClick?: () => void;
   stageNames: string[];
   currentStageName: string;
   processResultName: string;
@@ -40,6 +44,8 @@ export function CSharpEditor({
   value,
   onChange,
   label,
+  icon,
+  onHeaderClick,
   stageNames,
   currentStageName,
   processResultName,
@@ -96,6 +102,8 @@ export function CSharpEditor({
   return (
     <EditorPanel
       title={label}
+      icon={icon}
+      onHeaderClick={onHeaderClick}
       showHeader={!!label}
       language="csharp"
       theme="wfm-dark"
