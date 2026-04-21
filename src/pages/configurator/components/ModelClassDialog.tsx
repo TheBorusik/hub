@@ -15,9 +15,9 @@ export function ModelClassDialog({ title, body, onSave, onClose }: ModelClassDia
   const [value, setValue] = useState(body);
 
   return (
-    <Modal open onClose={onClose} size="xl" aria-label={title}>
+    <Modal open onClose={onClose} size="xl" aria-label={title} style={{ height: "75vh" }}>
       <Modal.Header title={title} />
-      <Modal.Body padded={false} style={{ height: "65vh" }}>
+      <Modal.Body padded={false}>
         <EditorPanel
           showHeader={false}
           language="csharp"

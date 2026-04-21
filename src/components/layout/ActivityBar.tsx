@@ -40,7 +40,10 @@ export function ActivityBar({ activeSection, onSectionChange }: ActivityBarProps
   const isSystem = contour?.isSystem ?? false;
 
   return (
-    <div className="flex flex-col items-center bg-activitybar shrink-0" style={{ width: 48 }}>
+    <div
+      className="flex flex-col items-center bg-activitybar shrink-0"
+      style={{ width: 48, borderRight: "1px solid var(--color-border)" }}
+    >
       <div className="flex flex-col items-center" style={{ flex: 1 }}>
         {sections
           .filter((s) => !s.systemOnly || isSystem)

@@ -55,6 +55,10 @@ export function EditorPanel({
       actions={renderHeaderActions(actions, state)}
       size={variant === "compact" ? "sm" : "sm"}
       variant={variant === "borderless" ? "plain" : "subtle"}
+      // Хидер редактора совпадает по фону с Monaco editor — чтобы
+      // визуально не было «второго цветового слоя» между заголовком и кодом.
+      // (ВС Code делает то же самое для editor panels.)
+      style={{ background: t.color.bg.editor }}
     />
   ) : null;
 
