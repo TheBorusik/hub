@@ -221,18 +221,18 @@ export function SectionsPanel() {
             </div>
             {/* List */}
             <div className="flex-1 overflow-auto">
-              {filtered.map((s) => {
-                const isSel = s.SectionId === selectedId;
+              {filtered.map((configSection) => {
+                const isSel = configSection.SectionId === selectedId;
                 return (
-                  <div key={s.SectionId} className="flex items-center group ui-tree-row"
+                  <div key={configSection.SectionId} className="flex items-center group ui-tree-row"
                     data-selected={isSel ? "true" : undefined}
-                    onClick={() => setSelectedId(s.SectionId)}
+                    onClick={() => setSelectedId(configSection.SectionId)}
                     style={{ height: 26, padding: "0 10px", cursor: "pointer", fontSize: 12, gap: 6, color: isSel ? "var(--color-text)" : "var(--color-text-muted)", fontWeight: isSel ? 500 : 400 }}
                   >
-                    {s.Locked ? <Lock size={12} style={{ flexShrink: 0, color: "#F6511D" }} /> : <Folder size={12} style={{ flexShrink: 0, opacity: 0.6 }} />}
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.Name}</span>
-                    {s.BuildTable && <span style={{ fontSize: 9, background: "rgba(255,255,255,0.08)", color: "var(--color-text-muted)", borderRadius: 3, padding: "0 3px", lineHeight: "16px", flexShrink: 0 }}>BT</span>}
-                    <button className="hidden group-hover:inline-flex tree-action-btn" onClick={(e) => { e.stopPropagation(); handleDelete(s); }} style={{ color: "#F44336" }} title="Delete"><Trash2 size={11} /></button>
+                    {configSection.Locked ? <Lock size={12} style={{ flexShrink: 0, color: "#F6511D" }} /> : <Folder size={12} style={{ flexShrink: 0, opacity: 0.6 }} />}
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{configSection.DisplayName}</span>
+                    {configSection.BuildTable && <span style={{ fontSize: 9, background: "rgba(255,255,255,0.08)", color: "var(--color-text-muted)", borderRadius: 3, padding: "0 3px", lineHeight: "16px", flexShrink: 0 }}>BT</span>}
+                    <button className="hidden group-hover:inline-flex tree-action-btn" onClick={(e) => { e.stopPropagation(); handleDelete(configSection); }} style={{ color: "#F44336" }} title="Delete"><Trash2 size={11} /></button>
                   </div>
                 );
               })}
@@ -254,7 +254,7 @@ export function SectionsPanel() {
                 icon={<Folder size={12} style={{ color: tok.color.text.muted }} />}
                 title={
                   <span>
-                    {selectedSection.Name}
+                    {selectedSection.DisplayName}
                     {isDirty && <span style={{ color: tok.color.text.muted, marginLeft: 4, fontWeight: 400 }}>• modified</span>}
                   </span>
                 }
