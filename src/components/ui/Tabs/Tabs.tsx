@@ -72,7 +72,7 @@ function tabStyle(
       ...base,
       height: t.component.tab.height,
       padding: `0 ${t.space[5]}`,
-      ...(isActive ? { background: t.color.bg.tabActive } : null),
+      background: isActive ? t.color.bg.tabActive : t.color.bg.tabInactive,
       color: isActive ? t.color.text.active : t.color.text.muted,
       borderRight: `1px solid ${t.color.border.default}`,
       borderBottom: isActive ? "none" : `1px solid ${t.color.border.default}`,
@@ -130,7 +130,10 @@ export function Tabs<T extends string = string>({
       style={{
         display: "flex",
         alignItems: "center",
-        background: variant === "chrome" ? t.color.bg.titlebar : "transparent",
+        // chrome tabs: фон совпадает с editor.background — активный таб
+        // визуально сливается с editor area (как в VS Code), пустое
+        // пространство справа от вкладок тоже тёмное.
+        background: variant === "chrome" ? t.color.bg.editor : "transparent",
         borderBottom: variant !== "segmented" ? `1px solid ${t.color.border.default}` : undefined,
         ...style,
       }}

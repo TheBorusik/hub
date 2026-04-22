@@ -14,7 +14,10 @@
   --color-surface-800: #606060;
   --color-surface-900: #a1a1a1;
 
-  --color-activitybar: #333333;
+  /* VS Code 2024+ — ActivityBar и Sidebar имеют один и тот же фон; editor
+     чуть темнее. Раньше activitybar был #333333, теперь выравниваем с
+     sidebar, чтобы левая колонка + дерево читались единой областью. */
+  --color-activitybar: #252526;
   --color-sidebar: #252526;
   --color-editor: #1e1e1e;
   --color-titlebar: #3c3c3c;
@@ -407,58 +410,60 @@ a {
   outline-offset: -1px;
 }
 
+/*
+ * VS Code-style resize handle.
+ *
+ * Физически 1px видимая линия (`background`), hit-area расширена на ±3px
+ * через ::before (прозрачный абсолютный слой). Транзишн оставлен только
+ * на цвет — изменение ширины/позиции во время drag'а rrp может оставить
+ * псевдо-элемент в промежуточном (невидимом) состоянии.
+ */
 .resize-handle-h {
-  width: 4px !important;
-  min-width: 4px !important;
-  background: transparent;
+  width: 1px !important;
+  min-width: 1px !important;
+  flex-basis: 1px !important;
+  background-color: var(--color-border);
   position: relative;
   cursor: col-resize;
+  z-index: 1;
+  transition: background-color 150ms;
 }
-
-.resize-handle-h::after {
+.resize-handle-h::before {
   content: "";
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 1px;
-  width: 1px;
-  background: var(--color-border);
-  transition: all 150ms;
+  left: -3px;
+  right: -3px;
+  z-index: 1;
 }
-
-.resize-handle-h:hover::after,
-.resize-handle-h:active::after,
-.resize-handle-h[data-active]::after {
-  left: 0;
-  width: 100%;
-  background: #007acc;
+.resize-handle-h:hover,
+.resize-handle-h:active {
+  background-color: #007acc;
 }
 
 .resize-handle-v {
-  height: 4px !important;
-  min-height: 4px !important;
-  background: transparent;
+  height: 1px !important;
+  min-height: 1px !important;
+  flex-basis: 1px !important;
+  background-color: var(--color-border);
   position: relative;
   cursor: row-resize;
+  z-index: 1;
+  transition: background-color 150ms;
 }
-
-.resize-handle-v::after {
+.resize-handle-v::before {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
-  top: 1px;
-  height: 1px;
-  background: var(--color-border);
-  transition: all 150ms;
+  top: -3px;
+  bottom: -3px;
+  z-index: 1;
 }
-
-.resize-handle-v:hover::after,
-.resize-handle-v:active::after,
-.resize-handle-v[data-active]::after {
-  top: 0;
-  height: 100%;
-  background: #007acc;
+.resize-handle-v:hover,
+.resize-handle-v:active {
+  background-color: #007acc;
 }
 
 @keyframes wfm-toast-in {

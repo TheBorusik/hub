@@ -193,7 +193,7 @@ function ConfigTabContentInner({
       <Panel defaultSize="220px" minSize="140px" maxSize="40%" groupResizeBehavior="preserve-pixel-size">
         <div
           className="flex flex-col h-full"
-          style={{ background: "var(--color-sidebar)", borderRight: "1px solid var(--color-border)" }}
+          style={{ background: "var(--color-sidebar)" }}
         >
           <div
             className="flex items-center shrink-0"

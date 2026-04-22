@@ -7,7 +7,7 @@ export function TabBar() {
 
   return (
     <div
-      className="flex items-center bg-titlebar select-none overflow-x-auto"
+      className="flex items-center bg-activitybar select-none overflow-x-auto"
       style={{ height: 35, borderBottom: "1px solid var(--color-border)" }}
     >
       {contours.map((c) => {

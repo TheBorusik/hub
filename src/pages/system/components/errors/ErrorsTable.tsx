@@ -251,12 +251,13 @@ export function ErrorsTable({ errorType }: ErrorsTableProps) {
         onClose={() => setOverlay({ type: "none" })}
         size="xl"
         aria-label={overlay.type === "json" ? overlay.title : "JSON viewer"}
+        style={{ height: "70vh" }}
       >
         {overlay.type === "json" && (
           <>
             <Modal.Header title={overlay.title} />
-            <Modal.Body style={{ height: "55vh", padding: 0 }}>
-              <JsonEditor value={overlay.data} readOnly height="100%" />
+            <Modal.Body padded={false}>
+              <JsonEditor value={overlay.data} readOnly />
             </Modal.Body>
           </>
         )}

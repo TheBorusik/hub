@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef } from "react";
 import type { Monaco } from "@monaco-editor/react";
 import type * as MonacoNs from "monaco-editor";
-import { CodeEditor } from "@/components/ui/CodeEditor";
+import { EditorPanel, type EditorAction } from "@/components/ui/EditorPanel";
 import {
   setupWfmCSharp,
   attachWfmContext,
@@ -12,33 +12,48 @@ import {
 export interface CSharpEditorProps {
   value: string;
   onChange: (v: string) => void;
-  label: string;
+  /** Заголовок панели. Если не задан — заголовок не рисуется. */
+  label?: string;
+  /** Иконка слева от заголовка (например, chevron для collapsible). */
+  icon?: React.ReactNode;
+  /** Клик по заголовку (например, toggle collapse). */
+  onHeaderClick?: () => void;
   stageNames: string[];
   currentStageName: string;
   processResultName: string;
+  /** Monaco-actions внутри редактора (Shift+Alt+F, Alt+Enter и т.п.). */
   actions?: StageEditorActionCallbacks;
+  /**
+   * Кнопки в правой части заголовка (label, Format, Save и т.п.). Приходят
+   * полностью от consumer'а — EditorPanel сам ничего не добавляет.
+   */
+  headerActions?: EditorAction[];
 }
 
 /**
- * Тонкая обёртка вокруг `<CodeEditor>` специально для C#-полей процесса
- * (`GetData`, `GetNextStage`, `GetErrorNextStage`): прописывает тему
- * `wfm-dark`, подключает WFM-специфичный language server (`setupWfmCSharp`),
- * держит актуальный WFM-контекст (список стейджей, текущий стейдж, имя
- * ProcessResult) в `ref`, чтобы completion provider всегда видел свежие
- * значения без перерегистрации, и подключает Alt+Enter / Ctrl+Alt+Enter
- * actions через `registerStageEditorActions`.
+ * Обёртка над `<EditorPanel>` для C# полей процесса (GetData / GetNextStage /
+ * GetErrorNextStage). Добавляет WFM-specific language server
+ * (`setupWfmCSharp`), держит актуальный completion-context в ref и
+ * регистрирует Monaco-actions (Alt+Enter / Ctrl+Alt+Enter / Shift+Alt+F) через
+ * `registerStageEditorActions`.
+ *
+ * Общий visual (хидер, цвет, высота, padding) — через EditorPanel, чтобы
+ * не расходиться с остальными редакторами приложения.
  */
 export function CSharpEditor({
   value,
   onChange,
   label,
+  icon,
+  onHeaderClick,
   stageNames,
   currentStageName,
   processResultName,
   actions,
+  headerActions,
 }: CSharpEditorProps) {
   const uid = useId();
-  const path = `inmemory://stage/${uid}/${label}`;
+  const path = `inmemory://stage/${uid}/${label ?? "body"}`;
 
   const ctxRef = useRef({ stageNames, currentStageName, processResultName });
   useEffect(() => {
@@ -85,36 +100,33 @@ export function CSharpEditor({
   }, []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      {label && (
-        <span style={{ fontSize: 11, color: "var(--color-text-muted)", fontWeight: 600, padding: "4px 6px", flexShrink: 0 }}>
-          {label}
-        </span>
-      )}
-      <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-        <CodeEditor
-          path={path}
-          language="csharp"
-          value={value}
-          onChange={(next) => { if (next !== value) onChange(next); }}
-          theme="wfm-dark"
-          beforeMount={handleBeforeMount}
-          onMount={handleMount}
-          wordWrap="on"
-          options={{
-            fontSize: 13,
-            scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
-            padding: { top: 4 },
-            // "smart" — как в VS Code: Enter принимает подсказку только когда
-            // она явно выбрана (стрелками) или явно подсвечена; в остальных
-            // случаях Enter работает как перенос строки.
-            acceptSuggestionOnEnter: "smart",
-            quickSuggestions: { other: true, comments: false, strings: false },
-            suggestOnTriggerCharacters: true,
-            tabCompletion: "on",
-          }}
-        />
-      </div>
-    </div>
+    <EditorPanel
+      title={label}
+      icon={icon}
+      onHeaderClick={onHeaderClick}
+      showHeader={!!label}
+      language="csharp"
+      theme="wfm-dark"
+      value={value}
+      onChange={(next) => { if (next !== value) onChange(next); }}
+      path={path}
+      actions={headerActions}
+      beforeMount={handleBeforeMount}
+      onMount={handleMount}
+      options={{
+        fontSize: 13,
+        scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+        padding: { top: 4 },
+        wordWrap: "on",
+        // "smart" — как в VS Code: Enter принимает подсказку только когда
+        // она явно выбрана (стрелками) или явно подсвечена; в остальных
+        // случаях Enter работает как перенос строки.
+        acceptSuggestionOnEnter: "smart",
+        quickSuggestions: { other: true, comments: false, strings: false },
+        suggestOnTriggerCharacters: true,
+        tabCompletion: "on",
+        minimap: { enabled: false },
+      }}
+    />
   );
 }

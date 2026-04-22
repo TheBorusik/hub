@@ -29,3 +29,5 @@ export * from "./DataTable";
 export * from "./VirtualList";
 export * from "./CodeEditor";
 export * from "./ConfirmDialog";
+export * from "./EditorPanel";
+

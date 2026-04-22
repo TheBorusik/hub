@@ -4,6 +4,7 @@ import { Group, Panel } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { useContourApi } from "@/lib/ws-api";
 import { JsonEditor } from "@/pages/command-tester/components/JsonEditor";
+import type { EditorAction } from "@/components/ui/EditorPanel";
 
 const BUILD_RULES_TEMPLATE = JSON.stringify({
   Filters: [
@@ -25,6 +26,17 @@ interface BuildRulesEditorProps {
   pathPrefix: string;
 }
 
+/**
+ * Редактор секции адаптера в системе:
+ *   - если BuildRules нет — один <JsonEditor> на всю ширину (без подзаголовка);
+ *   - если есть — две панели рядом: JsonData | Build Rules, обе через
+ *     единый <JsonEditor> (который использует <EditorPanel>).
+ *
+ * Сам `BuildRulesEditor` не выставляет хидер «верхнего уровня» — его
+ * предоставляет родительский `ConfigTabContent` (<PanelHeader> для секции).
+ * Подхидеры JsonData / Build Rules идут через EditorPanel → одинаковые
+ * размеры и стили со всеми остальными редакторами.
+ */
 export function BuildRulesEditor({
   sectionId, editedJson, onJsonChange,
   editedBuildRules, onBuildRulesChange,
@@ -35,40 +47,59 @@ export function BuildRulesEditor({
   if (!hasBuildRules) {
     return (
       <div className="flex flex-col h-full">
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <JsonEditor value={editedJson} onChange={onJsonChange} path={`${pathPrefix}-json-${sectionId}`} />
-        </div>
+        <JsonEditor
+          value={editedJson}
+          onChange={onJsonChange}
+          path={`${pathPrefix}-json-${sectionId}`}
+        />
       </div>
     );
   }
 
+  const buildRulesActions: EditorAction[] = [
+    {
+      id: "remove-build-rules",
+      icon: <X size={12} />,
+      title: "Remove Build Rules",
+      onClick: onRemoveBuildRules,
+      variant: "danger",
+    },
+  ];
+
   return (
     <Group orientation="horizontal" id={`${pathPrefix}-editors-${sectionId}`}>
       <Panel minSize="30%">
-        <div className="flex flex-col h-full">
-          <div className="shrink-0" style={{ padding: "4px 10px", fontSize: 10, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>
-            JsonData
-          </div>
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <JsonEditor value={editedJson} onChange={onJsonChange} path={`${pathPrefix}-json-${sectionId}`} />
-          </div>
-        </div>
+        <JsonEditor
+          label="JsonData"
+          value={editedJson}
+          onChange={onJsonChange}
+          path={`${pathPrefix}-json-${sectionId}`}
+        />
       </Panel>
       <ResizeHandle />
       <Panel minSize="20%">
-        <div className="flex flex-col h-full" style={{ borderLeft: "1px solid var(--color-border)" }}>
-          <div className="shrink-0 flex items-center gap-2" style={{ padding: "4px 10px", borderBottom: "1px solid var(--color-border)" }}>
-            <span style={{ fontSize: 10, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase" }}>Build Rules</span>
-            <div style={{ flex: 1 }} />
-            <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>Table:</span>
-            <TableCombobox value={editedBuildTable} onChange={onBuildTableChange} />
-            <button onClick={onRemoveBuildRules} className="toolbar-btn" style={{ color: "#F44336" }} title="Remove Build Rules">
-              <X size={12} />
-            </button>
-          </div>
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <JsonEditor value={editedBuildRules} onChange={onBuildRulesChange} path={`${pathPrefix}-rules-${sectionId}`} />
-          </div>
+        <div className="flex flex-col h-full">
+          <JsonEditor
+            label="Build Rules"
+            value={editedBuildRules}
+            onChange={onBuildRulesChange}
+            path={`${pathPrefix}-rules-${sectionId}`}
+            badge={
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: "var(--font-size-xs)",
+                  color: "var(--color-text-muted)",
+                }}
+              >
+                Table:
+                <TableCombobox value={editedBuildTable} onChange={onBuildTableChange} />
+              </span>
+            }
+            actions={buildRulesActions}
+          />
         </div>
       </Panel>
     </Group>

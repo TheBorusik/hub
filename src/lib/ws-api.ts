@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState } from "react";
 import { useWebSocket, type AuthWebSocket } from "@theborusik/ws-react";
 import {
   WfmCommand,
@@ -834,20 +834,58 @@ export class HubWsApi {
   }
 }
 
+/**
+ * API-клиент для текущего контура.
+ *
+ * Возвращает:
+ *   - `HubWsApi` когда `isConnected && isAuthenticated`;
+ *   - **последний известный** `HubWsApi` во время временных потерь
+ *     (`isConnected=false` при reconnect или `isAuthenticated=false` при
+ *     reauth) — чтобы компоненты не размонтировались из-за `api === null`.
+ *     Вызовы на таком api будут падать с "WebSocket not connected" —
+ *     consumer'ы должны сами решать, что делать. WebSocketOverlays поверх
+ *     приложения в это время не даёт пользователю кликать.
+ *   - `null` только если ws ещё **никогда** не был готов (первый mount
+ *     провайдера).
+ *
+ * Реализация: храним `{ api, ws }` в useState и обновляем его синхронно
+ * в рендере (derived state pattern), только когда ws-ссылка поменялась
+ * и находимся в ready-состоянии. В обычных потерях isAuthenticated=false
+ * ссылка ws та же → api не пересоздаётся и возвращается старый, а
+ * компоненты в дереве не видят api=null.
+ */
 export function useContourApi(): HubWsApi | null {
   const { ws, isConnected, isAuthenticated } = useWebSocket();
   const ready = Boolean(ws && isConnected && isAuthenticated);
-  return useMemo(
-    () => (ready && ws ? new HubWsApi(ws) : null),
-    [ready, ws],
-  );
+  const [cache, setCache] = useState<{ ws: AuthWebSocket; api: HubWsApi } | null>(null);
+
+  // Derived state on prop change: при появлении нового ws (контур сменился
+  // или первый ready после mount) — синхронно пересоздаём api и кэшируем.
+  if (ready && ws && cache?.ws !== ws) {
+    setCache({ ws, api: new HubWsApi(ws) });
+  }
+
+  return cache?.api ?? null;
 }
 
+/**
+ * API для неавторизованных вызовов (login/logout). В отличие от
+ * `useContourApi`, не требует `isAuthenticated`, но всё ещё ждёт
+ * `isConnected` — без сокета login невозможен.
+ *
+ * Эта обёртка всегда возвращает свежий api, чтобы login/logout работали
+ * только когда сокет реально открыт.
+ */
 export function useContourAuth(): HubWsApi | null {
   const { ws, isConnected } = useWebSocket();
-  const ready = Boolean(ws && isConnected);
-  return useMemo(
-    () => (ready && ws ? new HubWsApi(ws) : null),
-    [ready, ws],
-  );
+  const [cache, setCache] = useState<{ ws: AuthWebSocket; api: HubWsApi } | null>(null);
+
+  if (isConnected && ws && cache?.ws !== ws) {
+    setCache({ ws, api: new HubWsApi(ws) });
+  }
+  if (!isConnected && cache) {
+    setCache(null);
+  }
+
+  return cache?.api ?? null;
 }

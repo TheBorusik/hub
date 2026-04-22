@@ -1,21 +1,44 @@
 import { useId } from "react";
-import { CodeEditor } from "@/components/ui/CodeEditor";
-import { t as tok } from "@/lib/design-tokens";
+import { EditorPanel, type EditorAction } from "@/components/ui/EditorPanel";
+import type { CodeEditorMarker } from "@/components/ui/CodeEditor";
 
 /**
- * JSON-редактор с опциональным label-заголовком. С Block C это тонкая
- * обёртка над общим `<CodeEditor>`: единая тема, единые маркеры, единый
- * MonacoProvider в корне приложения (без повторной инициализации).
+ * JSON-редактор с опциональным заголовком-label.
+ *
+ * Тонкая обёртка над `<EditorPanel>`:
+ *   - язык всегда `json`, таб 2 пробела;
+ *   - если `label` не передан — заголовка нет (borderless);
+ *   - любые actions прокидываются напрямую в `EditorPanel`.
+ *
+ * Используется как для компактных инлайновых JSON-панелей (CRUD, Viewer,
+ * Command Tester Request/Response), так и для редактируемых форм.
  */
-interface JsonEditorProps {
-  value: string;
+export interface JsonEditorProps {
+  value: unknown;
+  onChange?: (value: string) => void;
   readOnly?: boolean;
   minimap?: boolean;
-  onChange?: (value: string) => void;
+  /** Заголовок панели. Если не задан — panel header не рендерится. */
   label?: string;
-  height?: string;
-  /** Путь модели Monaco — чтобы не мешать модели разных редакторов. */
+  /** Иконка слева от заголовка (например, chevron для collapsible). */
+  icon?: React.ReactNode;
+  /** Клик по заголовку (например, toggle collapse). */
+  onHeaderClick?: () => void;
+  /** Уникальный путь модели Monaco — чтобы не смешивать модели между редакторами. */
   path?: string;
+  /** Доп. действия в правой части заголовка. */
+  actions?: EditorAction[];
+  /** Бейдж рядом с заголовком (например, счётчик ошибок). */
+  badge?: React.ReactNode;
+  /** Состояние (dirty/saving/...); только для визуала. */
+  state?: {
+    dirty?: boolean;
+    saving?: boolean;
+    validating?: boolean;
+  };
+  /** Маркеры Monaco (для подсветки ошибок). */
+  markers?: CodeEditorMarker[];
+  variant?: "default" | "compact" | "borderless";
 }
 
 function toSafeString(v: unknown): string {
@@ -26,50 +49,43 @@ function toSafeString(v: unknown): string {
 
 export function JsonEditor({
   value,
+  onChange,
   readOnly = false,
   minimap = false,
-  onChange,
   label,
-  path: customPath,
+  icon,
+  onHeaderClick,
+  path,
+  actions,
+  badge,
+  state,
+  markers,
+  variant = "default",
 }: JsonEditorProps) {
   const uid = useId();
-  const modelPath = customPath ?? `inmemory://jsoneditor/${uid}`;
-  const safeValue = toSafeString(value);
+  const modelPath = path ?? `inmemory://jsoneditor/${uid}`;
 
   return (
-    <div className="flex flex-col h-full">
-      {label && (
-        <div
-          className="select-none shrink-0"
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: tok.color.text.muted,
-            padding: "4px 12px",
-            background: tok.color.bg.sidebar,
-            borderBottom: `1px solid ${tok.color.border.default}`,
-            textTransform: "uppercase",
-            letterSpacing: "0.04em",
-          }}
-        >
-          {label}
-        </div>
-      )}
-      <div className="flex-1 min-h-0">
-        <CodeEditor
-          value={safeValue}
-          onChange={onChange}
-          language="json"
-          readOnly={readOnly}
-          path={modelPath}
-          minimap={minimap}
-          wordWrap="on"
-          options={{
-            tabSize: 2,
-            padding: { top: 8 },
-          }}
-        />
-      </div>
-    </div>
+    <EditorPanel
+      title={label}
+      icon={icon}
+      onHeaderClick={onHeaderClick}
+      language="json"
+      value={toSafeString(value)}
+      onChange={onChange}
+      readOnly={readOnly}
+      path={modelPath}
+      actions={actions}
+      badge={badge}
+      state={state}
+      markers={markers}
+      variant={variant}
+      showHeader={!!label}
+      options={{
+        tabSize: 2,
+        minimap: { enabled: minimap },
+      }}
+      style={{ height: "100%" }}
+    />
   );
 }

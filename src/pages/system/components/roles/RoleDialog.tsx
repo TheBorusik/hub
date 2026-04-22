@@ -132,10 +132,7 @@ export function RoleDialog({ editing, api, onClose, onDone }: RoleDialogProps) {
         </div>
 
         <div style={{ flex: 1, minHeight: 150, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: t.space[1] }}>Session Data (JSON)</div>
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <JsonEditor value={sessionData} onChange={setSessionData} height="100%" />
-          </div>
+          <JsonEditor label="Session Data (JSON)" value={sessionData} onChange={setSessionData} />
         </div>
       </Modal.Body>
       <Modal.Footer>

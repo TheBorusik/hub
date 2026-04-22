@@ -64,6 +64,11 @@ export function ConfiguratorPage() {
    * `null` — диалог закрыт.
    */
   const [apiDialogFor, setApiDialogFor] = useState<ProcessModel | null>(null);
+  /**
+   * Состояние локального ConfirmDialog для Remove Draft. Свой стейт (а не
+   * глобальный useConfirm) — чтобы явно блокировать повторные клики через
+   * `removing` и гарантированно закрывать окно по завершении запроса.
+   */
 
   const [crudModels, setCrudModels] = useState<CRUDModelInfo[]>([]);
   const [commands, setCommands] = useState<AdapterCommandInfo[]>([]);
@@ -257,72 +262,93 @@ export function ConfiguratorPage() {
   }, [api, registerDirtyGuard]);
 
   /**
-   * Создать stub процесса локально (без запроса к серверу) и открыть в новой табе
-   * как dirty — пользователь дописывает и сохраняет сам.
+   * Создать новый процесс на сервере — делаем ДВА Upsert'а, как при обычном
+   * save (см. DirtyGuard.saveAll выше):
+   *  1) Category "PROCESS", Name=<processName>, Model: {}, CreateNew: true —
+   *     серверная часть процесса (C# skeleton).
+   *  2) Category "WEBDATA", Name=<TypeName>+"WebData", Model: {},
+   *     CreateNew: true — метаданные для диаграммы (раскладка стейджей).
    *
-   * Базовые стейджи — Start → Success / Failed — чтобы диаграмма была не пустая.
+   * Оба вызова нужны — без WEBDATA процесс откроется без диаграммной
+   * раскладки (это ровно то, что делал old-admin createProcess
+   * createNewProcessAssembly('PROCESS') + createNewProcessAssembly('WEBDATA')).
+   *
+   * Затем подтягиваем полную модель через `loadProcessAssembly(TypeName)`
+   * и открываем её в новой табе в чистом (non-dirty) состоянии.
    */
-  const createDraftProcessTab = useCallback((processName: string, typeName: string) => {
-    if (tabs.some((t) => t.typeName === typeName)) {
-      setActiveTab(typeName);
+  const createDraftProcessTab = useCallback(async (processName: string, typeNameHint: string) => {
+    if (!api) return;
+    const trimmed = processName.trim();
+    if (!trimmed) return;
+
+    // Если такой TypeName уже открыт в табе — просто активируем.
+    const existingTab = tabs.find((t) => t.typeName === typeNameHint);
+    if (existingTab) {
+      setActiveTab(typeNameHint);
       return;
     }
 
-    const stub: WebProcess = {
-      Category: "PROCESS",
-      TypeName: typeName,
-      Name: processName,
-      Namespace: "",
-      Startup: "Start",
-      ModifyTimeStamp: "",
-      InitObject: { Name: `${typeName}InitObject`, Body: "" },
-      Context: { Name: `${typeName}Context`, Body: "" },
-      ProcessResult: { Name: `${typeName}ProcessResult`, Body: "" },
-      Models: [],
-      Stages: {
-        Start: {
-          Type: "Start", Name: "Start", DisplayName: "Старт",
-          GetData: "", GetNextStage: "return Success;", GetErrorNextStage: "",
-          ReturnStages: ["Success"], Properties: {},
-        },
-        Success: {
-          Type: "EndDefinition", Name: "Success", DisplayName: "Успех",
-          GetData: "", GetNextStage: "", GetErrorNextStage: "",
-          ReturnStages: [], Properties: {},
-        },
-        Failed: {
-          Type: "EndDefinition", Name: "Failed", DisplayName: "Ошибка",
-          GetData: "", GetNextStage: "", GetErrorNextStage: "",
-          ReturnStages: [], Properties: {},
-        },
-      },
-      Usings: [],
-      WebData: {
-        Stages: {
-          Start: { Position: { x: 100, y: 100 }, Color: "#5CADD5", Lines: { Success: { LineIn: "top", LineOut: "auto" } } },
-          Success: { Position: { x: 420, y: 100 }, Color: "#F6511D", Lines: {} },
-          Failed: { Position: { x: 420, y: 260 }, Color: "#F6511D", Lines: {} },
-        },
-      },
-    };
-
-    // originalJson оставляем пустым — любое изменение сразу помечает таб dirty,
-    // чтобы пользователь видел, что процесс не сохранён.
-    const newTab: OpenTab = {
-      typeName,
-      name: processName,
-      process: stub,
+    // Показываем временный skeleton-таб со `loading: true`, чтобы UI
+    // откликнулся сразу.
+    const placeholder: OpenTab = {
+      typeName: typeNameHint,
+      name: trimmed,
+      process: null,
       originalJson: "",
-      loading: false,
-      dirty: true,
+      loading: true,
+      dirty: false,
     };
-    setTabs((prev) => [...prev, newTab]);
-    setActiveTab(typeName);
-    toast.push("info", `Draft process created: ${processName}`, {
-      detail: "Save to persist.",
-      duration: 3000,
-    });
-  }, [tabs, toast]);
+    setTabs((prev) => [...prev, placeholder]);
+    setActiveTab(typeNameHint);
+
+    try {
+      // 1) PROCESS upsert — сервер создаст skeleton, вернёт финальный TypeName.
+      const upsertRes = await api.upsertProcessAssembly(trimmed, "PROCESS", {}, true);
+      const serverTypeName = upsertRes.TypeName || typeNameHint;
+
+      // 2) WEBDATA upsert — раскладка диаграммы. Имя = TypeName + "WebData"
+      //    (тот же паттерн, что и при save в DirtyGuard выше).
+      await api.upsertProcessAssembly(`${serverTypeName}WebData`, "WEBDATA", {}, true);
+
+      // 3) Подтянуть полную модель.
+      const getRes = await api.loadProcessAssembly(serverTypeName);
+      const rawModel = getRes.Model ?? (getRes as unknown as WebProcess);
+      const proc = recomputeReturnStages(rawModel);
+      const snapshot = stableJson(proc);
+
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.typeName === typeNameHint
+            ? {
+                ...t,
+                typeName: serverTypeName,
+                name: proc.Name ?? serverTypeName,
+                process: proc,
+                originalJson: snapshot,
+                loading: false,
+                dirty: false,
+              }
+            : t,
+        ),
+      );
+      setActiveTab(serverTypeName);
+
+      toast.push("success", `Process created: ${proc.Name ?? serverTypeName}`, {
+        duration: 2500,
+      });
+
+      // Рефрешим дерево процессов, чтобы новый элемент появился в сайдбаре.
+      loadTree();
+    } catch (e) {
+      console.error("Failed to create process", e);
+      setTabs((prev) => prev.filter((t) => t.typeName !== typeNameHint));
+      setActiveTab((cur) => (cur === typeNameHint ? null : cur));
+      toast.push("error", "Failed to create process", {
+        detail: e instanceof Error ? e.message : String(e),
+        duration: 4000,
+      });
+    }
+  }, [api, tabs, toast, loadTree]);
 
   /**
    * Переход к подпроцессу по его `Name`. Если процесс есть в `allModels` —
@@ -417,7 +443,11 @@ export function ConfiguratorPage() {
         activeId={activeId}
         onChange={setActiveTab}
         onClose={closeTab}
-        style={{ background: tok.color.bg.sidebar }}
+        // В VS Code tab strip имеет цвет editor.background — активный
+        // таб визуально сливается с editor-area, пустое пространство
+        // справа от вкладок тоже тёмное (editor), а не высветляется
+        // до sidebar.
+        style={{ background: tok.color.bg.editor }}
       />
     );
   };
@@ -440,6 +470,11 @@ export function ConfiguratorPage() {
     </div>
   );
 
+  // api === null только на ПЕРВОМ маунте провайдера (ws ещё не готов).
+  // useContourApi возвращает последний известный api во время потерь
+  // соединения / reauth — поэтому здесь поддерево не размонтируется при
+  // временных обрывах. Overlay "Connecting…/Authorizing…" рисуется поверх
+  // приложения через <WebSocketOverlays/> в AuthGate.
   if (!api) {
     return (
       <div className="flex items-center justify-center h-full" style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
@@ -595,10 +630,11 @@ export function ConfiguratorPage() {
           onCancel={() => setCreateProcessPrefill(null)}
           onSubmit={({ name, typeName /*, description, type */ }) => {
             // description/type пока собираются в форме только для UX-паритета
-            // со старой админкой и не отправляются на сервер — по соглашению
-            // создание делается через createNewProcessAssembly PROCESS+WEBDATA.
+            // со старой админкой; сервер Upsert их не принимает.
+            // Создание идёт через WFM.ProcessAssembly.Upsert с Model:{} +
+            // CreateNew:true — сервер сгенерирует skeleton и вернёт TypeName.
             setCreateProcessPrefill(null);
-            createDraftProcessTab(name, typeName);
+            void createDraftProcessTab(name, typeName);
           }}
         />
       )}
