@@ -14,7 +14,7 @@ const BUILD_RULES_TEMPLATE = JSON.stringify({
 }, null, 2);
 
 interface BuildRulesEditorProps {
-  sectionId: number;
+  sectionId: string;
   editedJson: string;
   onJsonChange: (val: string) => void;
   editedBuildRules: string;
@@ -129,10 +129,10 @@ function TableCombobox({ value, onChange }: { value: string; onChange: (val: str
   const loadTables = useCallback(async () => {
     if (!api) return;
     try {
-      const res = await api.getAllTables();
-      const list = (res as Record<string, unknown>).Tables;
+      const res = await api.getAllTables({});
+      const list = res.Tables;
       if (Array.isArray(list)) {
-        setTables(list.map((t: unknown) => (typeof t === "string" ? t : (t as Record<string, unknown>).Name as string)).filter(Boolean));
+        setTables(list.map(x=>x.Name).filter(Boolean));
       }
     } catch { /* ignore */ }
   }, [api]);

@@ -25,7 +25,7 @@ type Overlay =
   | { type: "none" }
   | { type: "upsertType"; editing: AdapterType | null }
   | { type: "upsertConfig"; editing: AdapterConfiguration | null; adapterType: string }
-  | { type: "createSection"; configId: number };
+  | { type: "createSection"; configId: string };
 
 /**
  * System → Configuration: дерево типов/конфигураций слева, справа — вкладки
@@ -108,23 +108,23 @@ export function ConfigurationPanel() {
     }
   };
 
-  const closeTab = useCallback((configId: number) => {
+  const closeTab = useCallback((configId: string) => {
     dispatchWorkspace({ type: "TAB_CLOSE", configId });
   }, []);
 
-  const handleTabBarSelect = useCallback((id: number) => {
+  const handleTabBarSelect = useCallback((id: string) => {
     dispatchWorkspace({ type: "TAB_SELECT", configId: id });
   }, []);
 
-  const handleWorkspaceSection = useCallback((configId: number, sectionId: number | null) => {
+  const handleWorkspaceSection = useCallback((configId: string, sectionId: string | null) => {
     dispatchWorkspace({ type: "TAB_SECTION", configId, sectionId });
   }, []);
 
-  const handleWorkspaceDirty = useCallback((configId: number, dirty: boolean) => {
+  const handleWorkspaceDirty = useCallback((configId: string, dirty: boolean) => {
     dispatchWorkspace({ type: "TAB_DIRTY", configId, dirty });
   }, []);
 
-  const handleTabAddSection = useCallback((configId: number) => {
+  const handleTabAddSection = useCallback((configId: string) => {
     setOverlay({ type: "createSection", configId });
   }, []);
 

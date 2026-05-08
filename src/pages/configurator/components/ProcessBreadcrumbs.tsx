@@ -1,7 +1,7 @@
 import { Breadcrumbs, type BreadcrumbItem } from "@/components/ui/Breadcrumbs";
 import type { WebProcess, ProcessStage } from "@/lib/ws-api-models";
 
-export type SpecialView = "code" | "diff" | "run" | "global-models" | null;
+export type SpecialView = "code" | "diff" | "run" | "global-models" | "dependencies" | null;
 
 interface ProcessBreadcrumbsProps {
   process: WebProcess;
@@ -18,6 +18,7 @@ const SPECIAL_LABEL: Record<Exclude<SpecialView, null>, string> = {
   diff: "Diff",
   run: "Run",
   "global-models": "Global Models",
+  dependencies: "Dependencies",
 };
 
 /**

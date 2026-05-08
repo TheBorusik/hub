@@ -41,18 +41,24 @@ export function ErrorActionDialog({ mode, row, api, onClose, onDone }: ErrorActi
     setSubmitting(true);
     try {
       if (mode === "resend") {
-        await api.resendError(row.CorrelationId);
+        await api.resendError({ CorrelationId: row.CorrelationId });
       } else if (mode === "resendWithData") {
-        const parsed = JSON.parse(editorValue);
-        await api.resendWithNewData(row.CorrelationId, parsed);
+        const parsed = JSON.parse(editorValue) as Record<string, unknown>;
+        await api.resendWithNewData({ CorrelationId: row.CorrelationId, Payload: parsed });
       } else {
-        const parsed = JSON.parse(editorValue);
-        await api.sendCommandResult(
-          row.CorrelationId,
-          parsed.Result ?? {},
-          parsed.Error ?? {},
-          parsed.ResultCode ?? "",
-        );
+        const parsed = JSON.parse(editorValue) as {
+          Result?: unknown;
+          Error?: unknown;
+          ResultCode?: string;
+        };
+        await api.sendCommandResult({
+          CorrelationId: row.CorrelationId,
+          CommandResult: {
+            Result: parsed.Result ?? {},
+            Error: parsed.Error ?? {},
+            ResultCode: parsed.ResultCode ?? "",
+          },
+        });
       }
       onDone();
     } catch {

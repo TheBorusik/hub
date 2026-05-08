@@ -7,10 +7,12 @@ import { useNavigation, type DirtyGuard } from "@/providers/NavigationProvider";
 import type {
   ProcessModel, WebProcess, Catalog,
   CRUDModelInfo, AdapterCommandInfo, AdapterEventInfo, AdapterTreeNode,
+  WfmProcessAssemblyUpsertRequest,
 } from "@/lib/ws-api-models";
 import type { OpenTab } from "./types";
 import { BranchSelector } from "./components/BranchSelector";
 import { ProcessTree } from "./components/ProcessTree";
+import { GlobalDependencySearchPanel } from "./components/GlobalDependencySearchPanel";
 import { ProcessEditor } from "./components/ProcessEditor";
 import { CommitDialog } from "./components/CommitDialog";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
@@ -23,7 +25,9 @@ import { useProblems } from "@/providers/ProblemsProvider";
 import { compileProblemSourceFor } from "./lib/publish-compile-problems";
 import { Tabs } from "@/components/ui/Tabs";
 import { t as tok } from "@/lib/design-tokens";
-import { ChevronRight, ChevronDown, GitBranch, GitCommitHorizontal } from "lucide-react";
+import { useCommand } from "@/lib/commands";
+import type { Command } from "@/lib/commands";
+import { ChevronRight, ChevronDown, GitBranch, GitCommitHorizontal, Search } from "lucide-react";
 
 export function ConfiguratorPage() {
   const api = useContourApi();
@@ -39,6 +43,21 @@ export function ConfiguratorPage() {
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [showCommit, setShowCommit] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
+  const [leftTab, setLeftTab] = useState<"processes" | "global-search">("processes");
+  const [triggerSearch, setTriggerSearch] = useState<{ depType: "crud" | "commands" | "events" | "subs"; depName: string } | null>(null);
+
+  useCommand(
+    {
+      id: "configurator.findUsages",
+      title: "Find Usages of…",
+      category: "Configurator",
+      description: "Open Global Search to find processes by dependency",
+      icon: <Search size={14} />,
+      keybinding: "mod+shift+u",
+      run: () => setLeftTab("global-search"),
+    } as Command,
+    [setLeftTab],
+  );
   // rrp v4 убрали `autoSaveId` у Group — тянем layout через localStorage сами.
   const sideLayout = useAutoSaveLayout("cfg-side-v4");
   /**
@@ -78,14 +97,14 @@ export function ConfiguratorPage() {
     if (!api) return;
     setLoading(true);
     try {
-      const res = await api.getProcessTree();
+      const res = await api.getProcessTree({});
       setCatalogs(res.Catalogs ?? []);
       setAllModels(res.ProcessModels ?? []);
       setActionColors(res.ActionColors ?? {});
     } catch (e) {
       console.warn("GetProcessTree not available, falling back to GetModels", e);
       try {
-        const res2 = await api.getProcessModels();
+        const res2 = await api.getProcessModels({});
         const models = res2.Models ?? [];
         setAllModels(models);
         setCatalogs(buildCatalogsFromModels(models));
@@ -102,7 +121,12 @@ export function ConfiguratorPage() {
 
   useEffect(() => {
     if (!api) return;
-    api.getCrudModels().then((res) => {
+    api.genericCrudAction({
+      Model: "CRUDModel",
+      ServiceType: "CRUDModels",
+      Action: "GetAll",
+      Data: {},
+    }).then((res) => {
       const models = (res.Models ?? []) as Array<{ Name: string; Handlers?: string[]; ServiceType?: string }>;
       const list: CRUDModelInfo[] = [];
       for (const m of models) {
@@ -114,7 +138,7 @@ export function ConfiguratorPage() {
       setCrudModels(list);
     }).catch((e) => console.warn("Failed to load CRUD models for configurator", e));
 
-    api.getAdaptersInfo().then((res) => {
+    api.getAdaptersInfo({}).then((res) => {
       const cmds: AdapterCommandInfo[] = [];
       const evts: AdapterEventInfo[] = [];
       const seenCmd = new Set<string>();
@@ -153,7 +177,7 @@ export function ConfiguratorPage() {
     setActiveTab(typeName);
 
     try {
-      const res = await api.getProcessAssembly(typeName);
+      const res = await api.getProcessAssembly({ Name: typeName });
       const raw = res.Model ?? (res as unknown as WebProcess);
       const proc = recomputeReturnStages(raw);
       const snapshot = stableJson(proc);
@@ -179,13 +203,13 @@ export function ConfiguratorPage() {
     if (!trimmed) return;
 
     // 1) Уже открыто как таб — активируем.
-    const openTab = tabsRef.current.find((t) => t.name === trimmed || t.process?.Name === trimmed);
+    const openTab = tabsRef.current.find((t) => t.name === trimmed || t.process?.Name === trimmed || t.typeName === trimmed);
     if (openTab) {
       setActiveTab(openTab.typeName);
       return;
     }
     // 2) Есть в каталоге — открываем сразу.
-    const model = allModels.find((m) => m.Name === trimmed);
+    const model = allModels.find((m) => m.Name === trimmed || m.TypeName === trimmed);
     if (model) {
       openProcess(model);
       return;
@@ -198,7 +222,7 @@ export function ConfiguratorPage() {
   useEffect(() => {
     if (!pendingOpenByName) return;
     if (loading) return; // ждём первую загрузку
-    const model = allModels.find((m) => m.Name === pendingOpenByName);
+    const model = allModels.find((m) => m.Name === pendingOpenByName || m.TypeName === pendingOpenByName);
     if (model) {
       openProcess(model);
     } else {
@@ -234,9 +258,19 @@ export function ConfiguratorPage() {
         if (dirty.length === 0) return true;
         const results = await Promise.allSettled(dirty.map(async (t) => {
           const proc = t.process!;
-          await api!.upsertProcessAssembly(proc.TypeName, "PROCESS", proc, false);
+          await api!.upsertProcessAssembly({
+            Name: proc.TypeName,
+            Category: "PROCESS",
+            Model: proc,
+            CreateNew: false,
+          });
           if (proc.WebData) {
-            await api!.upsertProcessAssembly(proc.TypeName + "WebData", "WEBDATA", proc.WebData, false);
+            await api!.upsertProcessAssembly({
+              Name: proc.TypeName + "WebData",
+              Category: "WEBDATA",
+              Model: proc.WebData as unknown as WfmProcessAssemblyUpsertRequest["Model"],
+              CreateNew: false,
+            });
           }
           return t.typeName;
         }));
@@ -303,15 +337,25 @@ export function ConfiguratorPage() {
 
     try {
       // 1) PROCESS upsert — сервер создаст skeleton, вернёт финальный TypeName.
-      const upsertRes = await api.upsertProcessAssembly(trimmed, "PROCESS", {}, true);
+      const upsertRes = await api.upsertProcessAssembly({
+        Name: trimmed,
+        Category: "PROCESS",
+        Model: {},
+        CreateNew: true,
+      });
       const serverTypeName = upsertRes.TypeName || typeNameHint;
 
       // 2) WEBDATA upsert — раскладка диаграммы. Имя = TypeName + "WebData"
       //    (тот же паттерн, что и при save в DirtyGuard выше).
-      await api.upsertProcessAssembly(`${serverTypeName}WebData`, "WEBDATA", {}, true);
+      await api.upsertProcessAssembly({
+        Name: `${serverTypeName}WebData`,
+        Category: "WEBDATA",
+        Model: {},
+        CreateNew: true,
+      });
 
       // 3) Подтянуть полную модель.
-      const getRes = await api.loadProcessAssembly(serverTypeName);
+      const getRes = await api.loadProcessAssembly({ TypeName: serverTypeName });
       const rawModel = getRes.Model ?? (getRes as unknown as WebProcess);
       const proc = recomputeReturnStages(rawModel);
       const snapshot = stableJson(proc);
@@ -359,14 +403,14 @@ export function ConfiguratorPage() {
     if (!trimmed) return;
     // В `allModels` уже лежат только процессы (GetModels/GetTree фильтруют на
     // сервере), поэтому дополнительная проверка Category не нужна.
-    const existing = allModels.find((m) => m.Name === trimmed);
+    const existing = allModels.find((m) => m.Name === trimmed || m.TypeName === trimmed);
     if (existing) {
       openProcess(existing);
       return;
     }
     // Также проверим среди уже открытых табов (возможно это локальный draft,
     // которого ещё нет в `allModels`).
-    const draftTab = tabs.find((t) => t.name === trimmed || t.process?.Name === trimmed);
+    const draftTab = tabs.find((t) => t.name === trimmed || t.process?.Name === trimmed || t.typeName === trimmed);
     if (draftTab) {
       setActiveTab(draftTab.typeName);
       return;
@@ -395,7 +439,7 @@ export function ConfiguratorPage() {
       async onConfirm() {
         if (!api) return;
         try {
-          await api.removeDraft(typeName);
+          await api.removeDraft({ TypeName: typeName });
           loadTree();
         } catch (e) {
           console.error("Remove draft failed", e);
@@ -463,6 +507,10 @@ export function ConfiguratorPage() {
       onProcessUpdate={(proc) => updateProcess(activeTabData.typeName, proc)}
       onSaved={() => markSaved(activeTabData.typeName)}
       onOpenSubProcess={openSubProcess}
+      onFindUsages={(depType, depName) => {
+        setLeftTab("global-search");
+        setTriggerSearch({ depType: depType as "crud" | "commands" | "events" | "subs", depName });
+      }}
     />
   ) : (
     <div className="flex items-center justify-center h-full" style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
@@ -494,12 +542,19 @@ export function ConfiguratorPage() {
           groupResizeBehavior="preserve-pixel-size"
         >
           <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--color-sidebar)" }}>
-            {/* Заголовок */}
-            <div
-              className="flex items-center shrink-0 select-none uppercase tracking-wider"
-              style={{ height: 35, padding: "0 20px", fontSize: 11, fontWeight: 600, color: "var(--color-text-muted)", letterSpacing: "0.04em" }}
-            >
-              CONFIGURATOR
+            {/* Tabs */}
+            <div className="shrink-0" style={{ padding: "4px 8px 0" }}>
+              <Tabs
+                variant="inline"
+                align="stretch"
+                aria-label="Configurator sidebar"
+                activeId={leftTab}
+                onChange={(id) => setLeftTab(id as "processes" | "global-search")}
+                items={[
+                  { id: "processes", label: "Processes" },
+                  { id: "global-search", label: "Global Search" },
+                ]}
+              />
             </div>
             {/* Дерево + Branch (toggle + resize) */}
             <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -507,17 +562,28 @@ export function ConfiguratorPage() {
                 <Group orientation="vertical" id="cfg-side-v4" {...sideLayout}>
                   <Panel minSize="100px">
                     <div style={{ height: "100%", overflow: "auto" }}>
-                      <ProcessTree
-                        catalogs={catalogs}
-                        actionColors={actionColors}
-                        loading={loading}
-                        selectedTypeName={activeTab}
-                        onRefresh={loadTree}
-                        onOpenProcess={openProcess}
-                        onRemoveDraft={handleRemoveDraft}
-                        onOpenApi={setApiDialogFor}
-                        onCreateProcess={() => setCreateProcessPrefill("")}
-                      />
+                      {leftTab === "processes" ? (
+                        <ProcessTree
+                          catalogs={catalogs}
+                          actionColors={actionColors}
+                          loading={loading}
+                          selectedTypeName={activeTab}
+                          onRefresh={loadTree}
+                          onOpenProcess={openProcess}
+                          onRemoveDraft={handleRemoveDraft}
+                          onOpenApi={setApiDialogFor}
+                          onCreateProcess={() => setCreateProcessPrefill("")}
+                        />
+                      ) : (
+                        <GlobalDependencySearchPanel
+                          api={api}
+                          crudModels={crudModels}
+                          commands={commands}
+                          allModels={allModels}
+                          onOpenProcess={openSubProcess}
+                          trigger={triggerSearch}
+                        />
+                      )}
                     </div>
                   </Panel>
                   <ResizeHandle direction="vertical" />
@@ -558,17 +624,28 @@ export function ConfiguratorPage() {
               ) : (
                 <>
                   <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-                    <ProcessTree
-                      catalogs={catalogs}
-                      actionColors={actionColors}
-                      loading={loading}
-                      selectedTypeName={activeTab}
-                      onRefresh={loadTree}
-                      onOpenProcess={openProcess}
-                      onRemoveDraft={handleRemoveDraft}
-                      onOpenApi={setApiDialogFor}
-                      onCreateProcess={() => setCreateProcessPrefill("")}
-                    />
+                    {leftTab === "processes" ? (
+                      <ProcessTree
+                        catalogs={catalogs}
+                        actionColors={actionColors}
+                        loading={loading}
+                        selectedTypeName={activeTab}
+                        onRefresh={loadTree}
+                        onOpenProcess={openProcess}
+                        onRemoveDraft={handleRemoveDraft}
+                        onOpenApi={setApiDialogFor}
+                        onCreateProcess={() => setCreateProcessPrefill("")}
+                      />
+                    ) : (
+                      <GlobalDependencySearchPanel
+                        api={api}
+                        crudModels={crudModels}
+                        commands={commands}
+                        allModels={allModels}
+                        onOpenProcess={openSubProcess}
+                        trigger={triggerSearch}
+                      />
+                    )}
                   </div>
                   <button
                     className="flex items-center shrink-0 select-none cursor-pointer"

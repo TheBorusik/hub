@@ -18,7 +18,12 @@ export function ModelListPanel({ onSelectModel, selectedModelName }: ModelListPa
     if (!api) return;
     setLoading(true);
     try {
-      const res = await api.getCrudModels();
+      const res = await api.genericCrudAction({
+        Model: "CRUDModel",
+        ServiceType: "CRUDModels",
+        Action: "GetAll",
+        Data: {},
+      });
       const list = (res.Models ?? []) as CrudModel[];
       list.sort((a, b) => a.Name.localeCompare(b.Name));
       setModels(list);

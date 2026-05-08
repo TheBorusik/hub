@@ -1,11 +1,10 @@
-import { useMemo } from "react";
 import { Braces, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import type { CrudModel, CrudRecord } from "../types";
 
 interface CrudDataTableProps {
   model: CrudModel;
   records: CrudRecord[];
-  search: string;
+  totalCount: number;
   page: number;
   pageSize: number;
   sortCol: string | null;
@@ -24,7 +23,7 @@ const PAGE_SIZES = [10, 25, 50, 100];
 export function CrudDataTable({
   model,
   records,
-  search,
+  totalCount,
   page,
   pageSize,
   sortCol,
@@ -39,40 +38,36 @@ export function CrudDataTable({
 }: CrudDataTableProps) {
   const columns = model.Properties ?? [];
   const keyName = model.KeyName;
+  const totalColSpan = 1 + columns.length + (hasDelete ? 1 : 0);
 
-  const filtered = useMemo(() => {
-    if (!search) return records;
-    const lf = search.toLowerCase();
-    return records.filter((r) =>
-      columns.some((col) => {
-        const v = r[col.Name];
-        if (v == null) return false;
-        if (typeof v === "object") return JSON.stringify(v).toLowerCase().includes(lf);
-        return String(v).toLowerCase().includes(lf);
-      }),
-    );
-  }, [records, search, columns]);
-
-  const sorted = useMemo(() => {
-    if (!sortCol) return filtered;
-    return [...filtered].sort((a, b) => {
-      const va = a[sortCol];
-      const vb = b[sortCol];
-      if (va == null && vb == null) return 0;
-      if (va == null) return 1;
-      if (vb == null) return -1;
-      const cmp = typeof va === "number" && typeof vb === "number"
-        ? va - vb
-        : String(va).localeCompare(String(vb));
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-  }, [filtered, sortCol, sortDir]);
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const safePage = Math.min(page, totalPages - 1);
-  const pageData = sorted.slice(safePage * pageSize, (safePage + 1) * pageSize);
+  const pageData = records;
 
   const isJsonType = (type: string) => type === "JObject" || type === "JArray";
+
+  const renderCell = (record: CrudRecord, colName: string, colType: string) => {
+    const value = record[colName];
+    if (isJsonType(colType) && value != null) {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewJson(value, `${model.Name}.${colName}`);
+          }}
+          className="toolbar-btn"
+          style={{ padding: "2px 6px", color: "var(--color-accent)", gap: 4, fontSize: 12 }}
+          title="View JSON"
+        >
+          <Braces size={12} />
+          {colType}
+        </button>
+      );
+    }
+    if (value == null) return "";
+    if (typeof value === "boolean") return value ? "true" : "false";
+    return String(value);
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -80,6 +75,33 @@ export function CrudDataTable({
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr>
+              {/* Key column */}
+              <th
+                onClick={() => onSort(keyName)}
+                className="select-none cursor-pointer"
+                style={{
+                  position: "sticky",
+                  top: 0,
+                  height: 26,
+                  padding: "0 8px",
+                  textAlign: "left",
+                  fontWeight: 600,
+                  fontSize: 12,
+                  background: "var(--color-sidebar)",
+                  borderBottom: "1px solid var(--color-border)",
+                  whiteSpace: "nowrap",
+                  color: "var(--color-text-muted)",
+                  zIndex: 1,
+                }}
+              >
+                <span className="flex items-center" style={{ gap: 2 }}>
+                  {keyName}
+                  <span style={{ color: "var(--color-accent)", marginLeft: 2 }}>*</span>
+                  {sortCol === keyName && (
+                    sortDir === "asc" ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                  )}
+                </span>
+              </th>
               {columns.map((col) => (
                 <th
                   key={col.Name}
@@ -102,7 +124,6 @@ export function CrudDataTable({
                 >
                   <span className="flex items-center" style={{ gap: 2 }}>
                     {col.Name}
-                    {col.Name === keyName && <span style={{ color: "var(--color-accent)", marginLeft: 2 }}>*</span>}
                     {sortCol === col.Name && (
                       sortDir === "asc" ? <ChevronUp size={12} /> : <ChevronDown size={12} />
                     )}
@@ -133,7 +154,7 @@ export function CrudDataTable({
             {pageData.length === 0 && (
               <tr>
                 <td
-                  colSpan={columns.length + (hasDelete ? 1 : 0)}
+                  colSpan={totalColSpan}
                   style={{ padding: 20, textAlign: "center", color: "var(--color-text-muted)" }}
                 >
                   {records.length === 0 ? "No data" : "No matches"}
@@ -152,45 +173,34 @@ export function CrudDataTable({
                 onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)"; }}
               >
-                {columns.map((col) => {
-                  const value = record[col.Name];
-                  if (isJsonType(col.Type) && value != null) {
-                    return (
-                      <td
-                        key={col.Name}
-                        style={{ padding: "0 8px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}
-                      >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onViewJson(value, `${model.Name}.${col.Name}`);
-                          }}
-                          className="toolbar-btn"
-                          style={{ padding: "2px 6px", color: "var(--color-accent)", gap: 4, fontSize: 12 }}
-                          title="View JSON"
-                        >
-                          <Braces size={12} />
-                          {col.Type}
-                        </button>
-                      </td>
-                    );
-                  }
-                  return (
-                    <td
-                      key={col.Name}
-                      style={{
-                        padding: "0 8px",
-                        maxWidth: 300,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        borderBottom: "1px solid rgba(255,255,255,0.03)",
-                      }}
-                    >
-                      {value == null ? "" : typeof value === "boolean" ? (value ? "true" : "false") : String(value)}
-                    </td>
-                  );
-                })}
+                {/* Key cell */}
+                <td
+                  style={{
+                    padding: "0 8px",
+                    maxWidth: 300,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    borderBottom: "1px solid rgba(255,255,255,0.03)",
+                  }}
+                >
+                  {renderCell(record, keyName, model.KeyType)}
+                </td>
+                {columns.map((col) => (
+                  <td
+                    key={col.Name}
+                    style={{
+                      padding: "0 8px",
+                      maxWidth: 300,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      borderBottom: "1px solid rgba(255,255,255,0.03)",
+                    }}
+                  >
+                    {renderCell(record, col.Name, col.Type)}
+                  </td>
+                ))}
                 {hasDelete && (
                   <td style={{ padding: "0 4px", borderBottom: "1px solid rgba(255,255,255,0.03)", textAlign: "center" }}>
                     <button
@@ -224,8 +234,8 @@ export function CrudDataTable({
         }}
       >
         <span>
-          {sorted.length} record{sorted.length !== 1 ? "s" : ""}
-          {search && ` (filtered from ${records.length})`}
+          {totalCount} record{totalCount !== 1 ? "s" : ""}
+          {records.length < totalCount && ` (showing ${records.length} on this page)`}
         </span>
         <div className="flex items-center" style={{ gap: 8 }}>
           <select

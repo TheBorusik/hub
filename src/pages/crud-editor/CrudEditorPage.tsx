@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import {
   RefreshCw,
@@ -46,8 +46,20 @@ export function CrudEditorPage() {
       if (!api) return;
       updateTab(tab.id, { loading: true });
       try {
-        const res = await api.getModelData(tab.model.Name, tab.model.ServiceType);
-        updateTab(tab.id, { records: (res.Models ?? []) as CrudRecord[], loading: false });
+        const res = await api.genericCrudQueryPage({
+          Model: tab.model.Name,
+          ServiceType: tab.model.ServiceType,
+          Limit: tab.pageSize,
+          Offset: tab.page * tab.pageSize,
+          Search: tab.search || undefined,
+          SortCol: tab.sortCol || undefined,
+          SortDir: tab.sortDir,
+        });
+        updateTab(tab.id, {
+          records: (res.Models ?? []) as CrudRecord[],
+          totalCount: res.TotalCount ?? 0,
+          loading: false,
+        });
       } catch (err) {
         console.error("Failed to load model data:", err);
         updateTab(tab.id, { loading: false });
@@ -71,28 +83,12 @@ export function CrudEditorPage() {
         search: "",
         page: 0,
         pageSize: 25,
+        totalCount: 0,
         sortCol: null,
         sortDir: "asc",
       };
       setTabs((prev) => [...prev, newTab]);
       setActiveTabId(model.Name);
-      if (api) {
-        updateTab(model.Name, { loading: true });
-        setTimeout(async () => {
-          try {
-            const res = await api.getModelData(model.Name, model.ServiceType);
-            setTabs((prev) =>
-              prev.map((t) =>
-                t.id === model.Name ? { ...t, records: (res.Models ?? []) as CrudRecord[], loading: false } : t,
-              ),
-            );
-          } catch {
-            setTabs((prev) =>
-              prev.map((t) => (t.id === model.Name ? { ...t, loading: false } : t)),
-            );
-          }
-        }, 0);
-      }
     },
     [tabs, api, updateTab],
   );
@@ -125,17 +121,37 @@ export function CrudEditorPage() {
     navigator.clipboard.writeText(JSON.stringify(activeTab.records, null, 2));
   };
 
+  useEffect(() => {
+    if (!activeTab || activeTab.loading) return;
+    loadModelData(activeTab);
+  }, [activeTab?.id, activeTab?.page, activeTab?.pageSize, activeTab?.search, activeTab?.sortCol, activeTab?.sortDir]);
+
   const handleSubmitRecord = useCallback(
     async (data: Record<string, unknown>) => {
       if (!api || !activeTab) return;
       const { model } = activeTab;
       try {
         if (overlay.type === "add") {
-          await api.addRecord(model.Name, model.ServiceType, data);
+          await api.genericCrudAction({
+            Model: model.Name,
+            ServiceType: model.ServiceType,
+            Action: "Add",
+            Data: data,
+          });
         } else if (overlay.type === "update") {
-          await api.updateRecord(model.Name, model.ServiceType, data);
+          await api.genericCrudAction({
+            Model: model.Name,
+            ServiceType: model.ServiceType,
+            Action: "Update",
+            Data: { Model: data },
+          });
         } else if (overlay.type === "delete") {
-          await api.deleteRecord(model.Name, model.ServiceType, model.KeyName, data[model.KeyName]);
+          await api.genericCrudAction({
+            Model: model.Name,
+            ServiceType: model.ServiceType,
+            Action: "Delete",
+            Data: { [model.KeyName]: data[model.KeyName] } as Record<string, unknown>,
+          });
         }
         setOverlay({ type: "none" });
         loadModelData(activeTab);
@@ -255,7 +271,7 @@ export function CrudEditorPage() {
                 <CrudDataTable
                   model={activeTab.model}
                   records={activeTab.records}
-                  search={activeTab.search}
+                  totalCount={activeTab.totalCount}
                   page={activeTab.page}
                   pageSize={activeTab.pageSize}
                   sortCol={activeTab.sortCol}

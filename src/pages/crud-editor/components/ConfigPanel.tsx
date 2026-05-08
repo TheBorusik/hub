@@ -20,7 +20,7 @@ export function ConfigPanel({ model, records }: ConfigPanelProps) {
     setPushing(true);
     setStatus("");
     try {
-      await api.updateConfigTable(model.Name, records);
+      await api.updateConfigTable();
       setStatus("Config updated");
     } catch (err) {
       setStatus("Error: " + String(err));

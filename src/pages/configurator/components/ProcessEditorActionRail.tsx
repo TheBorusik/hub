@@ -10,6 +10,7 @@ import {
   Upload,
   Clock,
   List,
+  Network,
 } from "lucide-react";
 import type { RefObject } from "react";
 import type { DiagnosticModel, ProcessStage, WebProcess } from "@/lib/ws-api-models";
@@ -23,8 +24,8 @@ interface ProcessEditorActionRailProps {
   stages: Record<string, ProcessStage>;
   activeTab: string;
   /** `null` когда открыт основной редактор (Diagram или StageEditor). */
-  specialView: "code" | "diff" | "run" | "global-models" | null;
-  setSpecialView: (v: "code" | "diff" | "run" | "global-models" | null) => void;
+  specialView: "code" | "diff" | "run" | "global-models" | "dependencies" | null;
+  setSpecialView: (v: "code" | "diff" | "run" | "global-models" | "dependencies" | null) => void;
   /** true — открыт `StageEditor` конкретного стейджа (не диаграмма). */
   isStageOpen: boolean;
   saving: boolean;
@@ -186,6 +187,13 @@ export function ProcessEditorActionRail({
         label="Global Models"
         icon={<span style={{ fontSize: 11, fontWeight: 600 }}>GM</span>}
         onClick={() => setSpecialView(specialView === "global-models" ? null : "global-models")}
+      />
+      <IconButton
+        variant={specialView === "dependencies" ? "primary" : "ghost"}
+        size="sm"
+        label="Dependencies"
+        icon={<Network size={15} />}
+        onClick={() => setSpecialView(specialView === "dependencies" ? null : "dependencies")}
       />
       <IconButton
         variant="ghost"

@@ -34,9 +34,9 @@ export function AssignPermissionDialog({ roleId, existingIds, api, onClose, onDo
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    api.getAllPermissions()
+    api.getAllPermissions({})
       .then((res) => {
-        const list = (res as Record<string, unknown>).Permissions;
+        const list = res.Permissions;
         setPermissions(Array.isArray(list) ? (list as Permission[]) : []);
       })
       .catch(() => {})
@@ -62,7 +62,7 @@ export function AssignPermissionDialog({ roleId, existingIds, api, onClose, onDo
     if (selectedIds.size === 0) return;
     setSubmitting(true);
     try {
-      await api.assignPermissionsToRole(roleId, Array.from(selectedIds));
+      await api.assignPermissionsToRole({ RoleId: roleId, PermissionIds: Array.from(selectedIds) });
       onDone();
     } finally { setSubmitting(false); }
   };

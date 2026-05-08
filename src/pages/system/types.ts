@@ -40,6 +40,7 @@ export interface AdapterHealth {
   DownTime?: string;
 }
 
+
 // --- Adapters: Configuration ---
 
 export interface AdapterType {
@@ -51,7 +52,8 @@ export interface AdapterType {
 
 export interface AdapterConfiguration {
   AdapterType: string;
-  ConfigurationId: number;
+  /** Строковый id конфигурации (как в Observer / `ConfigurationInfo.ConfigurationId`). */
+  ConfigurationId: string;
   Name: string;
   Description: string;
   Enabled: boolean;
@@ -62,15 +64,18 @@ export interface AdapterConfiguration {
 // --- Adapters: Sections ---
 
 export interface ConfigSection {
-  SectionId: number;
-  ConfigurationId?: number;
+  SectionId: string;
+  ConfigurationId?: string;
   Name: string;
   DisplayName?: string;
-  Inherited: boolean;
+  /** Id родительской секции (наследование), если задано на сервере. */
+  Inherited?: string;
   Locked?: boolean;
-  BuildTable: boolean;
-  BuildRules: boolean;
-  JsonData?: string;
+  /** Имя таблицы сборки или legacy-флаг в старых ответах. */
+  BuildTable?: string | boolean;
+  BuildRules?: unknown;
+  JsonData?: unknown;
+  ModifyTimeStamp?: string;
 }
 
 // --- Adapters: Tables ---

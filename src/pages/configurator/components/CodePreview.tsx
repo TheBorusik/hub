@@ -45,7 +45,7 @@ export function CodePreview({ api, process, onApplyToProcess }: CodePreviewProps
    */
   const reloadFromProcess = useCallback(() => {
     setLoading(true);
-    api.getProcessCode(process).then((res) => {
+    api.getProcessCode({ Process: process }).then((res) => {
       setCode(res.Code ?? "");
       setDiagnostics((res.Errors ?? []).map(toDiagnostic));
       setStatus(res.Errors && res.Errors.length > 0 ? "error" : "idle");
@@ -87,7 +87,7 @@ export function CodePreview({ api, process, onApplyToProcess }: CodePreviewProps
 
   const handleValidate = useCallback(async () => {
     try {
-      const res = await api.validateCode(code);
+      const res = await api.validateCode({ Code: code });
       setDiagnostics((res.Errors ?? []).map(toDiagnostic));
       setStatus(res.Errors && res.Errors.length > 0 ? "error" : "valid");
     } catch (e) {
@@ -98,7 +98,7 @@ export function CodePreview({ api, process, onApplyToProcess }: CodePreviewProps
 
   const handleFormat = useCallback(async () => {
     try {
-      const res = await api.formatCode(code);
+      const res = await api.formatCode({ Code: code });
       setCode(res.Code ?? code);
     } catch (e) {
       console.error("Format failed", e);
@@ -121,7 +121,7 @@ export function CodePreview({ api, process, onApplyToProcess }: CodePreviewProps
     if (!onApplyToProcess) return;
     setStatus("applying");
     try {
-      const res = await api.createProcessAssembly(processName, code);
+      const res = await api.createProcessAssembly({ Name: processName, Code: code });
       const errs = (res.Errors ?? []).map(toDiagnostic);
       setDiagnostics(errs);
       if (errs.length > 0) {
@@ -129,8 +129,8 @@ export function CodePreview({ api, process, onApplyToProcess }: CodePreviewProps
         setStatus("error");
         return;
       }
-      if (res.Process) {
-        onApplyToProcess(res.Process);
+      if (res.Model) {
+        onApplyToProcess(res.Model);
         setCodeDirty(false);
         setStatus("valid");
       } else {

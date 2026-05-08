@@ -16,7 +16,7 @@ export function BranchSelector({ api, onBranchChange }: BranchSelectorProps) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.getBranches();
+      const res = await api.getBranches({});
       setBranches(res.Branches ?? []);
     } catch {
       setBranches([]);
@@ -27,11 +27,12 @@ export function BranchSelector({ api, onBranchChange }: BranchSelectorProps) {
 
   useEffect(() => { load(); }, [load]);
 
-  const currentBranch = branches.find((b) => b.IsLoaded);
+  //TODO как будто не так должно быть
+  const currentBranch = branches.find((b) => b.TotalCount > 0) ?? branches[0];
 
   const handleRefresh = async () => {
     try {
-      await api.refreshBranch();
+      await api.refreshBranch({});
       await load();
       onBranchChange?.();
     } catch (e) {
@@ -60,7 +61,7 @@ export function BranchSelector({ api, onBranchChange }: BranchSelectorProps) {
             whiteSpace: "nowrap",
           }}
         >
-          {loading ? "Loading..." : currentBranch?.Name ?? "No branch loaded"}
+          {loading ? "Loading..." : currentBranch?.Branch ?? "No branch loaded"}
         </button>
         <button className="toolbar-btn" title="Refresh branch" onClick={handleRefresh}>
           <RefreshCw size={14} />
@@ -81,27 +82,30 @@ export function BranchSelector({ api, onBranchChange }: BranchSelectorProps) {
               No branches available
             </div>
           )}
-          {branches.map((b) => (
+          {branches.map((b) => {
+            const active = b.TotalCount > 0;
+            return (
             <div
-              key={b.Name}
+              key={b.Branch}
               className="flex items-center justify-between"
               style={{
                 padding: "4px 8px",
                 fontSize: 12,
                 cursor: "pointer",
-                background: b.IsLoaded ? "rgba(14,99,156,0.15)" : "transparent",
+                background: active ? "rgba(14,99,156,0.15)" : "transparent",
               }}
-              onMouseEnter={(e) => { if (!b.IsLoaded) e.currentTarget.style.background = "var(--color-list-hover)"; }}
-              onMouseLeave={(e) => { if (!b.IsLoaded) e.currentTarget.style.background = "transparent"; }}
+              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--color-list-hover)"; }}
+              onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
             >
-              <span style={{ color: b.IsLoaded ? "var(--color-accent)" : "var(--color-text-primary)" }}>
-                {b.Name}
+              <span style={{ color: active ? "var(--color-accent)" : "var(--color-text-primary)" }}>
+                {b.Branch}
               </span>
               <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-                {b.IsLoaded ? "active" : ""}
+                {active ? `git ${b.GitCount} · draft ${b.DraftCount}` : ""}
               </span>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

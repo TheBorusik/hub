@@ -89,7 +89,7 @@ export function useStageMutations({
         return;
       }
       const newStage: ProcessStage = {
-        Type: type === "Final" ? "EndDefinition" : type === "SubStart" ? "SubDefinition" : `${type}Definition`,
+        Type: type,
         DisplayName: trimmed,
         Name: trimmed,
         GetData: "",

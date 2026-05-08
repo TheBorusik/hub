@@ -20,8 +20,8 @@ export function AdapterPanel({ onSelectCommand, onSettingsClick }: AdapterPanelP
     if (!api) return;
     setLoading(true);
     try {
-      const data = await api.getAdaptersInfo();
-      setNodes(data.Adapters as unknown as TreeNode[]);
+      const data = await api.getAdaptersInfo({});
+      setNodes(data.Adapters);
     } catch (err) {
       console.error("Failed to load adapters:", err);
     } finally {

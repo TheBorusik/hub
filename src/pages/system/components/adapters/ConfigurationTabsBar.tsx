@@ -5,10 +5,10 @@ import type { OpenTab } from "./ConfigTabContent";
 
 export interface ConfigurationTabsBarProps {
   tabs: OpenTab[];
-  activeTabId: number | null;
-  dirtyTabs: Set<number>;
-  onSelect: (configId: number) => void;
-  onClose: (configId: number) => void;
+  activeTabId: string | null;
+  dirtyTabs: Set<string>;
+  onSelect: (configId: string) => void;
+  onClose: (configId: string) => void;
 }
 
 /** Как `Tabs` chrome: одна строка вкладки — `div[role=tab]`, крестик внутри с `.ui-tab-close` и отступом, без вертикальной полоски. */

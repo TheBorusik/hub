@@ -41,6 +41,8 @@ interface ProcessEditorProps {
   onSaved?: () => void;
   /** Открыть подпроцесс по его `Name` (как в `[Process("...")]`). */
   onOpenSubProcess?: (processName: string) => void;
+  /** Найти использования зависимости. */
+  onFindUsages?: (depType: string, depName: string) => void;
 }
 
 /**
@@ -55,7 +57,7 @@ interface ProcessEditorProps {
  */
 export function ProcessEditor({
   tab, api, allModels, crudModels, commands, events,
-  onProcessUpdate, onSaved, onOpenSubProcess,
+  onProcessUpdate, onSaved, onOpenSubProcess, onFindUsages,
 }: ProcessEditorProps) {
   const confirm = useConfirm();
   const toast = useToast();
@@ -269,6 +271,7 @@ export function ProcessEditor({
             onOpenOrCreateStage={handleOpenOrCreateStage}
             onCreateProperty={handleCreateProperty}
             onOpenSubProcess={onOpenSubProcess}
+            onFindUsages={onFindUsages}
           />
         </div>
 

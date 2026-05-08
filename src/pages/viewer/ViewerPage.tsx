@@ -81,11 +81,12 @@ export function ViewerPage() {
 
       if (api) {
         try {
-          const detail = await api.getProcessDetail(tab, processId) as unknown as ProcessDetail;
+          const detailRes = await api.getProcessDetail({ Tab: tab, ProcessId: processId });
+          const detail = detailRes.ProcessInfo as unknown as ProcessDetail;
           let children: ProcessDetail[] = [];
           try {
-            const childResult = await api.getChildProcesses(tab, processId);
-            children = (Array.isArray(childResult) ? childResult : []) as unknown as ProcessDetail[];
+            const childResult = await api.getChildProcesses({ Tab: tab, ParentProcessId: processId });
+            children = childResult.ProcessInfo  as unknown as ProcessDetail[];
           } catch {
             // no children
           }
@@ -109,11 +110,12 @@ export function ViewerPage() {
     if (!api || !activeTab) return;
     updateTab(activeTab.id, { loading: true });
     try {
-      const detail = await api.getProcessDetail(activeTab.tab, activeTab.processId) as unknown as ProcessDetail;
+      const detailRes = await api.getProcessDetail({ Tab: activeTab.tab, ProcessId: activeTab.processId });
+      const detail = detailRes.ProcessInfo as unknown as ProcessDetail;
       let children: ProcessDetail[] = [];
       try {
-        const childResult = await api.getChildProcesses(activeTab.tab, activeTab.processId);
-        children = (Array.isArray(childResult) ? childResult : []) as unknown as ProcessDetail[];
+        const childResult = await api.getChildProcesses({ Tab: activeTab.tab, ParentProcessId: activeTab.processId });
+        children = childResult.ProcessInfo  as unknown as ProcessDetail[];
       } catch {
         // no children
       }
@@ -133,7 +135,12 @@ export function ViewerPage() {
     setOverlay({ type: "stageContext", loading: true, data: "", title: label });
     try {
       const tabMap = { completed: "Completed", manual: "Manual", idle: "Idle" } as const;
-      const result = await api.getStageContext(processId, stageIndex, subject, tabMap[activeTab.tab]);
+      const result = await api.getStageContext({
+        ProcessId: processId,
+        StageIndex: stageIndex,
+        Subject: subject,
+        Tab: tabMap[activeTab.tab],
+      });
       const json = result.Data != null ? JSON.stringify(result.Data, null, 2) : "null";
       setOverlay({ type: "stageContext", loading: false, data: json, title: label });
     } catch (err) {
@@ -175,9 +182,13 @@ export function ViewerPage() {
       if (!api || (overlay.type !== "restart" && overlay.type !== "restartWithData")) return;
       const o = overlay as { processId: number; stageIndex: number };
       if (data !== undefined) {
-        await api.restartProcessWithNewData(o.processId, o.stageIndex, data);
+        await api.restartProcessWithNewData({
+          ProcessId: o.processId,
+          StageIndex: o.stageIndex,
+          Data: data as Record<string, unknown>,
+        });
       } else {
-        await api.restartProcess(o.processId, o.stageIndex);
+        await api.restartProcess({ ProcessId: o.processId, StageIndex: o.stageIndex });
       }
       setOverlay({ type: "none" });
       refreshActiveTab();

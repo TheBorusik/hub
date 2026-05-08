@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import type { HubWsApi } from "@/lib/ws-api";
+import type { ObserverConfigBuildRuleDto } from "@/lib/ws-api-models";
 import type { ConfirmFn } from "@/components/ui/ConfirmDialog";
 import type { AdapterConfiguration, AdapterType, ConfigSection } from "../../../types";
 
@@ -10,13 +11,13 @@ interface UseAdapterConfigActionsArgs {
   confirm: ConfirmFn;
   loadTypes: () => Promise<void>;
   loadConfigs: (adapterType: string) => Promise<void>;
-  loadSections: (configId: number) => Promise<void>;
+  loadSections: (configId: string) => Promise<void>;
   /** Закрывает таб удалённой конфигурации в воркспейсе. */
-  onConfigDeleted: (configId: number) => void;
+  onConfigDeleted: (configId: string) => void;
   /** Сбрасывает выделенную секцию во вкладке. */
-  onSectionDeleted: (configId: number) => void;
+  onSectionDeleted: (configId: string) => void;
   /** Сбрасывает dirty-флаг вкладки после сохранения. */
-  onSectionSaved: (configId: number) => void;
+  onSectionSaved: (configId: string) => void;
 }
 
 export interface AdapterConfigActions {
@@ -25,15 +26,15 @@ export interface AdapterConfigActions {
   handleSetDefault: (c: AdapterConfiguration) => Promise<void>;
   handleToggleEnabled: (c: AdapterConfiguration) => Promise<void>;
   handleClone: (c: AdapterConfiguration) => Promise<void>;
-  handleDeleteSection: (section: ConfigSection, configId: number) => Promise<void>;
+  handleDeleteSection: (section: ConfigSection, configId: string) => Promise<void>;
   handleSaveSection: (
-    configId: number,
+    configId: string,
     section: ConfigSection,
     editedJson: string,
     editedBuildRules?: string,
     editedBuildTable?: string,
   ) => Promise<void>;
-  handleToggleLock: (section: ConfigSection, configId: number) => Promise<void>;
+  handleToggleLock: (section: ConfigSection, configId: string) => Promise<void>;
 }
 
 /**
@@ -59,7 +60,7 @@ export function useAdapterConfigActions({
       tone: "danger",
     });
     if (!ok) return;
-    await api.deleteAdapterType(t.AdapterType);
+    await api.deleteAdapterType({ AdapterType: t.AdapterType });
     loadTypes();
   }, [api, confirm, loadTypes]);
 
@@ -72,14 +73,14 @@ export function useAdapterConfigActions({
       tone: "danger",
     });
     if (!ok) return;
-    await api.deleteAdapterConfiguration(c.ConfigurationId);
+    await api.deleteAdapterConfiguration({ ConfigurationId: c.ConfigurationId });
     onConfigDeleted(c.ConfigurationId);
     loadConfigs(c.AdapterType);
   }, [api, confirm, loadConfigs, onConfigDeleted]);
 
   const handleSetDefault = useCallback(async (c: AdapterConfiguration) => {
     if (!api) return;
-    await api.setDefaultConfiguration(c.ConfigurationId);
+    await api.setDefaultConfiguration({ ConfigurationId: c.ConfigurationId });
     loadConfigs(c.AdapterType);
   }, [api, loadConfigs]);
 
@@ -92,6 +93,7 @@ export function useAdapterConfigActions({
       Description: c.Description,
       Enabled: !c.Enabled,
       Exported: c.Exported,
+      IsDefault: c.IsDefault,
     });
     loadConfigs(c.AdapterType);
   }, [api, loadConfigs]);
@@ -103,14 +105,13 @@ export function useAdapterConfigActions({
       AdapterType: c.AdapterType,
       Name: `${c.Name}_clone`,
       Description: c.Description,
-      Exported: false,
-      IsDefault: false,
+      Enabled: c.Enabled,
     });
     loadConfigs(c.AdapterType);
   }, [api, loadConfigs]);
 
   const handleDeleteSection = useCallback(
-    async (section: ConfigSection, configId: number) => {
+    async (section: ConfigSection, configId: string) => {
       if (!api) return;
       const ok = await confirm({
         title: "Delete Section",
@@ -119,7 +120,7 @@ export function useAdapterConfigActions({
         tone: "danger",
       });
       if (!ok) return;
-      await api.deleteSection(section.SectionId);
+      await api.deleteSection({ SectionId: section.SectionId });
       await loadSections(configId);
       onSectionDeleted(configId);
     },
@@ -128,7 +129,7 @@ export function useAdapterConfigActions({
 
   const handleSaveSection = useCallback(
     async (
-      configId: number,
+      configId: string,
       section: ConfigSection,
       editedJson: string,
       editedBuildRules?: string,
@@ -154,11 +155,13 @@ export function useAdapterConfigActions({
       await api.updateSection({
         SectionId: section.SectionId,
         Name: section.Name,
-        DisplayName: section.DisplayName ?? null,
-        Inherited: section.Inherited ?? null,
+        DisplayName: section.DisplayName,
+        Inherited: section.Inherited,
         JsonData: parsedJson,
-        BuildRules: parsedRules,
-        BuildTable: editedBuildTable?.trim() || null,
+        BuildRules: (parsedRules ?? undefined) as ObserverConfigBuildRuleDto | undefined,
+        BuildTable: editedBuildTable?.trim() || undefined,
+        Locked: section.Locked ?? false,
+        LastModifyTimeStamp: section.ModifyTimeStamp ?? null,
       });
       await loadSections(configId);
       onSectionSaved(configId);
@@ -167,19 +170,29 @@ export function useAdapterConfigActions({
   );
 
   const handleToggleLock = useCallback(
-    async (section: ConfigSection, configId: number) => {
+    async (section: ConfigSection, configId: string) => {
       if (!api) return;
+      let rules: ObserverConfigBuildRuleDto | undefined;
+      if (section.BuildRules) {
+        rules =
+          typeof section.BuildRules === "string"
+            ? (JSON.parse(section.BuildRules) as ObserverConfigBuildRuleDto)
+            : (section.BuildRules as ObserverConfigBuildRuleDto);
+      }
       await api.updateSection({
         SectionId: section.SectionId,
         Name: section.Name,
-        DisplayName: section.DisplayName ?? null,
-        Inherited: section.Inherited ?? null,
+        DisplayName: section.DisplayName,
+        Inherited: section.Inherited,
         JsonData: section.JsonData
           ? typeof section.JsonData === "string"
-            ? JSON.parse(section.JsonData)
+            ? JSON.parse(section.JsonData as string)
             : section.JsonData
           : {},
+        BuildRules: rules,
+        BuildTable: typeof section.BuildTable === "string" ? section.BuildTable : undefined,
         Locked: !section.Locked,
+        LastModifyTimeStamp: section.ModifyTimeStamp ?? null,
       });
       await loadSections(configId);
     },

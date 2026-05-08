@@ -9,6 +9,7 @@ import { CodePreview } from "./CodePreview";
 import { DiffView } from "./DiffView";
 import { RunProcessPanel } from "./RunProcessPanel";
 import { GlobalModelsPanel } from "./GlobalModelsPanel";
+import { ProcessDependenciesPanel } from "./ProcessDependenciesPanel";
 import type { SpecialView } from "./ProcessBreadcrumbs";
 
 interface ProcessContentProps {
@@ -36,6 +37,7 @@ interface ProcessContentProps {
   onOpenOrCreateStage: (name: string) => void;
   onCreateProperty: (kind: "Context" | "InitObject" | "ProcessResult", propName: string) => void;
   onOpenSubProcess?: (processName: string) => void;
+  onFindUsages?: (depType: string, depName: string) => void;
 }
 
 /**
@@ -58,6 +60,7 @@ export function ProcessContent({
   if (specialView === "diff") return <DiffView api={api} process={process} />;
   if (specialView === "run") return <RunProcessPanel api={api} processName={process.TypeName} />;
   if (specialView === "global-models") return <GlobalModelsPanel api={api} />;
+  if (specialView === "dependencies") return <ProcessDependenciesPanel api={api} processName={process.TypeName} onOpenProcess={onOpenSubProcess} />;
 
   if (isDiagram) {
     return (

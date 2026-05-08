@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { t as tok } from "@/lib/design-tokens";
+import type { ObserverConfigBuildRuleDto } from "@/lib/ws-api-models";
 
 type Overlay =
   | { type: "none" }
@@ -24,7 +25,7 @@ export function SectionsPanel() {
   const [sections, setSections] = useState<ConfigSection[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<Overlay>({ type: "none" });
 
   const [editedJson, setEditedJson] = useState("");
@@ -39,9 +40,8 @@ export function SectionsPanel() {
     if (!api) return;
     setLoading(true);
     try {
-      const res = await api.getBaseSections();
-      const list = (res as Record<string, unknown>).ConfigurationSections;
-      setSections(Array.isArray(list) ? (list as ConfigSection[]) : []);
+      const res = await api.getBaseSections({});
+      setSections(res.ConfigurationSections);
     } catch { setSections([]); }
     finally { setLoading(false); }
   }, [api]);
@@ -99,11 +99,13 @@ export function SectionsPanel() {
       await api.updateSection({
         SectionId: selectedSection.SectionId,
         Name: selectedSection.Name,
-        DisplayName: selectedSection.DisplayName ?? null,
-        Inherited: selectedSection.Inherited ?? null,
+        DisplayName: selectedSection.DisplayName,
+        Inherited: selectedSection.Inherited,
         JsonData: parsedJson,
-        BuildRules: parsedRules,
-        BuildTable: editedBuildTable.trim() || null,
+        BuildRules: parsedRules as unknown as ObserverConfigBuildRuleDto ,
+        BuildTable: editedBuildTable.trim() || undefined,
+        Locked: selectedSection.Locked ?? false,
+        LastModifyTimeStamp: selectedSection.ModifyTimeStamp ?? null,
       });
       originalJsonRef.current = editedJson;
       originalBuildRulesRef.current = editedBuildRules;
@@ -127,13 +129,27 @@ export function SectionsPanel() {
   const handleToggleLock = async () => {
     if (!api || !selectedSection) return;
     const newLocked = !selectedSection.Locked;
+    let rules: ObserverConfigBuildRuleDto | undefined;
+    if (selectedSection.BuildRules) {
+      rules =
+        typeof selectedSection.BuildRules === "string"
+          ? (JSON.parse(selectedSection.BuildRules) as ObserverConfigBuildRuleDto)
+          : (selectedSection.BuildRules as ObserverConfigBuildRuleDto);
+    }
     await api.updateSection({
       SectionId: selectedSection.SectionId,
       Name: selectedSection.Name,
-      DisplayName: selectedSection.DisplayName ?? null,
-      Inherited: selectedSection.Inherited ?? null,
-      JsonData: selectedSection.JsonData ? (typeof selectedSection.JsonData === "string" ? JSON.parse(selectedSection.JsonData) : selectedSection.JsonData) : {},
+      DisplayName: selectedSection.DisplayName,
+      Inherited: selectedSection.Inherited,
+      JsonData: selectedSection.JsonData
+        ? typeof selectedSection.JsonData === "string"
+          ? JSON.parse(selectedSection.JsonData as string)
+          : selectedSection.JsonData
+        : {},
+      BuildRules: rules,
+      BuildTable: typeof selectedSection.BuildTable === "string" ? selectedSection.BuildTable : undefined,
       Locked: newLocked,
+      LastModifyTimeStamp: selectedSection.ModifyTimeStamp ?? null,
     });
     await loadSections();
   };
@@ -147,7 +163,7 @@ export function SectionsPanel() {
       tone: "danger",
     });
     if (!ok) return;
-    await api.deleteSection(s.SectionId);
+    await api.deleteSection({ SectionId: s.SectionId });
     if (selectedId === s.SectionId) setSelectedId(null);
     loadSections();
   };
@@ -336,7 +352,7 @@ function CreateBaseSectionModal({ open, api, baseSections, onClose }: {
 }) {
   const [name, setName] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [inheritedId, setInheritedId] = useState<number | null>(null);
+  const [inheritedId, setInheritedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -348,7 +364,7 @@ function CreateBaseSectionModal({ open, api, baseSections, onClose }: {
     }
   }, [open]);
 
-  const handleInheritedChange = (sectionId: number | null) => {
+  const handleInheritedChange = (sectionId: string | null) => {
     setInheritedId(sectionId);
     if (sectionId !== null) {
       const base = baseSections.find((s) => s.SectionId === sectionId);
@@ -361,20 +377,34 @@ function CreateBaseSectionModal({ open, api, baseSections, onClose }: {
 
   const handleCreate = async () => {
     if (!api || !name.trim()) return;
+    if (!baseSections.length) {
+      alert("No base sections loaded.");
+      return;
+    }
+    const configurationId =
+      (inheritedId != null
+        ? baseSections.find((s) => s.SectionId === inheritedId)?.ConfigurationId
+        : undefined) ?? baseSections[0].ConfigurationId;
+    if (!configurationId) {
+      alert("Missing ConfigurationId — cannot create section.");
+      return;
+    }
     setSubmitting(true);
     try {
       let jsonData: unknown = {};
       if (inheritedId !== null) {
         const base = baseSections.find((s) => s.SectionId === inheritedId);
         if (base?.JsonData) {
-          jsonData = typeof base.JsonData === "string" ? JSON.parse(base.JsonData) : base.JsonData;
+          jsonData = typeof base.JsonData === "string" ? JSON.parse(base.JsonData as string) : base.JsonData;
         }
       }
       await api.createSection({
+        ConfigurationId: configurationId,
         Name: name.trim(),
-        DisplayName: displayName.trim() || null,
-        Inherited: inheritedId,
+        DisplayName: displayName.trim() || undefined,
+        Inherited: inheritedId ?? undefined,
         JsonData: jsonData,
+        Locked: false,
       });
       onClose();
     } finally { setSubmitting(false); }
@@ -389,7 +419,7 @@ function CreateBaseSectionModal({ open, api, baseSections, onClose }: {
             Inherited
             <select
               value={inheritedId ?? ""}
-              onChange={(e) => handleInheritedChange(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => handleInheritedChange(e.target.value || null)}
               style={{ ...inputStyle, height: 28, cursor: "pointer" }}
             >
               <option value="">NO INHERITED</option>

@@ -62,33 +62,34 @@ export function UpsertConfigOverlay({
           Description: desc,
           Enabled: enabled,
           Exported: exp,
+          IsDefault: editing.IsDefault,
         });
       } else {
-        const payload: Record<string, unknown> = {
+        const nameTrim = name.trim();
+        const common = {
           AdapterType: adapterType,
-          Name: name.trim(),
+          Name: nameTrim,
           Description: desc,
-          Exported: false,
-          IsDefault: false,
+          Enabled: enabled,
         };
-        if (showClonePicker && pickedConfig) {
-          payload.CloningConfigurationId = pickedConfig.configurationId;
-        }
+        const cloneId = pickedConfig?.configurationId;
         switch (base) {
           case "NO":
-            await api.createAdapterConfiguration(payload);
+            await api.createAdapterConfiguration(common);
             break;
           case "FRONT":
-            await api.createBaseFrontConfiguration(payload);
+            await api.createBaseFrontConfiguration(common);
             break;
           case "BACK":
-            await api.createBaseBackConfiguration(payload);
+            await api.createBaseBackConfiguration(common);
             break;
           case "CLONE":
-            await api.cloneConfiguration(payload);
+            if (!cloneId) return;
+            await api.cloneConfiguration({ ...common, CloningConfigurationId: cloneId });
             break;
           case "INHERITED":
-            await api.cloneInheritedConfiguration(payload);
+            if (!cloneId) return;
+            await api.cloneInheritedConfiguration({ ...common, CloningConfigurationId: cloneId });
             break;
         }
       }

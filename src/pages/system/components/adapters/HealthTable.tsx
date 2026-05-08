@@ -45,9 +45,8 @@ export function HealthTable() {
     if (!api) return;
     setLoading(true);
     try {
-      const res = await api.getAdaptersHealth();
-      const list = (res as Record<string, unknown>).AdaptersHealth;
-      setRows(Array.isArray(list) ? (list as AdapterHealth[]) : []);
+      const res = await api.getAdaptersHealth({});
+      setRows(res.AdaptersHealth as unknown as AdapterHealth[]);
     } catch {
       setRows([]);
     } finally {
@@ -60,7 +59,7 @@ export function HealthTable() {
   const handleDelete = useCallback(async (row: AdapterHealth) => {
     if (!api) return;
     try {
-      await api.deleteAdapterHealth(row.Type, row.Name, row.Contour);
+      await api.deleteAdapterHealth({ Type: row.Type, Name: row.Name, Contour: row.Contour });
       setRows((prev) => prev.filter((r) => !(r.Type === row.Type && r.Name === row.Name && r.Contour === row.Contour)));
     } catch { /* ignore */ }
   }, [api]);

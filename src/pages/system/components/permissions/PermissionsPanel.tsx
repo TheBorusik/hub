@@ -41,8 +41,8 @@ export function PermissionsPanel() {
     if (!api) return;
     setLoading(true);
     try {
-      const res = await api.getPermissionTree();
-      const list = (res as Record<string, unknown>).PermissionTree;
+      const res = await api.getPermissionTree({});
+      const list = res.PermissionTree;
       setTree(Array.isArray(list) ? (list as PermissionTreeNode[]) : []);
     } catch { setTree([]); }
     finally { setLoading(false); }
@@ -112,9 +112,9 @@ export function PermissionsPanel() {
     });
     if (!ok) return;
     if (isCat && node.CatalogId != null) {
-      await api.removePermissionCatalog(node.CatalogId);
+      await api.removePermissionCatalog({ CatalogId: node.CatalogId });
     } else if (node.PermissionId != null) {
-      await api.removePermission(node.PermissionId);
+      await api.removePermission({ PermissionId: node.PermissionId });
     }
     load();
   }, [api, confirm, load]);
@@ -145,7 +145,7 @@ export function PermissionsPanel() {
       } else if (dragged.PermissionId != null) {
         await api.upsertPermission({
           PermissionId: dragged.PermissionId,
-          StrId: dragged.StrId ?? undefined,
+          StrId: dragged.Name,
           Name: dragged.Name,
           Description: dragged.Description ?? "",
           CatalogId: targetCatalogId,

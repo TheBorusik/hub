@@ -8,7 +8,7 @@ import type { ConfigSection } from "../../types";
 import { inputStyle, labelStyle } from "./lib/adapter-dialog-styles";
 
 export interface CreateSectionOverlayProps {
-  configId: number;
+  configId: string;
   api: ReturnType<typeof useContourApi>;
   onClose: () => void;
 }
@@ -23,7 +23,7 @@ export interface CreateSectionOverlayProps {
 export function CreateSectionOverlay({ configId, api, onClose }: CreateSectionOverlayProps) {
   const [name, setName] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [inheritedId, setInheritedId] = useState<number | null>(null);
+  const [inheritedId, setInheritedId] = useState<string | null>(null);
   const [baseSections, setBaseSections] = useState<ConfigSection[]>([]);
   const [loadingBase, setLoadingBase] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -33,11 +33,8 @@ export function CreateSectionOverlay({ configId, api, onClose }: CreateSectionOv
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.getBaseSections();
-        const list =
-          (res as Record<string, unknown>).ConfigurationSections ??
-          (res as Record<string, unknown>).Sections;
-        if (!cancelled) setBaseSections(Array.isArray(list) ? (list as ConfigSection[]) : []);
+        const res = await api.getBaseSections({});
+        if (!cancelled) setBaseSections(res.ConfigurationSections);
       } catch {
         if (!cancelled) setBaseSections([]);
       } finally {
@@ -49,7 +46,7 @@ export function CreateSectionOverlay({ configId, api, onClose }: CreateSectionOv
     };
   }, [api]);
 
-  const handleInheritedChange = (sectionId: number | null) => {
+  const handleInheritedChange = (sectionId: string | null) => {
     setInheritedId(sectionId);
     if (sectionId !== null) {
       const base = baseSections.find((s) => s.SectionId === sectionId);
@@ -75,9 +72,10 @@ export function CreateSectionOverlay({ configId, api, onClose }: CreateSectionOv
       await api.createSection({
         ConfigurationId: configId,
         Name: name.trim(),
-        DisplayName: displayName.trim() || null,
-        Inherited: inheritedId,
+        DisplayName: displayName.trim() || undefined,
+        Inherited: inheritedId ?? undefined,
         JsonData: jsonData,
+        Locked: false,
       });
       onClose();
     } finally {
@@ -100,7 +98,7 @@ export function CreateSectionOverlay({ configId, api, onClose }: CreateSectionOv
             <select
               value={inheritedId ?? ""}
               onChange={(e) =>
-                handleInheritedChange(e.target.value ? Number(e.target.value) : null)
+                handleInheritedChange(e.target.value || null)
               }
               style={{ ...inputStyle, height: 28, cursor: "pointer" }}
               disabled={loadingBase}

@@ -10,12 +10,12 @@ export interface AdapterConfigData {
   expandedTypes: Set<string>;
   typeConfigs: Record<string, AdapterConfiguration[]>;
   loadingConfigs: Set<string>;
-  configSections: Record<number, ConfigSection[]>;
-  loadingSections: Set<number>;
+  configSections: Record<string, ConfigSection[]>;
+  loadingSections: Set<string>;
   setExpandedTypes: React.Dispatch<React.SetStateAction<Set<string>>>;
   loadTypes: () => Promise<void>;
   loadConfigs: (adapterType: string) => Promise<void>;
-  loadSections: (configId: number) => Promise<void>;
+  loadSections: (configId: string) => Promise<void>;
 }
 
 /**
@@ -31,16 +31,15 @@ export function useAdapterConfigData(api: WsApi): AdapterConfigData {
   const [typeConfigs, setTypeConfigs] = useState<Record<string, AdapterConfiguration[]>>({});
   const [loadingConfigs, setLoadingConfigs] = useState<Set<string>>(new Set());
 
-  const [configSections, setConfigSections] = useState<Record<number, ConfigSection[]>>({});
-  const [loadingSections, setLoadingSections] = useState<Set<number>>(new Set());
+  const [configSections, setConfigSections] = useState<Record<string, ConfigSection[]>>({});
+  const [loadingSections, setLoadingSections] = useState<Set<string>>(new Set());
 
   const loadTypes = useCallback(async () => {
     if (!api) return;
     setLoading(true);
     try {
-      const res = await api.getAdapterTypes();
-      const list = (res as Record<string, unknown>).AdapterTypes;
-      setTypes(Array.isArray(list) ? (list as AdapterType[]) : []);
+      const res = await api.getAdapterTypes({});
+      setTypes(Array.isArray(res.AdapterTypes) ? res.AdapterTypes : []);
     } catch {
       setTypes([]);
     } finally {
@@ -56,8 +55,8 @@ export function useAdapterConfigData(api: WsApi): AdapterConfigData {
     if (!api) return;
     setLoadingConfigs((p) => new Set(p).add(adapterType));
     try {
-      const res = await api.getAdapterConfigurations(adapterType);
-      const list = (res as Record<string, unknown>).Configurations;
+      const res = await api.getAdapterConfigurations({ AdapterType: adapterType });
+      const list = res.Configurations;
       setTypeConfigs((prev) => ({
         ...prev,
         [adapterType]: Array.isArray(list) ? (list as AdapterConfiguration[]) : [],
@@ -73,14 +72,12 @@ export function useAdapterConfigData(api: WsApi): AdapterConfigData {
     }
   }, [api]);
 
-  const loadSections = useCallback(async (configId: number) => {
+  const loadSections = useCallback(async (configId: string) => {
     if (!api) return;
     setLoadingSections((p) => new Set(p).add(configId));
     try {
-      const res = await api.getSections(configId);
-      const list =
-        (res as Record<string, unknown>).Sections ??
-        (res as Record<string, unknown>).ConfigurationSections;
+      const res = await api.getSections({ ConfigurationId: configId });
+      const list = res.ConfigurationSections;
       setConfigSections((prev) => ({
         ...prev,
         [configId]: Array.isArray(list) ? (list as ConfigSection[]) : [],

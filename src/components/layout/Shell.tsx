@@ -98,9 +98,6 @@ function ContourPanel({ contour, isActive, statusBarRow }: ContourPanelProps) {
         <div style={{ gridRow: statusBarRow, display: isActive ? "flex" : "none" }}>
           <StatusBar />
         </div>
-        {/* CommandPalette (Ctrl/Cmd+Shift+P) — список действий.
-            QuickOpen (Ctrl/Cmd+P) — быстрый переход к процессу по имени.
-            Оба слушают глобальный хоткей и рендерят UI только когда открыт. */}
         {isActive && <CommandPalette />}
         {isActive && <QuickOpen />}
       </NavigationProvider>

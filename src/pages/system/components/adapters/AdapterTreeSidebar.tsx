@@ -27,9 +27,9 @@ export interface AdapterTreeSidebarProps {
   typeConfigs: Record<string, AdapterConfiguration[]>;
   loadingConfigs: Set<string>;
 
-  openTabIds: Set<number>;
-  activeTabId: number | null;
-  dirtyTabs: Set<number>;
+  openTabIds: Set<string>;
+  activeTabId: string | null;
+  dirtyTabs: Set<string>;
   treeSelectedType: string | undefined;
 
   onRefresh: () => void;

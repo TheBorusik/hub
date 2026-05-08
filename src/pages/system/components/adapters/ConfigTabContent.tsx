@@ -24,23 +24,23 @@ export interface OpenTab {
 
 export interface ConfigTabContentProps {
   tab: OpenTab;
-  selectedSectionId: number | null;
+  selectedSectionId: string | null;
   /** true — эта вкладка сейчас видимая, только она обрабатывает Ctrl+S. */
   isActive: boolean;
   sections: ConfigSection[];
   isLoadingSections: boolean;
-  onSelectSection: (configId: number, sectionId: number | null) => void;
-  onAddSection: (configId: number) => void;
+  onSelectSection: (configId: string, sectionId: string | null) => void;
+  onAddSection: (configId: string) => void;
   onSaveSection: (
-    configId: number,
+    configId: string,
     section: ConfigSection,
     editedJson: string,
     editedBuildRules?: string,
     editedBuildTable?: string,
   ) => Promise<void>;
-  onDeleteSection: (section: ConfigSection, configId: number) => void;
-  onToggleLock: (section: ConfigSection, configId: number) => Promise<void>;
-  onDirtyChange: (configId: number, dirty: boolean) => void;
+  onDeleteSection: (section: ConfigSection, configId: string) => void;
+  onToggleLock: (section: ConfigSection, configId: string) => Promise<void>;
+  onDirtyChange: (configId: string, dirty: boolean) => void;
 }
 
 /**
@@ -312,7 +312,7 @@ function ConfigTabContentInner({
                     )}
                   </span>
                 }
-                hint={`ID: ${selectedSection.SectionId}${selectedSection.Inherited ? " · Inherited" : ""}`}
+                hint={`ID: ${selectedSection.SectionId}${selectedSection.Inherited ? ` · Inherited: ${selectedSection.Inherited}` : ""}`}
                 actions={
                   <>
                     <BuildRulesToggleButton

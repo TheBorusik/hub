@@ -3,36 +3,188 @@ import { useWebSocket, type AuthWebSocket } from "@theborusik/ws-react";
 import {
   WfmCommand,
   type AdaptersInfoResponse,
+  type AdapterInfoGetAdaptersInfoWebRequest,
   type SendCommandRequest,
-  type TestCasesResponse,
+  type SendCommandResponse,
+  type ObserverGetCommandTestCasesRequest,
+  type ObserverGetCommandTestCasesResponse,
+  type ObserverAddCommandTestCaseRequest,
+  type ObserverRemoveCommandTestCaseRequest,
+  type ObserverAddCommandTestCaseResponse,
+  type ObserverRemoveCommandTestCaseResponse,
   type GetModelsResponse,
-  type GetBranchesResponse,
+  type WfmProcessAssemblyGetModelsRequest,
+  type WfmConfiguratorGetBranchesRequest,
+  type WfmConfiguratorGetBranchesResponse,
   type CrudActionResponse,
-  type ViewerProcessesResponse,
+  type WfmGenericCrudActionRequest,
+  type WfmGenericCrudQueryPageRequest,
+  type CrudQueryPageResponse,
+  type WfmGenericCrudUpdateConfigTableRequest,
+  type WfmGenericCrudUpdateConfigTableResponse,
   type StageContextResponse,
   type MoveProcessesResponse,
   type DeleteProcessesResponse,
-  type ViewerDataFilter,
-  type GetProcessAssemblyResponse,
-  type CreateProcessAssemblyResponse,
-  type UpsertProcessAssemblyResponse,
-  type AddGlobalModelResponse,
-  type GetCodeResponse,
-  type GetProcessSourceResponse,
-  type ValidateCodeResponse,
-  type ValidateProcessResponse,
-  type FormatCodeResponse,
-  type CommitResponse,
-  type GetChangedModelsResponse,
-  type GetGlobalModelsResponse,
-  type LoadBranchResponse,
-  type RemoveDraftResponse,
-  type WebProcess,
-  type WebGlobalModel,
-  type GetProcessTreeResponse,
+  type WfmExecuteProcessRequest,
+  type HubSendRawCommandRequest,
+  type WfmObserverErrorsChannel,
+  type WfmObserverGetErrorsRequest,
+  type WfmObserverGetErrorsResponse,
+  type WfmViewerGetProcessesRequest,
+  type WfmViewerGetProcessesResponse,
+  type WfmViewerGetProcessDetailRequest,
+  type WfmViewerGetProcessDetailResponse,
+  type WfmViewerGetChildProcessesRequest,
+  type WfmViewerGetChildProcessesResponse,
+  type WfmGetStageContextRequest,
+  type WfmRestartProcessRequest,
+  type WfmRestartProcessResponse,
+  type WfmRestartProcessWithNewDataRequest,
+  type WfmRestartProcessWithNewDataResponse,
+  type WfmMoveProcessesRequest,
+  type WfmDeleteProcessesRequest,
+  type WfmProcessAssemblyGetRequest,
+  type WfmProcessAssemblyGetResponse,
+  type WfmProcessAssemblyLoadRequest,
+  type WfmProcessAssemblyLoadResponse,
+  type WfmProcessAssemblyCreateRequest,
+  type WfmProcessAssemblyCreateResponse,
+  type WfmProcessAssemblyUpsertRequest,
+  type WfmProcessAssemblyUpsertResponse,
+  type WfmProcessAssemblyAddGlobalModelResponse,
+  type WfmProcessAssemblyGetCodeResponse,
+  type WfmProcessAssemblyGetSourceResponse,
+  type WfmProcessAssemblyGetDTOResponse,
+  type WfmProcessAssemblyValidateCodeResponse,
+  type WfmProcessAssemblyValidateResponse,
+  type WfmProcessAssemblyFormatCodeResponse,
+  type WfmProcessAssemblyCommitResponse,
+  type WfmProcessAssemblyGetChangedModelsResponse,
+  type WfmProcessAssemblyGetGlobalModelsResponse,
+  type WfmProcessAssemblyRemoveDraftResponse,
+  type WfmProcessAssemblyValidateGlobalModelResponse,
+  type WfmConfiguratorLoadBranchRequest,
+  type WfmConfiguratorLoadBranchResponse,
+  type WfmConfiguratorRefreshBranchRequest,
+  type WfmConfiguratorRefreshBranchResponse,
+  type WfmConfiguratorUnloadBranchRequest,
+  type WfmConfiguratorUnloadBranchResponse,
+  type WfmGetProcessTreeRequest,
+  type WfmGetProcessTreeResponse,
   type AdapterTreeNode,
+  type WfmProcessAssemblyGetApiRelatedDataRequest,
+  type WfmProcessAssemblyGetApiRelatedDataResponse,
+  type WfmProcessAssemblyApiUpsertRequest,
+  type WfmProcessAssemblyApiUpsertResponse,
   type ApiRelatedData,
-  type ApiUpsertPayload,
+  type WfmProcessAssemblyGetChangedModelsRequest,
+  type WfmProcessAssemblyRemoveDraftRequest,
+  type WfmProcessAssemblyGetGlobalModelsRequest,
+  type WfmProcessAssemblyAddGlobalModelRequest,
+  type WfmProcessAssemblyValidateGlobalModelRequest,
+  type WfmProcessAssemblyGetCodeRequest,
+  type WfmProcessAssemblyGetSourceRequest,
+  type WfmProcessAssemblyGetDTORequest,
+  type WfmProcessAssemblyGetDependenciesRequest,
+  type WfmProcessAssemblyGetDependenciesResult,
+  type WfmProcessAssemblySearchByDependencyRequest,
+  type WfmProcessAssemblySearchByDependencyResult,
+  type WfmProcessAssemblyValidateRequest,
+  type WfmProcessAssemblyValidateCodeRequest,
+  type WfmProcessAssemblyFormatCodeRequest,
+  type WfmProcessAssemblyCommitRequest,
+  type ObserverGetAdaptersHealthRequest,
+  type ObserverGetAdaptersHealthResponse,
+  type ObserverDeleteAdapterHealthRequest,
+  type ObserverDeleteAdapterHealthResponse,
+  type ObserverResendRequest,
+  type ObserverResendResponse,
+  type ObserverResendWithNewDataRequest,
+  type ObserverResendWithNewDataResponse,
+  type ObserverSendCommandResultRequest,
+  type ObserverSendCommandResultResponse,
+  type ObserverDeleteNotHandledRequest,
+  type ObserverDeleteNotHandledResponse,
+  type AuthGetPermissionTreeRequest,
+  type AuthGetPermissionTreeResponse,
+  type AuthGetPermissionIdRequest,
+  type AuthGetPermissionIdResponse,
+  type AuthGetPermissionsRequest,
+  type AuthGetPermissionsResponse,
+  type AuthUpsertPermissionCatalogRequest,
+  type AuthUpsertPermissionCatalogResponse,
+  type AuthRemovePermissionCatalogRequest,
+  type AuthRemovePermissionCatalogResponse,
+  type AuthUpsertPermissionRequest,
+  type AuthUpsertPermissionResponse,
+  type AuthRemovePermissionRequest,
+  type AuthRemovePermissionResponse,
+  type AuthGetRolesRequest,
+  type AuthGetRolesResponse,
+  type AuthGetRolePermissionsRequest,
+  type AuthGetRolePermissionsResponse,
+  type AuthUpsertRoleRequest,
+  type AuthUpsertRoleResponse,
+  type AuthRemoveRoleRequest,
+  type AuthRemoveRoleResponse,
+  type AuthAssignPermissionsToRoleRequest,
+  type AuthAssignPermissionsToRoleResponse,
+  type AuthDenyPermissionsForRoleRequest,
+  type AuthDenyPermissionsForRoleResponse,
+  type AuthRemovePermissionsFromRoleRequest,
+  type AuthRemovePermissionsFromRoleResponse,
+  type ObserverConfigAdapterTypesGetRequest,
+  type ObserverConfigAdapterTypesGetResponse,
+  type ObserverConfigAdapterTypeUpsertRequest,
+  type ObserverConfigAdapterTypeUpsertResponse,
+  type ObserverConfigAdapterTypeDeleteRequest,
+  type ObserverConfigAdapterTypeDeleteResponse,
+  type ObserverConfigAdapterConfigurationGetRequest,
+  type ObserverConfigAdapterConfigurationGetResponse,
+  type ObserverConfigAdapterConfigurationCreateRequest,
+  type ObserverConfigAdapterConfigurationCreateResponse,
+  type ObserverConfigAdapterConfigurationCreateBaseFrontRequest,
+  type ObserverConfigAdapterConfigurationCreateBaseFrontResponse,
+  type ObserverConfigAdapterConfigurationCreateBaseBackRequest,
+  type ObserverConfigAdapterConfigurationCreateBaseBackResponse,
+  type ObserverConfigAdapterConfigurationCloneResponse,
+  type ObserverConfigAdapterConfigurationCloneInheritedResponse,
+  type ObserverConfigAdapterConfigurationUpdateResponse,
+  type ObserverConfigAdapterConfigurationCloneRequest,
+  type ObserverConfigAdapterConfigurationCloneInheritedRequest,
+  type ObserverConfigAdapterConfigurationUpdateRequest,
+  type ObserverConfigAdapterConfigurationSetDefaultRequest,
+  type ObserverConfigAdapterConfigurationSetDefaultResponse,
+  type ObserverConfigAdapterConfigurationDeleteRequest,
+  type ObserverConfigAdapterConfigurationDeleteResponse,
+  type ObserverConfigSectionGetRequest,
+  type ObserverConfigSectionGetResponse,
+  type ObserverConfigSectionGetBaseRequest,
+  type ObserverConfigSectionGetBaseResponse,
+  type ObserverConfigSectionCreateRequest,
+  type ObserverConfigSectionCreateResponse,
+  type ObserverConfigSectionUpdateRequest,
+  type ObserverConfigSectionUpdateResponse,
+  type ObserverConfigSectionDeleteRequest,
+  type ObserverConfigSectionDeleteResponse,
+  type ObserverConfigGetCompletedSectionDataRequest,
+  type ObserverConfigGetCompletedSectionDataResponse,
+  type ObserverConfigGetConfigurationByAdapterRequest,
+  type ObserverConfigGetConfigurationResponse,
+  type ObserverConfigExportRequest,
+  type ObserverConfigExportResponse,
+  type ObserverConfigImportRequest,
+  type ObserverConfigImportResponse,
+  type ObserverConfigTableGetAllTablesRequest,
+  type ObserverConfigTableGetAllTablesResponse,
+  type ObserverConfigTableGetMetaRequest,
+  type ObserverConfigTableGetMetaResponse,
+  type ObserverConfigTableGetRequest,
+  type ObserverConfigTableGetResponse,
+  type ObserverConfigTableUpsertRequest,
+  type ObserverConfigTableUpsertResponse,
+  type ObserverConfigTableDeleteRequest,
+  type ObserverConfigTableDeleteResponse,
 } from "./ws-api-models";
 
 interface ExecuteAdapter {
@@ -54,24 +206,25 @@ export class HubWsApi {
     return this.ws.logout();
   }
 
-  async getAdaptersInfo() {
-    return this.requestPayload<Record<string, never>, AdaptersInfoResponse>(
-      {},
+  async getAdaptersInfo(request: AdapterInfoGetAdaptersInfoWebRequest = {}) {
+    return this.requestPayload<AdapterInfoGetAdaptersInfoWebRequest, AdaptersInfoResponse>(
+      request,
       WfmCommand.GetAdaptersInfo,
     );
   }
 
   async sendCommand(request: SendCommandRequest) {
-    return this.requestPayload<SendCommandRequest, unknown>(
+    return this.requestPayload<SendCommandRequest, SendCommandResponse>(
       request,
       WfmCommand.SendCommand,
       request.Ttl ?? "00:00:45",
     );
   }
 
-  async sendRawCommand(data: Record<string, unknown>, commandBody: string, ttlOverride?: string) {
-    const payload = { ...data, CommandBody: commandBody };
-    const ttl = ttlOverride ?? String(data.Ttl ?? "00:00:15");
+  async sendRawCommand(request: HubSendRawCommandRequest) {
+    const payload = { ...request.Envelope, CommandBody: request.CommandBody };
+    const ttl =
+      request.TtlOverride ?? String((request.Envelope as { Ttl?: string }).Ttl ?? "00:00:15");
     const response = await this.ws.sendRequest(payload, WfmCommand.SendCommand, {
       ttl,
       priority: "Normal",
@@ -80,183 +233,146 @@ export class HubWsApi {
     return response.Payload as Record<string, unknown>;
   }
 
-  async getCommandTestCases(commandName: string) {
-    return this.requestPayload<{ CommandName: string }, TestCasesResponse>(
-      { CommandName: commandName },
+  async getCommandTestCases(request: ObserverGetCommandTestCasesRequest) {
+    return this.requestPayload<ObserverGetCommandTestCasesRequest, ObserverGetCommandTestCasesResponse>(
+      request,
       WfmCommand.GetCommandTestCases,
     );
   }
 
-  async addCommandTestCase(
-    commandName: string,
-    name: string,
-    description: string,
-    caseJson: string,
-  ) {
-    return this.requestPayload(
-      {
-        CommandName: commandName,
-        Name: name,
-        Description: description,
-        Case: JSON.parse(caseJson),
-      },
+  async addCommandTestCase(request: ObserverAddCommandTestCaseRequest) {
+    return this.requestPayload<ObserverAddCommandTestCaseRequest, ObserverAddCommandTestCaseResponse>(
+      request,
       WfmCommand.AddCommandTestCase,
     );
   }
 
-  async removeCommandTestCase(commandName: string, name: string) {
-    return this.requestPayload(
-      { CommandName: commandName, Name: name },
+  async removeCommandTestCase(request: ObserverRemoveCommandTestCaseRequest) {
+    return this.requestPayload<ObserverRemoveCommandTestCaseRequest, ObserverRemoveCommandTestCaseResponse>(
+      request,
       WfmCommand.RemoveCommandTestCase,
     );
   }
 
-  async getProcessModels() {
-    return this.requestPayload<Record<string, never>, GetModelsResponse>(
-      {},
+  async getProcessModels(request: WfmProcessAssemblyGetModelsRequest = {}) {
+    return this.requestPayload<WfmProcessAssemblyGetModelsRequest, GetModelsResponse>(
+      request,
       WfmCommand.GetModels,
     );
   }
 
-  async getProcessTree() {
-    return this.requestPayload<Record<string, never>, GetProcessTreeResponse>(
-      {},
+  async getProcessTree(request: WfmGetProcessTreeRequest = {}) {
+    return this.requestPayload<WfmGetProcessTreeRequest, WfmGetProcessTreeResponse>(
+      request,
       WfmCommand.GetProcessTree,
       "00:00:30",
     );
   }
 
-  async getBranches() {
-    return this.requestPayload<Record<string, never>, GetBranchesResponse>(
-      {},
+  async getBranches(request: WfmConfiguratorGetBranchesRequest = {}) {
+    return this.requestPayload<WfmConfiguratorGetBranchesRequest, WfmConfiguratorGetBranchesResponse>(
+      request,
       WfmCommand.GetBranches,
     );
   }
 
-  async getCrudModels() {
-    return this.crudAction("CRUDModel", "CRUDModels", "GetAll", {});
-  }
-
-  async getModelData(modelName: string, serviceType: string) {
-    return this.crudAction(modelName, serviceType, "GetAll", {});
-  }
-
-  async addRecord(modelName: string, serviceType: string, data: Record<string, unknown>) {
-    return this.crudAction(modelName, serviceType, "Add", data);
-  }
-
-  async updateRecord(modelName: string, serviceType: string, data: Record<string, unknown>) {
-    return this.crudAction(modelName, serviceType, "Update", { Model: data });
-  }
-
-  async deleteRecord(modelName: string, serviceType: string, keyName: string, keyValue: unknown) {
-    return this.crudAction(modelName, serviceType, "Delete", { [keyName]: keyValue });
-  }
-
-  async updateConfigTable(modelName: string, data: unknown[]) {
-    return this.requestPayload(
-      { Model: modelName, Data: data },
-      WfmCommand.UpdateConfigTable,
-    );
-  }
-
-  private async crudAction(model: string, serviceType: string, action: string, data: Record<string, unknown>) {
-    return this.requestPayload<Record<string, unknown>, CrudActionResponse>(
-      { Model: model, ServiceType: serviceType, Action: action, Data: data },
+  /** Универсальный `GenericCRUD.Action` — единственная точка для list/get/add/update/delete по модели. */
+  async genericCrudAction(request: WfmGenericCrudActionRequest) {
+    return this.requestPayload<WfmGenericCrudActionRequest, CrudActionResponse>(
+      request,
       WfmCommand.GenericCrudAction,
       "00:00:30",
     );
   }
 
+  /** Server-side paginated query with transparent search/sort. */
+  async genericCrudQueryPage(request: WfmGenericCrudQueryPageRequest) {
+    return this.requestPayload<WfmGenericCrudQueryPageRequest, CrudQueryPageResponse>(
+      request,
+      WfmCommand.GenericCrudQueryPage,
+      "00:00:30",
+    );
+  }
+
+  async updateConfigTable(request: WfmGenericCrudUpdateConfigTableRequest={}) {
+    return this.requestPayload<WfmGenericCrudUpdateConfigTableRequest, WfmGenericCrudUpdateConfigTableResponse>(
+      request,
+      WfmCommand.UpdateConfigTable,
+    );
+  }
+
   // --- Viewer ---
 
-  async getProcesses(
-    tab: "completed" | "manual" | "idle",
-    count: number,
-    startProcessId?: number,
-    filters?: ViewerDataFilter[],
-  ) {
+  async getProcesses(request: WfmViewerGetProcessesRequest) {
     const commands = {
       completed: WfmCommand.GetCompletedProcesses,
       manual: WfmCommand.GetManualProcesses,
       idle: WfmCommand.GetIdleProcesses,
     } as const;
-    return this.requestPayload<Record<string, unknown>, ViewerProcessesResponse>(
-      {
-        Count: count,
-        ...(startProcessId != null ? { StartProcessId: startProcessId } : {}),
-        ...(filters && filters.length > 0 ? { Filters: filters } : {}),
-      },
-      commands[tab],
-    );
+    const { Tab, ...rest } = request;
+    return this.requestPayload<
+      Omit<WfmViewerGetProcessesRequest, "Tab">,
+      WfmViewerGetProcessesResponse
+    >(rest, commands[Tab]);
   }
 
-  async getProcessDetail(tab: "completed" | "manual" | "idle", processId: number, startIndex?: number) {
+  async getProcessDetail(request: WfmViewerGetProcessDetailRequest) {
     const commands = {
       completed: WfmCommand.GetCompletedProcessDetail,
       manual: WfmCommand.GetManualProcessDetail,
       idle: WfmCommand.GetIdleProcessDetail,
     } as const;
-    const result = await this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      { ProcessId: processId, ...(startIndex != null ? { StartIndex: startIndex } : {}) },
-      commands[tab],
-      "00:00:30",
-    );
-    return result.ProcessInfo as Record<string, unknown>;
+    const { Tab, ...rest } = request;
+    return this.requestPayload<
+      Omit<WfmViewerGetProcessDetailRequest, "Tab">,
+      WfmViewerGetProcessDetailResponse
+    >(rest, commands[Tab], "00:00:30");
   }
 
-  async getChildProcesses(tab: "completed" | "manual" | "idle", parentProcessId: number) {
+  async getChildProcesses(request: WfmViewerGetChildProcessesRequest) {
     const commands = {
       completed: WfmCommand.GetCompletedChildsProcessDetail,
       manual: WfmCommand.GetManualChildsProcessDetail,
       idle: WfmCommand.GetIdleChildsProcessDetail,
     } as const;
-    return this.requestPayload<{ ParentProcessId: number }, Record<string, unknown>[]>(
-      { ParentProcessId: parentProcessId },
-      commands[tab],
-    );
+    const { Tab, ...rest } = request;
+    return this.requestPayload<
+      Omit<WfmViewerGetChildProcessesRequest, "Tab">,
+      WfmViewerGetChildProcessesResponse
+    >(rest, commands[Tab]);
   }
 
-  async getStageContext(processId: number, stageIndex: number, subject: string, tab: string) {
-    return this.requestPayload<Record<string, unknown>, StageContextResponse>(
-      { ProcessId: processId, StageIndex: stageIndex, Subject: subject, Tab: tab },
-      WfmCommand.GetStageContext,
-    );
+  async getStageContext(request: WfmGetStageContextRequest) {
+    return this.requestPayload<WfmGetStageContextRequest, StageContextResponse>(request, WfmCommand.GetStageContext);
   }
 
-  async restartProcess(processId: number, stageIndex: number) {
-    return this.requestPayload(
-      { ProcessId: processId, StageIndex: stageIndex },
+  async restartProcess(request: WfmRestartProcessRequest) {
+    return this.requestPayload<WfmRestartProcessRequest, WfmRestartProcessResponse>(
+      request,
       WfmCommand.RestartProcess,
       "00:00:30",
     );
   }
 
-  async restartProcessWithNewData(processId: number, stageIndex: number, data: unknown) {
-    return this.requestPayload(
-      { ProcessId: processId, StageIndex: stageIndex, Data: data },
+  async restartProcessWithNewData(request: WfmRestartProcessWithNewDataRequest) {
+    return this.requestPayload<WfmRestartProcessWithNewDataRequest, WfmRestartProcessWithNewDataResponse>(
+      request,
       WfmCommand.RestartProcessWithNewData,
       "00:00:30",
     );
   }
 
-  async moveToCompleted(processIds: number[]) {
-    return this.requestPayload<{ ProcessIds: number[] }, MoveProcessesResponse>(
-      { ProcessIds: processIds },
-      WfmCommand.MoveToCompleted,
-    );
+  async moveToCompleted(request: WfmMoveProcessesRequest) {
+    return this.requestPayload<WfmMoveProcessesRequest, MoveProcessesResponse>(request, WfmCommand.MoveToCompleted);
   }
 
-  async moveFromCompleted(processIds: number[]) {
-    return this.requestPayload<{ ProcessIds: number[] }, MoveProcessesResponse>(
-      { ProcessIds: processIds },
-      WfmCommand.MoveFromCompleted,
-    );
+  async moveFromCompleted(request: WfmMoveProcessesRequest) {
+    return this.requestPayload<WfmMoveProcessesRequest, MoveProcessesResponse>(request, WfmCommand.MoveFromCompleted);
   }
 
-  async deleteProcesses(processIds: number[]) {
-    return this.requestPayload<{ ProcessIds: number[] }, DeleteProcessesResponse>(
-      { ProcessIds: processIds },
+  async deleteProcesses(request: WfmDeleteProcessesRequest) {
+    return this.requestPayload<WfmDeleteProcessesRequest, DeleteProcessesResponse>(
+      request,
       WfmCommand.DeleteProcesses,
       "00:00:30",
     );
@@ -264,352 +380,375 @@ export class HubWsApi {
 
   // --- System: Adapters Health ---
 
-  async getAdaptersHealth() {
-    return this.requestPayload<Record<string, never>, Record<string, unknown>>(
-      {},
+  async getAdaptersHealth(request: ObserverGetAdaptersHealthRequest = {}) {
+    return this.requestPayload<ObserverGetAdaptersHealthRequest, ObserverGetAdaptersHealthResponse>(
+      request,
       WfmCommand.ObserverAdaptersHealthGet,
     );
   }
 
-  async deleteAdapterHealth(type: string, name: string, contour: string) {
-    return this.requestPayload(
-      { Type: type, Name: name, Contour: contour },
+  async deleteAdapterHealth(request: ObserverDeleteAdapterHealthRequest) {
+    return this.requestPayload<ObserverDeleteAdapterHealthRequest, ObserverDeleteAdapterHealthResponse>(
+      request,
       WfmCommand.ObserverAdapterHealthDelete,
     );
   }
 
   // --- System: Adapter Configuration ---
 
-  async getAdapterTypes() {
-    return this.requestPayload<Record<string, never>, Record<string, unknown>>(
-      {},
+  async getAdapterTypes(request: ObserverConfigAdapterTypesGetRequest = {}) {
+    return this.requestPayload<ObserverConfigAdapterTypesGetRequest, ObserverConfigAdapterTypesGetResponse>(
+      request,
       WfmCommand.ConfigAdapterTypesGet,
     );
   }
 
-  async upsertAdapterType(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.ConfigAdapterTypeUpsert);
+  async upsertAdapterType(request: ObserverConfigAdapterTypeUpsertRequest) {
+    return this.requestPayload<ObserverConfigAdapterTypeUpsertRequest, ObserverConfigAdapterTypeUpsertResponse>(
+      request,
+      WfmCommand.ConfigAdapterTypeUpsert,
+    );
   }
 
-  async deleteAdapterType(adapterType: string) {
-    return this.requestPayload(
-      { AdapterType: adapterType },
+  async deleteAdapterType(request: ObserverConfigAdapterTypeDeleteRequest) {
+    return this.requestPayload<ObserverConfigAdapterTypeDeleteRequest, ObserverConfigAdapterTypeDeleteResponse>(
+      request,
       WfmCommand.ConfigAdapterTypeDelete,
     );
   }
 
-  async getAdapterConfigurations(adapterType: string) {
-    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      { AdapterType: adapterType },
-      WfmCommand.ConfigAdapterConfigurationGet,
-    );
+  async getAdapterConfigurations(request: ObserverConfigAdapterConfigurationGetRequest) {
+    return this.requestPayload<
+      ObserverConfigAdapterConfigurationGetRequest,
+      ObserverConfigAdapterConfigurationGetResponse
+    >(request, WfmCommand.ConfigAdapterConfigurationGet);
   }
 
-  async createAdapterConfiguration(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.ConfigAdapterConfigurationCreate);
+  async createAdapterConfiguration(request: ObserverConfigAdapterConfigurationCreateRequest) {
+    return this.requestPayload<
+      ObserverConfigAdapterConfigurationCreateRequest,
+      ObserverConfigAdapterConfigurationCreateResponse
+    >(request, WfmCommand.ConfigAdapterConfigurationCreate);
   }
 
-  async createBaseBackConfiguration(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.ConfigAdapterConfigurationCreateBaseBack);
+  async createBaseBackConfiguration(request: ObserverConfigAdapterConfigurationCreateBaseBackRequest) {
+    return this.requestPayload<
+      ObserverConfigAdapterConfigurationCreateBaseBackRequest,
+      ObserverConfigAdapterConfigurationCreateBaseBackResponse
+    >(request, WfmCommand.ConfigAdapterConfigurationCreateBaseBack);
   }
 
-  async createBaseFrontConfiguration(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.ConfigAdapterConfigurationCreateBaseFront);
+  async createBaseFrontConfiguration(request: ObserverConfigAdapterConfigurationCreateBaseFrontRequest) {
+    return this.requestPayload<
+      ObserverConfigAdapterConfigurationCreateBaseFrontRequest,
+      ObserverConfigAdapterConfigurationCreateBaseFrontResponse
+    >(request, WfmCommand.ConfigAdapterConfigurationCreateBaseFront);
   }
 
-  async cloneConfiguration(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.ConfigAdapterConfigurationClone);
+  async cloneConfiguration(request: ObserverConfigAdapterConfigurationCloneRequest) {
+    return this.requestPayload<
+      ObserverConfigAdapterConfigurationCloneRequest,
+      ObserverConfigAdapterConfigurationCloneResponse
+    >(request, WfmCommand.ConfigAdapterConfigurationClone);
   }
 
-  async cloneInheritedConfiguration(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.ConfigAdapterConfigurationCloneInherited);
+  async cloneInheritedConfiguration(request: ObserverConfigAdapterConfigurationCloneInheritedRequest) {
+    return this.requestPayload<
+      ObserverConfigAdapterConfigurationCloneInheritedRequest,
+      ObserverConfigAdapterConfigurationCloneInheritedResponse
+    >(request, WfmCommand.ConfigAdapterConfigurationCloneInherited);
   }
 
-  async updateAdapterConfiguration(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.ConfigAdapterConfigurationUpdate);
+  async updateAdapterConfiguration(request: ObserverConfigAdapterConfigurationUpdateRequest) {
+    return this.requestPayload<
+      ObserverConfigAdapterConfigurationUpdateRequest,
+      ObserverConfigAdapterConfigurationUpdateResponse
+    >(request, WfmCommand.ConfigAdapterConfigurationUpdate);
   }
 
-  async setDefaultConfiguration(configurationId: number) {
-    return this.requestPayload(
-      { ConfigurationId: configurationId },
-      WfmCommand.ConfigAdapterConfigurationSetDefault,
-    );
+  async setDefaultConfiguration(request: ObserverConfigAdapterConfigurationSetDefaultRequest) {
+    return this.requestPayload<
+      ObserverConfigAdapterConfigurationSetDefaultRequest,
+      ObserverConfigAdapterConfigurationSetDefaultResponse
+    >(request, WfmCommand.ConfigAdapterConfigurationSetDefault);
   }
 
-  async deleteAdapterConfiguration(configurationId: number) {
-    return this.requestPayload(
-      { ConfigurationId: configurationId },
-      WfmCommand.ConfigAdapterConfigurationDelete,
-    );
+  async deleteAdapterConfiguration(request: ObserverConfigAdapterConfigurationDeleteRequest) {
+    return this.requestPayload<
+      ObserverConfigAdapterConfigurationDeleteRequest,
+      ObserverConfigAdapterConfigurationDeleteResponse
+    >(request, WfmCommand.ConfigAdapterConfigurationDelete);
   }
 
   // --- System: Sections ---
 
-  async getSections(configurationId: number) {
-    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      { ConfigurationId: configurationId },
+  async getSections(request: ObserverConfigSectionGetRequest) {
+    return this.requestPayload<ObserverConfigSectionGetRequest, ObserverConfigSectionGetResponse>(
+      request,
       WfmCommand.ConfigSectionGet,
     );
   }
 
-  async getBaseSections() {
-    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      {},
+  async getBaseSections(request: ObserverConfigSectionGetBaseRequest = {}) {
+    return this.requestPayload<ObserverConfigSectionGetBaseRequest, ObserverConfigSectionGetBaseResponse>(
+      request,
       WfmCommand.ConfigSectionBaseGet,
     );
   }
 
-  async createSection(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.ConfigSectionCreate);
+  async createSection(request: ObserverConfigSectionCreateRequest) {
+    return this.requestPayload<ObserverConfigSectionCreateRequest, ObserverConfigSectionCreateResponse>(
+      request,
+      WfmCommand.ConfigSectionCreate,
+    );
   }
 
-  async updateSection(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.ConfigSectionUpdate);
+  async updateSection(request: ObserverConfigSectionUpdateRequest) {
+    return this.requestPayload<ObserverConfigSectionUpdateRequest, ObserverConfigSectionUpdateResponse>(
+      request,
+      WfmCommand.ConfigSectionUpdate,
+    );
   }
 
-  async deleteSection(sectionId: number) {
-    return this.requestPayload(
-      { SectionId: sectionId },
+  async deleteSection(request: ObserverConfigSectionDeleteRequest) {
+    return this.requestPayload<ObserverConfigSectionDeleteRequest, ObserverConfigSectionDeleteResponse>(
+      request,
       WfmCommand.ConfigSectionDelete,
     );
   }
 
-  async getCompletedSectionData(sectionId: number) {
-    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      { SectionId: sectionId },
-      WfmCommand.ConfigCompletedSectionDataGet,
-    );
+  async getCompletedSectionData(request: ObserverConfigGetCompletedSectionDataRequest) {
+    return this.requestPayload<
+      ObserverConfigGetCompletedSectionDataRequest,
+      ObserverConfigGetCompletedSectionDataResponse
+    >(request, WfmCommand.ConfigCompletedSectionDataGet);
   }
 
-  async getFullConfiguration(adapterType: string, name: string) {
-    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      { AdapterType: adapterType, Name: name },
-      WfmCommand.ConfigConfigurationGet,
-    );
+  async getFullConfiguration(request: ObserverConfigGetConfigurationByAdapterRequest) {
+    return this.requestPayload<
+      ObserverConfigGetConfigurationByAdapterRequest,
+      ObserverConfigGetConfigurationResponse
+    >(request, WfmCommand.ConfigConfigurationGet);
   }
 
-  async exportConfig(adapterType: string, name: string) {
-    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      { AdapterType: adapterType, Name: name },
+  async exportConfig(request: ObserverConfigExportRequest) {
+    return this.requestPayload<ObserverConfigExportRequest, ObserverConfigExportResponse>(
+      request,
       WfmCommand.ConfigExport,
     );
   }
 
-  async importConfig(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.ConfigImport);
+  async importConfig(request: ObserverConfigImportRequest) {
+    return this.requestPayload<ObserverConfigImportRequest, ObserverConfigImportResponse>(
+      request,
+      WfmCommand.ConfigImport,
+    );
   }
 
   // --- System: Tables ---
 
-  async getAllTables() {
-    return this.requestPayload<Record<string, never>, Record<string, unknown>>(
-      {},
+  async getAllTables(request: ObserverConfigTableGetAllTablesRequest = {}) {
+    return this.requestPayload<ObserverConfigTableGetAllTablesRequest, ObserverConfigTableGetAllTablesResponse>(
+      request,
       WfmCommand.ConfigTableGetAll,
     );
   }
 
-  async getTableMeta(tableName: string) {
-    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      { TableName: tableName },
+  async getTableMeta(request: ObserverConfigTableGetMetaRequest) {
+    return this.requestPayload<ObserverConfigTableGetMetaRequest, ObserverConfigTableGetMetaResponse>(
+      request,
       WfmCommand.ConfigTableGetMeta,
     );
   }
 
-  async getTableData(tableName: string) {
-    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      { TableName: tableName },
+  async getTableData(request: ObserverConfigTableGetRequest) {
+    return this.requestPayload<ObserverConfigTableGetRequest, ObserverConfigTableGetResponse>(
+      request,
       WfmCommand.ConfigTableGet,
     );
   }
 
-  async upsertTableData(tableName: string, data: Record<string, unknown>[]) {
-    return this.requestPayload(
-      { TableName: tableName, Data: data },
+  async upsertTableData(request: ObserverConfigTableUpsertRequest) {
+    return this.requestPayload<ObserverConfigTableUpsertRequest, ObserverConfigTableUpsertResponse>(
+      request,
       WfmCommand.ConfigTableUpsert,
     );
   }
 
-  async deleteTableData(tableName: string, data: Record<string, unknown>[]) {
-    return this.requestPayload(
-      { TableName: tableName, Data: data },
+  async deleteTableData(request: ObserverConfigTableDeleteRequest) {
+    return this.requestPayload<ObserverConfigTableDeleteRequest, ObserverConfigTableDeleteResponse>(
+      request,
       WfmCommand.ConfigTableDelete,
     );
   }
 
   // --- System: Errors ---
 
-  async getErrors(errorType: string, timestamp?: string, count?: number) {
-    const commandMap: Record<string, string> = {
+  async getErrors(request: WfmObserverGetErrorsRequest) {
+    const commandMap: Record<WfmObserverErrorsChannel, string> = {
       wfm: WfmCommand.ObserverWfmErrorsGet,
       command: WfmCommand.ObserverCommandErrorsGet,
       event: WfmCommand.ObserverEventErrorsGet,
       result: WfmCommand.ObserverCommandResultErrorsGet,
       other: WfmCommand.ObserverOtherErrorsGet,
     };
-    const cmd = commandMap[errorType] ?? WfmCommand.ObserverWfmErrorsGet;
-    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      { ...(timestamp ? { TimeStamp: timestamp } : {}), ...(count ? { Count: count } : {}) },
+    const { Channel, ...rest } = request;
+    const cmd = commandMap[Channel] ?? WfmCommand.ObserverWfmErrorsGet;
+    return this.requestPayload<Omit<WfmObserverGetErrorsRequest, "Channel">, WfmObserverGetErrorsResponse>(
+      rest,
       cmd,
       "00:00:30",
     );
   }
 
-  async resendError(correlationId: string) {
-    return this.requestPayload(
-      { CorrelationId: correlationId },
-      WfmCommand.ObserverResend,
-    );
+  async resendError(request: ObserverResendRequest) {
+    return this.requestPayload<ObserverResendRequest, ObserverResendResponse>(request, WfmCommand.ObserverResend);
   }
 
-  async resendWithNewData(correlationId: string, payload: unknown) {
-    return this.requestPayload(
-      { CorrelationId: correlationId, Payload: payload },
+  async resendWithNewData(request: ObserverResendWithNewDataRequest) {
+    return this.requestPayload<ObserverResendWithNewDataRequest, ObserverResendWithNewDataResponse>(
+      request,
       WfmCommand.ObserverResendWithNewData,
     );
   }
 
-  async sendCommandResult(correlationId: string, result: unknown, error: unknown, resultCode: string) {
-    return this.requestPayload(
-      { CorrelationId: correlationId, CommandResult: { Result: result, Error: error, ResultCode: resultCode } },
+  async sendCommandResult(request: ObserverSendCommandResultRequest) {
+    return this.requestPayload<ObserverSendCommandResultRequest, ObserverSendCommandResultResponse>(
+      request,
       WfmCommand.ObserverSendCommandResult,
     );
   }
 
-  async deleteNotHandled(correlationIds: string[]) {
-    return this.requestPayload(
-      { CorrelationIds: correlationIds },
+  async deleteNotHandled(request: ObserverDeleteNotHandledRequest) {
+    return this.requestPayload<ObserverDeleteNotHandledRequest, ObserverDeleteNotHandledResponse>(
+      request,
       WfmCommand.ObserverDeleteNotHandled,
     );
   }
 
   // --- System: Permissions ---
 
-  async getPermissionTree() {
-    return this.requestPayload<Record<string, never>, Record<string, unknown>>(
-      {},
+  async getPermissionTree(request: AuthGetPermissionTreeRequest = {}) {
+    return this.requestPayload<AuthGetPermissionTreeRequest, AuthGetPermissionTreeResponse>(
+      request,
       WfmCommand.AuthGetPermissionTree,
     );
   }
 
-  async getPermissionId() {
-    return this.requestPayload<Record<string, never>, { Id: number }>(
-      {},
+  async getPermissionId(request: AuthGetPermissionIdRequest = {}) {
+    return this.requestPayload<AuthGetPermissionIdRequest, AuthGetPermissionIdResponse>(
+      request,
       WfmCommand.AuthGetPermissionId,
     );
   }
 
-  async getAllPermissions() {
-    return this.requestPayload<Record<string, never>, Record<string, unknown>>(
-      {},
+  async getAllPermissions(request: AuthGetPermissionsRequest = {}) {
+    return this.requestPayload<AuthGetPermissionsRequest, AuthGetPermissionsResponse>(
+      request,
       WfmCommand.AuthGetPermissions,
     );
   }
 
-  async upsertPermissionCatalog(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.AuthUpsertPermissionCatalog);
+  async upsertPermissionCatalog(request: AuthUpsertPermissionCatalogRequest) {
+    return this.requestPayload<AuthUpsertPermissionCatalogRequest, AuthUpsertPermissionCatalogResponse>(
+      request,
+      WfmCommand.AuthUpsertPermissionCatalog,
+    );
   }
 
-  async removePermissionCatalog(catalogId: number) {
-    return this.requestPayload(
-      { CatalogId: catalogId },
+  async removePermissionCatalog(request: AuthRemovePermissionCatalogRequest) {
+    return this.requestPayload<AuthRemovePermissionCatalogRequest, AuthRemovePermissionCatalogResponse>(
+      request,
       WfmCommand.AuthRemovePermissionCatalog,
     );
   }
 
-  async upsertPermission(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.AuthUpsertPermission);
+  async upsertPermission(request: AuthUpsertPermissionRequest) {
+    return this.requestPayload<AuthUpsertPermissionRequest, AuthUpsertPermissionResponse>(
+      request,
+      WfmCommand.AuthUpsertPermission,
+    );
   }
 
-  async removePermission(permissionId: number) {
-    return this.requestPayload(
-      { PermissionId: permissionId },
+  async removePermission(request: AuthRemovePermissionRequest) {
+    return this.requestPayload<AuthRemovePermissionRequest, AuthRemovePermissionResponse>(
+      request,
       WfmCommand.AuthRemovePermission,
     );
   }
 
   // --- System: Roles ---
 
-  async getRoles() {
-    return this.requestPayload<Record<string, never>, Record<string, unknown>>(
-      {},
-      WfmCommand.AuthGetRoles,
-    );
+  async getRoles(request: AuthGetRolesRequest = {}) {
+    return this.requestPayload<AuthGetRolesRequest, AuthGetRolesResponse>(request, WfmCommand.AuthGetRoles);
   }
 
-  async getRolePermissions(roleId: number) {
-    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      { RoleId: roleId },
+  async getRolePermissions(request: AuthGetRolePermissionsRequest) {
+    return this.requestPayload<AuthGetRolePermissionsRequest, AuthGetRolePermissionsResponse>(
+      request,
       WfmCommand.AuthGetRolePermissions,
     );
   }
 
-  async upsertRole(data: Record<string, unknown>) {
-    return this.requestPayload(data, WfmCommand.AuthUpsertRole);
+  async upsertRole(request: AuthUpsertRoleRequest) {
+    return this.requestPayload<AuthUpsertRoleRequest, AuthUpsertRoleResponse>(request, WfmCommand.AuthUpsertRole);
   }
 
-  async removeRole(roleId: number) {
-    return this.requestPayload(
-      { RoleId: roleId },
-      WfmCommand.AuthRemoveRole,
-    );
+  async removeRole(request: AuthRemoveRoleRequest) {
+    return this.requestPayload<AuthRemoveRoleRequest, AuthRemoveRoleResponse>(request, WfmCommand.AuthRemoveRole);
   }
 
-  async assignPermissionsToRole(roleId: number, permissionIds: number[]) {
-    return this.requestPayload(
-      { RoleId: roleId, PermissionIds: permissionIds },
+  async assignPermissionsToRole(request: AuthAssignPermissionsToRoleRequest) {
+    return this.requestPayload<AuthAssignPermissionsToRoleRequest, AuthAssignPermissionsToRoleResponse>(
+      request,
       WfmCommand.AuthAssignPermissionsToRole,
     );
   }
 
-  async denyPermissionsForRole(roleId: number, permissionIds: number[]) {
-    return this.requestPayload(
-      { RoleId: roleId, PermissionIds: permissionIds },
+  async denyPermissionsForRole(request: AuthDenyPermissionsForRoleRequest) {
+    return this.requestPayload<AuthDenyPermissionsForRoleRequest, AuthDenyPermissionsForRoleResponse>(
+      request,
       WfmCommand.AuthDenyPermissionsForRole,
     );
   }
 
-  async removePermissionsFromRole(roleId: number, permissionIds: number[]) {
-    return this.requestPayload(
-      { RoleId: roleId, PermissionIds: permissionIds },
+  async removePermissionsFromRole(request: AuthRemovePermissionsFromRoleRequest) {
+    return this.requestPayload<AuthRemovePermissionsFromRoleRequest, AuthRemovePermissionsFromRoleResponse>(
+      request,
       WfmCommand.AuthRemovePermissionsFromRole,
     );
   }
 
   // --- Configurator: Process Assembly ---
 
-  async getProcessAssembly(name: string) {
-    return this.requestPayload<{ Name: string }, GetProcessAssemblyResponse>(
-      { Name: name },
+  async getProcessAssembly(request: WfmProcessAssemblyGetRequest) {
+    return this.requestPayload<WfmProcessAssemblyGetRequest, WfmProcessAssemblyGetResponse>(
+      request,
       WfmCommand.GetProcessAssembly,
       "00:00:30",
     );
   }
 
-  async loadProcessAssembly(typeName: string) {
-    return this.requestPayload<{ TypeName: string }, GetProcessAssemblyResponse>(
-      { TypeName: typeName },
+  async loadProcessAssembly(request: WfmProcessAssemblyLoadRequest) {
+    return this.requestPayload<WfmProcessAssemblyLoadRequest, WfmProcessAssemblyLoadResponse>(
+      request,
       WfmCommand.LoadProcessAssembly,
       "00:00:30",
     );
   }
 
-  async createProcessAssembly(name: string, code: string, webData?: unknown) {
-    return this.requestPayload<Record<string, unknown>, CreateProcessAssemblyResponse>(
-      { Name: name, Code: code, ...(webData ? { WebData: webData } : {}) },
+  async createProcessAssembly(request: WfmProcessAssemblyCreateRequest) {
+    return this.requestPayload<WfmProcessAssemblyCreateRequest, WfmProcessAssemblyCreateResponse>(
+      request,
       WfmCommand.Create,
       "00:01:00",
       60_000,
     );
   }
 
-  async upsertProcessAssembly(
-    name: string,
-    category: string,
-    model: WebProcess | WebGlobalModel | unknown,
-    createNew: boolean,
-  ) {
-    return this.requestPayload<Record<string, unknown>, UpsertProcessAssemblyResponse>(
-      { Name: name, Category: category, Model: model, CreateNew: createNew },
+  async upsertProcessAssembly(request: WfmProcessAssemblyUpsertRequest) {
+    return this.requestPayload<WfmProcessAssemblyUpsertRequest, WfmProcessAssemblyUpsertResponse>(
+      request,
       WfmCommand.Upsert,
       "00:01:00",
       60_000,
@@ -623,9 +762,9 @@ export class HubWsApi {
    * доступные роли, уже назначенные, текущие Command/Result DTO и пр.
    * Порт `WfmService.getApiRelatedData` из old-admin.
    */
-  async getApiRelatedData(methodName: string): Promise<ApiRelatedData> {
-    return this.requestPayload<{ MethodName: string }, ApiRelatedData>(
-      { MethodName: methodName },
+  async getApiRelatedData(request: WfmProcessAssemblyGetApiRelatedDataRequest): Promise<ApiRelatedData> {
+    return this.requestPayload<WfmProcessAssemblyGetApiRelatedDataRequest, WfmProcessAssemblyGetApiRelatedDataResponse>(
+      request,
       WfmCommand.GetApiRelatedData,
       "00:00:30",
     );
@@ -636,108 +775,122 @@ export class HubWsApi {
    * handler-тип, SaveManual/SaveCompleted.
    * Порт `WfmService.upsertApi` из old-admin.
    */
-  async upsertApi(payload: ApiUpsertPayload): Promise<unknown> {
-    return this.requestPayload<ApiUpsertPayload, unknown>(
-      payload,
+  async upsertApi(request: WfmProcessAssemblyApiUpsertRequest): Promise<WfmProcessAssemblyApiUpsertResponse> {
+    return this.requestPayload<WfmProcessAssemblyApiUpsertRequest, WfmProcessAssemblyApiUpsertResponse>(
+      request,
       WfmCommand.ApiUpsert,
       "00:01:00",
       60_000,
     );
   }
 
-  async getProcessCode(process: WebProcess) {
-    return this.requestPayload<{ Process: WebProcess }, GetCodeResponse>(
-      { Process: process },
+  async getProcessCode(request: WfmProcessAssemblyGetCodeRequest) {
+    return this.requestPayload<WfmProcessAssemblyGetCodeRequest, WfmProcessAssemblyGetCodeResponse>(
+      request,
       WfmCommand.GetCode,
       "00:01:00",
       60_000,
     );
   }
 
-  async getProcessSource(name: string, branch?: string, origin: string = "git") {
-    return this.requestPayload<{ Name: string; Branch?: string; Origin?: string }, GetProcessSourceResponse>(
-      { Name: name, Branch: branch, Origin: origin },
+  async getProcessSource(request: WfmProcessAssemblyGetSourceRequest) {
+    return this.requestPayload<WfmProcessAssemblyGetSourceRequest, WfmProcessAssemblyGetSourceResponse>(
+      request,
       WfmCommand.GetProcessAssemblySource,
       "00:00:30",
     );
   }
 
-  async validateProcess(process: WebProcess) {
-    return this.requestPayload<{ Process: WebProcess }, ValidateProcessResponse>(
-      { Process: process },
+  async getProcessDTO(request: WfmProcessAssemblyGetDTORequest) {
+    return this.requestPayload<WfmProcessAssemblyGetDTORequest, WfmProcessAssemblyGetDTOResponse>(
+      request,
+      WfmCommand.GetDTO,
+      "00:00:30",
+    );
+  }
+
+  async getProcessDependencies(request: WfmProcessAssemblyGetDependenciesRequest) {
+    return this.requestPayload<WfmProcessAssemblyGetDependenciesRequest, WfmProcessAssemblyGetDependenciesResult>(
+      request,
+      WfmCommand.GetProcessDependencies,
+      "00:00:30",
+    );
+  }
+
+  async searchProcessesByDependency(request: WfmProcessAssemblySearchByDependencyRequest) {
+    return this.requestPayload<WfmProcessAssemblySearchByDependencyRequest, WfmProcessAssemblySearchByDependencyResult>(
+      request,
+      WfmCommand.SearchProcessesByDependency,
+      "00:00:30",
+    );
+  }
+
+  async validateProcess(request: WfmProcessAssemblyValidateRequest) {
+    return this.requestPayload<WfmProcessAssemblyValidateRequest, WfmProcessAssemblyValidateResponse>(
+      request,
       WfmCommand.Validate,
       "00:01:00",
       60_000,
     );
   }
 
-  async validateCode(code: string) {
-    return this.requestPayload<{ Code: string }, ValidateCodeResponse>(
-      { Code: code },
+  async validateCode(request: WfmProcessAssemblyValidateCodeRequest) {
+    return this.requestPayload<WfmProcessAssemblyValidateCodeRequest, WfmProcessAssemblyValidateCodeResponse>(
+      request,
       WfmCommand.ValidateCode,
       "00:00:30",
     );
   }
 
-  async formatCode(code: string) {
-    return this.requestPayload<{ Code: string }, FormatCodeResponse>(
-      { Code: code },
+  async formatCode(request: WfmProcessAssemblyFormatCodeRequest) {
+    return this.requestPayload<WfmProcessAssemblyFormatCodeRequest, WfmProcessAssemblyFormatCodeResponse>(
+      request,
       WfmCommand.FormatCode,
       "00:00:30",
     );
   }
 
-  async commitProcessAssembly(names: string[], message: string) {
-    return this.requestPayload<{ Names: string[]; Message: string }, CommitResponse>(
-      { Names: names, Message: message },
+  async commitProcessAssembly(request: WfmProcessAssemblyCommitRequest) {
+    return this.requestPayload<WfmProcessAssemblyCommitRequest, WfmProcessAssemblyCommitResponse>(
+      request,
       WfmCommand.Commit,
       "00:01:00",
       60_000,
     );
   }
 
-  async getChangedModels() {
-    return this.requestPayload<Record<string, never>, GetChangedModelsResponse>(
-      {},
+  async getChangedModels(request: WfmProcessAssemblyGetChangedModelsRequest = {}) {
+    return this.requestPayload<WfmProcessAssemblyGetChangedModelsRequest, WfmProcessAssemblyGetChangedModelsResponse>(
+      request,
       WfmCommand.GetChangedModels,
     );
   }
 
-  async removeDraft(typeName: string) {
-    return this.requestPayload<{ TypeName: string }, RemoveDraftResponse>(
-      { TypeName: typeName },
+  async removeDraft(request: WfmProcessAssemblyRemoveDraftRequest) {
+    return this.requestPayload<WfmProcessAssemblyRemoveDraftRequest, WfmProcessAssemblyRemoveDraftResponse>(
+      request,
       WfmCommand.RemoveDraft,
     );
   }
 
-  async getGlobalModels() {
-    return this.requestPayload<Record<string, never>, GetGlobalModelsResponse>(
-      {},
+  async getGlobalModels(request: WfmProcessAssemblyGetGlobalModelsRequest = {}) {
+    return this.requestPayload<WfmProcessAssemblyGetGlobalModelsRequest, WfmProcessAssemblyGetGlobalModelsResponse>(
+      request,
       WfmCommand.GetGlobalModels,
     );
   }
 
-  async addGlobalModel(model: WebGlobalModel, createNew: boolean) {
-    // Серверный контракт: { GlobalModel: WebGlobalModel, CreateNew: bool, Branch?: string }
-    // (см. WFM.Configurator.Handlers.AddGlobalsModelCommand). Плоская форма даёт NRE.
-    return this.requestPayload<
-      { GlobalModel: WebGlobalModel; CreateNew: boolean },
-      AddGlobalModelResponse
-    >(
-      { GlobalModel: model, CreateNew: createNew },
+  async addGlobalModel(request: WfmProcessAssemblyAddGlobalModelRequest) {
+    return this.requestPayload<WfmProcessAssemblyAddGlobalModelRequest, WfmProcessAssemblyAddGlobalModelResponse>(
+      request,
       WfmCommand.AddGlobalModel,
       "00:00:30",
     );
   }
 
-  async validateGlobalModel(model: WebGlobalModel) {
-    // Серверный контракт:
-    //   ValidateGlobalModelCommand { WebGlobalModel Model }
-    //   ValidateGlobalModelResult { DiagnosticModel[] Errors }
-    // Плоская форма `{ Code }` даёт NRE внутри хендлера
-    // (см. WFM.Configurator.Handlers.ProcessAssemblyValidateGlobalModelHandler).
-    return this.requestPayload<{ Model: WebGlobalModel }, ValidateCodeResponse>(
-      { Model: model },
+  async validateGlobalModel(request: WfmProcessAssemblyValidateGlobalModelRequest) {
+    return this.requestPayload<WfmProcessAssemblyValidateGlobalModelRequest, WfmProcessAssemblyValidateGlobalModelResponse>(
+      request,
       WfmCommand.ValidateGlobalModel,
       "00:00:30",
     );
@@ -745,41 +898,41 @@ export class HubWsApi {
 
   // --- Configurator: Branch ---
 
-  async loadBranch(repoUrl: string, branch: string, subPath?: string, force?: boolean) {
-    return this.requestPayload<Record<string, unknown>, LoadBranchResponse>(
-      { RepoUrl: repoUrl, Branch: branch, ...(subPath ? { SubPath: subPath } : {}), Force: force ?? false },
+  async loadBranch(request: WfmConfiguratorLoadBranchRequest) {
+    return this.requestPayload<WfmConfiguratorLoadBranchRequest, WfmConfiguratorLoadBranchResponse>(
+      request,
       WfmCommand.LoadBranch,
       "00:02:00",
       120_000,
     );
   }
 
-  async refreshBranch() {
-    return this.requestPayload<Record<string, never>, LoadBranchResponse>(
-      {},
+  async refreshBranch(request: WfmConfiguratorRefreshBranchRequest = {}) {
+    return this.requestPayload<WfmConfiguratorRefreshBranchRequest, WfmConfiguratorRefreshBranchResponse>(
+      request,
       WfmCommand.RefreshBranch,
       "00:02:00",
       120_000,
     );
   }
 
-  async unloadBranch(includeDrafts?: boolean) {
-    return this.requestPayload<Record<string, unknown>, Record<string, unknown>>(
-      { IncludeDrafts: includeDrafts ?? false },
+  async unloadBranch(request: WfmConfiguratorUnloadBranchRequest) {
+    return this.requestPayload<WfmConfiguratorUnloadBranchRequest, WfmConfiguratorUnloadBranchResponse>(
+      request,
       WfmCommand.UnloadBranch,
     );
   }
 
-  async executeProcess(processName: string, initialData: unknown) {
+  async executeProcess(request: WfmExecuteProcessRequest) {
     const adp = await this.resolveWfmExecuteAdapter();
     const body = JSON.stringify({
-      ProcessName: processName,
-      InitialData: initialData ?? {},
-      SaveCompleted: true,
-      SaveManual: true,
+      ProcessName: request.ProcessName,
+      InitialData: request.InitialData ?? {},
+      SaveCompleted: request.SaveCompleted ?? true,
+      SaveManual: request.SaveManual ?? true,
     });
-    return this.sendRawCommand(
-      {
+    return this.sendRawCommand({
+      Envelope: {
         Level: adp.Level,
         AdapterName: adp.AdapterName,
         AdapterType: adp.AdapterType,
@@ -788,14 +941,14 @@ export class HubWsApi {
         CreateNewSession: true,
         Ttl: "00:02:00",
       },
-      body,
-      "00:02:00",
-    );
+      CommandBody: body,
+      TtlOverride: "00:02:00",
+    });
   }
 
   private async resolveWfmExecuteAdapter(): Promise<ExecuteAdapter> {
     if (this.wfmExecuteAdapter) return this.wfmExecuteAdapter;
-    const info = await this.getAdaptersInfo();
+    const info = await this.getAdaptersInfo({});
     let found: ExecuteAdapter | null = null;
     const walk = (nodes: AdapterTreeNode[]) => {
       for (const n of nodes) {
@@ -819,18 +972,18 @@ export class HubWsApi {
     return found;
   }
 
-  private async requestPayload<TRequest, TResponse>(
+  private async requestPayload<TRequest, TResponse extends object>(
     payload: TRequest,
     type: string,
     ttl?: string,
     timeout?: number,
   ): Promise<TResponse> {
-    const response = await this.ws.sendRequest(payload, type, {
+    const response = await this.ws.sendRequest<TRequest, TResponse>(payload, type, {
       ttl: ttl ?? "00:00:45",
       priority: "Normal",
       timeoutMs: timeout ?? 10_000,
     });
-    return response.Payload as TResponse;
+    return response.Payload;
   }
 }
 

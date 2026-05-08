@@ -23,6 +23,9 @@ export interface StageNodeData {
   onDelete?: (name: string) => void;
   onLineSettings?: (name: string) => void;
   onOpenSubProcess?: (processName: string) => void;
+  dependencyName?: string;
+  dependencyType?: string;
+  onFindUsages?: (depType: string, depName: string) => void;
   [key: string]: unknown;
 }
 
@@ -63,10 +66,18 @@ const StageNode = memo(function StageNode({ data, selected }: NodeProps<StageNod
     setMenuOpen((v) => !v);
   }, []);
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuPos({ x: e.clientX, y: e.clientY });
+    setMenuOpen(true);
+  }, []);
+
   const hasLines = data.returnStages && data.returnStages.length > 0;
 
   return (
     <div
+      onContextMenu={handleContextMenu}
       style={{
         background: "var(--color-sidebar, #1e1e1e)",
         border: `3px solid ${selected ? "var(--color-accent)" : data.color}`,
@@ -148,6 +159,30 @@ const StageNode = memo(function StageNode({ data, selected }: NodeProps<StageNod
               }}
             >
               Edit Sub Process
+            </button>
+          )}
+          {data.onFindUsages && (
+            <button
+              style={{
+                ...ctxItemStyle,
+                opacity: data.dependencyName ? 1 : 0.4,
+                cursor: data.dependencyName ? "pointer" : "not-allowed",
+              }}
+              disabled={!data.dependencyName}
+              title={
+                data.dependencyName
+                  ? `Find usages of "${data.dependencyName}"`
+                  : "No dependency name extracted for this stage"
+              }
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                if (data.dependencyType && data.dependencyName) {
+                  data.onFindUsages?.(data.dependencyType, data.dependencyName);
+                }
+              }}
+            >
+              Find Usages
             </button>
           )}
           <button

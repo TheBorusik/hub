@@ -48,7 +48,7 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
     async (preserveSelection = false, selectAfterLoad?: { Category: string; TypeName: string }) => {
       setLoading(true);
       try {
-        const res = await api.getGlobalModels();
+        const res = await api.getGlobalModels({});
         const list = res.GlobalModels ?? [];
         setModels(list);
         const snaps: Record<string, string> = {};
@@ -111,9 +111,7 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
       // Серверу нужен весь `WebGlobalModel` (Category+TypeName+Code), а не только код,
       // иначе `ValidateGlobalModelCommand.Model` == null → NRE в хендлере.
       const res = await api.validateGlobalModel({
-        Category: selected.Category,
-        TypeName: selected.TypeName,
-        Code: selected.Code ?? "",
+        Model: selected
       });
       setDiagnostics((res.Errors ?? []).map(toDiagnostic));
       if (!res.Errors || res.Errors.length === 0) {
@@ -132,7 +130,7 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
     if (!selected) return;
     setBusy("formatting");
     try {
-      const res = await api.formatCode(selected.Code ?? "");
+      const res = await api.formatCode({ Code: selected.Code ?? "" });
       updateSelectedCode(res.Code ?? selected.Code ?? "");
     } catch (e) {
       toast.push("error", "Format failed", { detail: String(e) });
@@ -145,10 +143,10 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
     if (!selected) return;
     setBusy("saving");
     try {
-      const res = await api.addGlobalModel(
-        { Category: selected.Category, TypeName: selected.TypeName, Code: selected.Code ?? "" },
-        false,
-      );
+      const res = await api.addGlobalModel({
+        GlobalModel: selected,
+        CreateNew: false,
+      });
       const errs = (res?.Errors ?? []).map(toDiagnostic);
       setDiagnostics(errs);
       if (errs.length === 0) {
@@ -171,7 +169,7 @@ export function GlobalModelsPanel({ api }: GlobalModelsPanelProps) {
       if (!selected) return;
       setBusy("committing");
       try {
-        const res = await api.commitProcessAssembly([selected.TypeName], message);
+        const res = await api.commitProcessAssembly({ Names: [selected.TypeName], Message: message });
         toast.push("success", `Committed ${res.CommitHash?.slice(0, 8) ?? ""}`.trim(), {
           detail: (res.Names ?? []).join(", "),
           duration: 2500,

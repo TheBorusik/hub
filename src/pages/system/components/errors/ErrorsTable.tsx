@@ -34,13 +34,17 @@ export function ErrorsTable({ errorType }: ErrorsTableProps) {
     if (!api) return;
     if (!timestamp) setLoading(true);
     try {
-      const res = await api.getErrors(errorType, timestamp, 100);
-      const list = (res as Record<string, unknown>).ErrorOperations;
+      const res = await api.getErrors({
+        Channel: errorType,
+        ...(timestamp ? { TimeStamp: timestamp } : {}),
+        Count: 100,
+      });
+      const list = res.ErrorOperations;
       if (Array.isArray(list)) {
         if (timestamp) {
-          setRows((prev) => [...prev, ...(list as ErrorOperation[])]);
+          setRows((prev) => [...prev, ...(list as unknown as ErrorOperation[])]);
         } else {
-          setRows(list as ErrorOperation[]);
+          setRows(list as unknown as ErrorOperation[]);
         }
       }
     } catch { if (!timestamp) setRows([]); }
@@ -61,7 +65,7 @@ export function ErrorsTable({ errorType }: ErrorsTableProps) {
 
   const handleDeleteSelected = async () => {
     if (!api || selected.size === 0) return;
-    await api.deleteNotHandled(Array.from(selected));
+    await api.deleteNotHandled({ CorrelationIds: Array.from(selected) });
     setSelected(new Set());
     load();
   };

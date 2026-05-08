@@ -133,6 +133,9 @@ export function getStageContextButtons(stage: StageData): StageContextButton[] {
       if (stage.Type === "SubStart") {
         buttons.push({ label: "InitObject", subject: "InitObject", stageIndex: si });
       }
+      else {
+        buttons.push({ label: "Command", subject: "Command", stageIndex: si });
+      }
       if (ri) buttons.push({ label: "Result", subject: "Result", stageIndex: ri });
       break;
     case "Command":

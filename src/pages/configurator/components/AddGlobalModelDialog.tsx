@@ -41,7 +41,10 @@ export function AddGlobalModelDialog({
     if (!canSave) return;
     setSaving(true);
     try {
-      await api.addGlobalModel({ Category: category, TypeName: trimmed, Code: "" }, true);
+      await api.addGlobalModel({
+        GlobalModel: { Category: category, TypeName: trimmed, Code: "" },
+        CreateNew: true,
+      });
       onAdded({ Category: category, TypeName: trimmed });
     } catch (e) {
       toast.push("error", "Add failed", { detail: String(e) });

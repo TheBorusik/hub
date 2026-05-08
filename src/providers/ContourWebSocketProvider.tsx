@@ -19,17 +19,14 @@ export function ContourWebSocketProvider({ contour, children }: Props) {
   const wsOptions = useMemo(
     () => ({
       consoleDebug: import.meta.env.DEV,
+      heartbeat: { intervalMs: 25000, timeoutMs: 10000 },
     }),
     [],
   );
 
-  if (!contour.wsUrl) {
-    return <>{children}</>;
-  }
-
   return (
     <WebSocketProvider
-      url={contour.wsUrl}
+      url={contour.wsUrl || ""}
       session={session}
       wsOptions={wsOptions}
     >

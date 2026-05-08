@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Play, Loader2, Trash2, ExternalLink } from "lucide-react";
 import { Group, Panel } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
@@ -59,6 +59,27 @@ export function RunProcessPanel({ api, processName }: RunProcessPanelProps) {
   const [running, setRunning] = useState(false);
   const [history, setHistory] = useState<RunEntry[]>([]);
   const [selectedRun, setSelectedRun] = useState<RunEntry | null>(null);
+  const [templateLoading, setTemplateLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setInitData("{}");
+    setTemplateLoading(true);
+    api.getProcessDTO({ Name: processName })
+      .then((dto) => {
+        if (cancelled) return;
+        if (dto.InitialDataTemplate) {
+          setInitData(JSON.stringify(dto.InitialDataTemplate, null, 2));
+        }
+      })
+      .catch(() => {
+        /* ignore — fallback to empty {} */
+      })
+      .finally(() => {
+        if (!cancelled) setTemplateLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [api, processName]);
 
   const handleRun = useCallback(async () => {
     setRunning(true);
@@ -66,7 +87,7 @@ export function RunProcessPanel({ api, processName }: RunProcessPanelProps) {
     try {
       let parsed: unknown = {};
       try { parsed = JSON.parse(initData); } catch { /* use empty */ }
-      const raw = await api.executeProcess(processName, parsed);
+      const raw = await api.executeProcess({ ProcessName: processName, InitialData: parsed });
       const wrapper = raw as Record<string, unknown> | null;
       const commandResult = (wrapper?.CommandResult ?? wrapper) as Record<string, unknown> | null;
       const processResult = commandResult?.ProcessResult ?? commandResult?.Result ?? commandResult;
@@ -126,11 +147,13 @@ export function RunProcessPanel({ api, processName }: RunProcessPanelProps) {
 
   const clearHistory = () => { setHistory([]); setSelectedRun(null); };
 
-  const resultText = selectedRun
-    ? selectedRun.error
-      ? `Error: ${selectedRun.error}`
-      : JSON.stringify(selectedRun.result, null, 2)
-    : "";
+  // const resultText = selectedRun
+  //   ? selectedRun.error
+  //     ? selectedRun.error 
+  //     : 
+  //   : "";
+
+  const resultText = selectedRun ? JSON.stringify(selectedRun.result, null, 2) : "";
 
   return (
     <Group orientation="vertical" id="run-process">
@@ -144,15 +167,28 @@ export function RunProcessPanel({ api, processName }: RunProcessPanelProps) {
               </span>
             }
             right={
-              <Button
-                size="sm"
-                variant="primary"
-                icon={running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-                onClick={handleRun}
-                disabled={running}
-              >
-                {running ? "Running..." : "Run"}
-              </Button>
+              <>
+                {templateLoading && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      color: tok.color.text.muted,
+                      marginRight: tok.space[3],
+                    }}
+                  >
+                    Loading template…
+                  </span>
+                )}
+                <Button
+                  size="sm"
+                  variant="primary"
+                  icon={running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                  onClick={handleRun}
+                  disabled={running}
+                >
+                  {running ? "Running..." : "Run"}
+                </Button>
+              </>
             }
           />
           <div className="flex-1 min-h-0">
@@ -240,7 +276,6 @@ export function RunProcessPanel({ api, processName }: RunProcessPanelProps) {
           <div className="flex-1 min-h-0">
             <JsonEditor
               value={resultText}
-              readOnly
               label=""
             />
           </div>

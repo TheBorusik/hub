@@ -8,10 +8,10 @@ import type { OpenTab } from "./ConfigTabContent";
  */
 export interface ConfigurationWorkspaceState {
   openTabs: OpenTab[];
-  activeTabId: number | null;
-  dirtyTabs: Set<number>;
+  activeTabId: string | null;
+  dirtyTabs: Set<string>;
   /** Выбранная секция для каждого открытого configId; отсутствие ключа трактуем как null. */
-  sectionSelection: Record<number, number | null>;
+  sectionSelection: Record<string, string | null>;
 }
 
 export const configurationWorkspaceInitialState: ConfigurationWorkspaceState = {
@@ -23,10 +23,10 @@ export const configurationWorkspaceInitialState: ConfigurationWorkspaceState = {
 
 export type ConfigurationWorkspaceAction =
   | { type: "TAB_OPEN_OR_FOCUS"; config: AdapterConfiguration }
-  | { type: "TAB_CLOSE"; configId: number }
-  | { type: "TAB_SELECT"; configId: number }
-  | { type: "TAB_SECTION"; configId: number; sectionId: number | null }
-  | { type: "TAB_DIRTY"; configId: number; dirty: boolean };
+  | { type: "TAB_CLOSE"; configId: string }
+  | { type: "TAB_SELECT"; configId: string }
+  | { type: "TAB_SECTION"; configId: string; sectionId: string | null }
+  | { type: "TAB_DIRTY"; configId: string; dirty: boolean };
 
 export function configurationWorkspaceReducer(
   state: ConfigurationWorkspaceState,

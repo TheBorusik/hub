@@ -45,7 +45,12 @@ export function StageContextPanel({
     if (!api) return;
     setLoading(true);
     try {
-      const result = await api.getStageContext(processId, stageIndex, activeSubject, TAB_MAP[viewerTab]);
+      const result = await api.getStageContext({
+        ProcessId: processId,
+        StageIndex: stageIndex,
+        Subject: activeSubject,
+        Tab: TAB_MAP[viewerTab],
+      });
       setData(result.Data != null ? JSON.stringify(result.Data, null, 2) : "null");
     } catch (err) {
       setData(`// Error loading context:\n// ${err instanceof Error ? err.message : String(err)}`);

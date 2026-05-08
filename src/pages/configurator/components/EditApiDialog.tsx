@@ -172,7 +172,7 @@ export function EditApiDialog({
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
-    api.getApiRelatedData(processName)
+    api.getApiRelatedData({ MethodName: processName })
       .then((data) => {
         if (cancelled) return;
         console.debug("[EditApiDialog] getApiRelatedData response:", data);

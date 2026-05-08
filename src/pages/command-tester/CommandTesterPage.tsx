@@ -39,6 +39,11 @@ interface CommandTab {
   sending: boolean;
 }
 
+function getTabId(cmd: SelectedCommand): string {
+  const d = cmd.data;
+  return `${d.AdapterName}:${d.AdapterType}:${d.Level}:${d.CommandName}`;
+}
+
 export function CommandTesterPage() {
   const api = useContourApi();
 
@@ -47,7 +52,7 @@ export function CommandTesterPage() {
   const [requestDataCollapsed, setRequestDataCollapsed] = useState(false);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<OverlayMode>("none");
-  const [showTestCases, setShowTestCases] = useState(false);
+  const [showTestCases, setShowTestCases] = useState(true);
 
   const [ttl, setTtl] = useState("00:00:15");
   const [createNewSession, setCreateNewSession] = useState(true);
@@ -119,7 +124,7 @@ export function CommandTesterPage() {
     async (cmd: SelectedCommand): Promise<TestCaseModel[]> => {
       if (!api) return [{ Name: "DEFAULT", Case: JSON.parse(cmd.json || "{}") }];
       try {
-        const data = await api.getCommandTestCases(cmd.data.CommandName);
+        const data = await api.getCommandTestCases({ CommandName: cmd.data.CommandName });
         const serverCases = data.TestCases ?? [];
         return [...serverCases, { Name: "DEFAULT", Case: JSON.parse(cmd.json || "{}") }];
       } catch {
@@ -131,7 +136,9 @@ export function CommandTesterPage() {
 
   const handleSelectCommand = useCallback(
     async (cmd: SelectedCommand) => {
-      const existing = tabs.find((t) => t.command.key === cmd.key);
+      const tabId = getTabId(cmd);
+
+      const existing = tabs.find((t) => t.id === tabId);
       if (existing) {
         setActiveTabId(existing.id);
         return;
@@ -139,7 +146,7 @@ export function CommandTesterPage() {
 
       const fields = getSessionFieldsForCommand(cmd.data.CommandName, addApiMethod, sessionFields);
       const cases = await loadTestCases(cmd);
-      const id = cmd.key;
+      const id = tabId;
 
       const newTab: CommandTab = {
         id,
@@ -196,11 +203,11 @@ export function CommandTesterPage() {
         return;
       }
 
-      const response = await api.sendRawCommand(
-        parsedData,
-        activeTab.requestJson,
-        String(parsedData.Ttl ?? ttl),
-      );
+      const response = await api.sendRawCommand({
+        Envelope: parsedData,
+        CommandBody: activeTab.requestJson,
+        TtlOverride: String(parsedData.Ttl ?? ttl),
+      });
 
       if (abort.signal.aborted) return;
 
@@ -241,12 +248,18 @@ export function CommandTesterPage() {
     async (name: string, description: string) => {
       if (!api || !activeTab) return;
       try {
-        await api.addCommandTestCase(
-          activeTab.command.data.CommandName,
-          name,
-          description,
-          activeTab.requestJson,
-        );
+        let caseObj: Record<string, unknown>;
+        try {
+          caseObj = JSON.parse(activeTab.requestJson) as Record<string, unknown>;
+        } catch {
+          caseObj = {};
+        }
+        await api.addCommandTestCase({
+          CommandName: activeTab.command.data.CommandName,
+          Name: name,
+          Description: description,
+          Case: caseObj,
+        });
         const cases = await loadTestCases(activeTab.command);
         updateTab(activeTab.id, { caseName: name, cases });
         setOverlay("none");
@@ -260,7 +273,18 @@ export function CommandTesterPage() {
     const { caseName } = activeTab;
     if (!caseName || caseName === "DEFAULT" || caseName === "CURRENT") return;
     try {
-      await api.addCommandTestCase(activeTab.command.data.CommandName, caseName, "", activeTab.requestJson);
+      let caseObj: Record<string, unknown>;
+      try {
+        caseObj = JSON.parse(activeTab.requestJson) as Record<string, unknown>;
+      } catch {
+        caseObj = {};
+      }
+      await api.addCommandTestCase({
+        CommandName: activeTab.command.data.CommandName,
+        Name: caseName,
+        Description: "",
+        Case: caseObj,
+      });
       const cases = await loadTestCases(activeTab.command);
       updateTab(activeTab.id, { cases });
     } catch { /* ignore */ }
@@ -270,7 +294,10 @@ export function CommandTesterPage() {
     async (tc: TestCaseModel) => {
       if (!api || !activeTab) return;
       try {
-        await api.removeCommandTestCase(activeTab.command.data.CommandName, tc.Name);
+        await api.removeCommandTestCase({
+          CommandName: activeTab.command.data.CommandName,
+          Name: tc.Name,
+        });
         const cases = await loadTestCases(activeTab.command);
         updateTab(activeTab.id, { cases });
       } catch { /* ignore */ }

@@ -4,7 +4,7 @@ import { useContourApi } from "@/lib/ws-api";
 import type { AdapterConfiguration, AdapterType } from "../../types";
 
 export interface PickedConfig {
-  configurationId: number;
+  configurationId: string;
   name: string;
   adapterType: string;
 }
@@ -35,9 +35,8 @@ export function ConfigPicker({ api, onPick, picked }: ConfigPickerProps) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.getAdapterTypes();
-        const list = (res as Record<string, unknown>).AdapterTypes;
-        if (!cancelled) setAdapterTypes(Array.isArray(list) ? (list as AdapterType[]) : []);
+        const res = await api.getAdapterTypes({});
+        if (!cancelled) setAdapterTypes(res.AdapterTypes);
       } catch {
         if (!cancelled) setAdapterTypes([]);
       } finally {
@@ -53,8 +52,8 @@ export function ConfigPicker({ api, onPick, picked }: ConfigPickerProps) {
     if (!api) return;
     setLoadingConfigs((p) => new Set(p).add(at));
     try {
-      const res = await api.getAdapterConfigurations(at);
-      const list = (res as Record<string, unknown>).Configurations;
+      const res = await api.getAdapterConfigurations({ AdapterType: at });
+      const list = res.Configurations;
       setConfigsByType((prev) => ({
         ...prev,
         [at]: Array.isArray(list) ? (list as AdapterConfiguration[]) : [],

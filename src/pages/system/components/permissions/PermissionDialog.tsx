@@ -26,7 +26,7 @@ function isCatalogNode(n: PermissionTreeNode): boolean {
 export function PermissionDialog({ mode, editing, parentCatalogId, catalogId: propCatalogId, api, onClose, onDone }: PermissionDialogProps) {
   const [name, setName] = useState(editing?.Name ?? "");
   const [desc, setDesc] = useState(editing?.Description ?? "");
-  const [strId] = useState(editing?.StrId ?? "");
+  // const [strId] = useState(editing?.StrId ?? "");
   const [selectedCatalogId, setSelectedCatalogId] = useState<number | null>(
     editing?.CatalogId ?? (mode === "catalog" ? (parentCatalogId ?? null) : (propCatalogId ?? null)),
   );
@@ -40,7 +40,7 @@ export function PermissionDialog({ mode, editing, parentCatalogId, catalogId: pr
 
   useEffect(() => {
     if (isNewPermission && permId === "") {
-      api.getPermissionId().then((res) => setPermId(res.Id)).catch(() => {});
+      api.getPermissionId({}).then((res) => setPermId(res.Id)).catch(() => {});
     }
   }, [isNewPermission, permId, api]);
 
@@ -62,8 +62,8 @@ export function PermissionDialog({ mode, editing, parentCatalogId, catalogId: pr
           ApiPath: apiPath ? apiPath.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
         };
         await api.upsertPermission({
-          PermissionId: permId || undefined,
-          StrId: strId || undefined,
+          PermissionId: typeof permId === "number" ? permId : undefined,
+          StrId: name.trim(),
           Name: name.trim(),
           Description: desc,
           CatalogId: selectedCatalogId ?? undefined,
@@ -185,8 +185,8 @@ function CatalogPicker({ api, selectedId, onSelect, excludeCatalogId, isCatalogM
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.getPermissionTree();
-        const list = (res as Record<string, unknown>).PermissionTree;
+        const res = await api.getPermissionTree({});
+        const list = res.PermissionTree;
         if (!cancelled && Array.isArray(list)) {
           const catalogs = extractCatalogs(list as PermissionTreeNode[]);
           setTree(catalogs);

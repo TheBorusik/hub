@@ -115,11 +115,11 @@ export function StagePropertiesRow({
 
   const handleProcessSelect = useCallback(
     (processName: string) => {
-      const proc = allModels.find((m) => m.Name === processName);
+      const proc = allModels.find((m) => m.Name === processName || m.TypeName === processName);
       const newProps = {
         ...stage.Properties,
-        ProcessName: processName,
-        ProcessTypeName: proc?.TypeName ?? "",
+        ProcessName: proc?.Name ?? processName,
+        ProcessTypeName: proc?.TypeName ?? processName,
       };
       onUpdate({ ...stage, Properties: newProps });
     },
@@ -127,6 +127,17 @@ export function StagePropertiesRow({
   );
 
   const subProcessName = (stage.Properties?.ProcessName ?? "").trim();
+  const subProcessTypeName = (stage.Properties?.ProcessTypeName ?? "").trim();
+
+  /** Отображаемое имя: Name (с точками) если есть, иначе ищем в allModels по TypeName */
+  const subProcessDisplayName = useMemo(() => {
+    if (subProcessName) return subProcessName;
+    if (subProcessTypeName) {
+      const proc = allModels.find((m) => m.TypeName === subProcessTypeName);
+      return proc?.Name ?? subProcessTypeName;
+    }
+    return "";
+  }, [subProcessName, subProcessTypeName, allModels]);
 
   if (!isCrud && !isCommand && !isSub && !isEvent) return null;
 
@@ -155,7 +166,7 @@ export function StagePropertiesRow({
           <div style={{ flex: 1, minWidth: 0 }}>
             <AutocompleteInput
               label="Process Name"
-              value={stage.Properties?.ProcessName ?? ""}
+              value={subProcessDisplayName}
               options={processOptions}
               onChange={handleProcessSelect}
               placeholder="Search process..."
@@ -169,15 +180,16 @@ export function StagePropertiesRow({
                 : "Enter or select a process name first"
             }
             onClick={() => {
-              if (!subProcessName) {
+              const target = subProcessTypeName || subProcessName;
+              if (!target) {
                 toast.push("warning", "Process Name is empty", {
                   detail: "Enter or select a sub-process first.",
                 });
                 return;
               }
-              onOpenSubProcess?.(subProcessName);
+              onOpenSubProcess?.(target);
             }}
-            disabled={!subProcessName || !onOpenSubProcess}
+            disabled={!(subProcessTypeName || subProcessName) || !onOpenSubProcess}
             style={{
               display: "flex",
               alignItems: "center",

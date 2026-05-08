@@ -27,12 +27,12 @@ export function DiffView({ api, process }: DiffViewProps) {
     (async () => {
       try {
         const [src, code] = await Promise.all([
-          api.getProcessSource(process.TypeName, undefined, "git").catch(() => ({
+          api.getProcessSource({ Name: process.TypeName, Origin: "git" }).catch(() => ({
             SourceCs: "",
             Origin: "git" as string | undefined,
             Exists: false,
           })),
-          api.getProcessCode(process),
+          api.getProcessCode({ Process: process }),
         ]);
 
         setOriginal(src.SourceCs ?? "");

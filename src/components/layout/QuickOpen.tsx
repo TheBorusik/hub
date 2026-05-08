@@ -62,11 +62,11 @@ export function QuickOpen() {
     if (!api) return;
     setLoading(true);
     setError(null);
-    api.getProcessTree()
+    api.getProcessTree({})
       .then((res) => setModels(res.ProcessModels ?? []))
       .catch(() => {
         // Fallback на getProcessModels (как и в ConfiguratorPage).
-        return api.getProcessModels()
+        return api.getProcessModels({})
           .then((r) => setModels(r.Models ?? []))
           .catch((e) => {
             setError(e instanceof Error ? e.message : String(e));
@@ -81,7 +81,7 @@ export function QuickOpen() {
     if (!api || loading) return;
     setLoading(true);
     setError(null);
-    api.getProcessTree()
+    api.getProcessTree({})
       .then((res) => setModels(res.ProcessModels ?? []))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));

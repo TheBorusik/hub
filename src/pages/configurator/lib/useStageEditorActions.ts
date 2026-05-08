@@ -42,7 +42,7 @@ export function useStageEditorActions({
     () => ({
       onFormat: async (code: string) => {
         try {
-          const resp = await api.formatCode(code);
+          const resp = await api.formatCode({ Code: code });
           return resp?.Code ?? null;
         } catch (e) {
           console.error("FormatCode failed", e);
@@ -62,7 +62,10 @@ export function useStageEditorActions({
           return;
         }
         try {
-          const raw = await api.executeProcess("System.WFM.CRUD.GetProperties", { Model: model });
+          const raw = await api.executeProcess({
+            ProcessName: "System.WFM.CRUD.GetProperties",
+            InitialData: { Model: model },
+          });
           const result = extractProcessResult(raw);
           const config = result?.Config as Record<string, unknown> | undefined;
           if (!config) {
@@ -92,8 +95,9 @@ export function useStageEditorActions({
           return;
         }
         try {
-          const raw = await api.executeProcess("System.WFM.Process.GetInitObjectStructure", {
-            ProcessTypeName: processTypeName,
+          const raw = await api.executeProcess({
+            ProcessName: "System.WFM.Process.GetInitObjectStructure",
+            InitialData: { ProcessTypeName: processTypeName },
           });
           const result = extractProcessResult(raw);
           const text = (result?.InitObjectStructure as string | undefined) ?? "";

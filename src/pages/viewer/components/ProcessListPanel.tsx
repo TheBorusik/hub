@@ -70,7 +70,12 @@ export function ProcessListPanel({
           ? processes[processes.length - 1].ProcessId
           : undefined;
         const serverFilters = buildServerFilters(appliedFilters, tab);
-        const result = await api.getProcesses(tab, PAGE_SIZE, startId, serverFilters);
+        const result = await api.getProcesses({
+          Tab: tab,
+          Count: PAGE_SIZE,
+          StartProcessId: startId,
+          Filters: serverFilters,
+        });
         const list = (result.Processes ?? []) as ViewerProcessRow[];
         setProcesses((prev) => (append ? [...prev, ...list] : list));
         setTotalCount(result.TotalCount ?? list.length);
@@ -128,8 +133,8 @@ export function ProcessListPanel({
     const direction = activeTab === "completed" ? "from-completed" : "to-completed";
     try {
       const response = direction === "from-completed"
-        ? await api.moveFromCompleted(ids)
-        : await api.moveToCompleted(ids);
+        ? await api.moveFromCompleted({ ProcessIds: ids })
+        : await api.moveToCompleted({ ProcessIds: ids });
 
       const statuses = response?.MoveStatus ?? [];
       const failed = statuses.filter((s) => s.ErrorCode);
@@ -172,7 +177,7 @@ export function ProcessListPanel({
       tone: "danger",
       async onConfirm() {
         if (!api) return;
-        const response = await api.deleteProcesses(ids);
+        const response = await api.deleteProcesses({ ProcessIds: ids });
         const results = response?.Results ?? [];
         const okIds = results.filter((r) => r.Deleted).map((r) => r.ProcessId);
         const failed = results.filter((r) => !r.Deleted);

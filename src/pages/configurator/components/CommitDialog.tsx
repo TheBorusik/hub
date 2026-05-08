@@ -25,7 +25,7 @@ export function CommitDialog({ api, onClose, onCommitted }: CommitDialogProps) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.getChangedModels();
+        const res = await api.getChangedModels({});
         const changed = res.Models ?? [];
         setModels(changed);
         setSelected(new Set(changed.map((m) => m.TypeName)));
@@ -61,7 +61,7 @@ export function CommitDialog({ api, onClose, onCommitted }: CommitDialogProps) {
     if (selected.size === 0) return;
     setCommitting(true);
     try {
-      const res = await api.commitProcessAssembly(Array.from(selected), message);
+      const res = await api.commitProcessAssembly({ Names: Array.from(selected), Message: message });
       setResult({ hash: res.CommitHash, names: res.Names });
       setTimeout(() => onCommitted(), 2000);
     } catch (e) {
